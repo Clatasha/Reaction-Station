@@ -36,7 +36,7 @@ Die Bildschirmaufnahme läuft über ein natives, in Swift geschriebenes Helferpr
 
 - **Ein Bildschirm oder ein Fenster.** Wähle die Quelle im Rekorder. Er nimmt mit 60 fps auf, bis zu 3840×2160. Zuschneiden kannst du das Bild danach im Editor.
 - **Eine Datei, die einen Absturz übersteht.** Das Helferprogramm kodiert H.264 mit AVAssetWriter in ein fragmentiertes MP4, ein Fragment pro Sekunde. Wird der Rekorder mittendrin beendet, spielt die Datei trotzdem bis zum letzten vollständigen Fragment ab.
-- **Systemton.** ScreenCaptureKit nimmt auf, was der Mac abspielt, und OpenScreens eigene Töne bleiben außen vor. Ab macOS 14.2 fragt dich das System, ob du die Audioaufnahme erlaubst.
+- **Systemton.** OpenScreen nimmt auf, was der Mac abspielt. Ab macOS 15.2 fragt dich das System, ob du das erlaubst; in älteren Versionen deckt die Berechtigung „Bildschirmaufnahme“ das ab.
 - **Mikrofon.** Wähle das Gerät und behalte den fünfstufigen Pegelmesser in der Aufnahmesteuerung im Blick.
 - **Ein bearbeitbarer Cursor.** Standardmäßig bleibt der Systemzeiger aus den Pixeln heraus und wird als Daten aufgezeichnet. Nach der Aufnahme kannst du seine Größe, Glättung und sein Theme ändern und einen Klick-Bounce hinzufügen. Ein Umschalter wechselt zum Systemcursor, der in das Bild eingebrannt wird.
 - **Webcam.** Die Kamera wird während der Aufnahme in eine eigene Datei aufgenommen. Der Editor platziert sie als Bild-im-Bild, einen vertikalen Stapel oder einen Doppelrahmen und kann ihren Hintergrund entfernen, verwischen oder ersetzen, ohne Greenscreen. Die App unterstützt Continuity Camera, Apples Funktion, mit der ein iPhone als Webcam dient.
@@ -65,7 +65,7 @@ Wie OpenScreens Export-Geschwindigkeit im Vergleich zu anderen Tools gemessen wu
 ## Erste Schritte {#getting-started}
 
 1. Lade die `.dmg` für Apple Silicon oder Intel von der [Download-Seite](/download/) herunter, etwa 210 MB, und ziehe OpenScreen in den Ordner „Programme“. Der Build ist signiert und notarisiert, ein Terminal-Schritt ist nicht nötig.
-2. Erteile OpenScreen in **Systemeinstellungen → Datenschutz & Sicherheit** die Berechtigungen **Bildschirmaufnahme** und **Bedienungshilfen**. Die [Installationsanleitung](/docs/installation/#macos) erklärt beide.
+2. Erteile die Berechtigungen im Fenster, das sich beim ersten Start öffnet. Die [Installationsanleitung](/docs/installation/#macos) erklärt, was jede macOS-Version abfragt.
 3. Mach eine erste Aufnahme mit dem [Schnellstart](/docs/quick-start/). Sie öffnet sich im Editor mit bereits gesetzten automatischen Zooms. [Bildschirmaufnahme](/docs/recording/) deckt die Optionen des Rekorders ab.
 
 Auf einem anderen System? Siehe OpenScreen für [Windows](/screen-recorder-windows/) und [Linux](/screen-recorder-linux/). Vergleichst du andere Mac-Rekorder? Lies die Seiten zur [Screen-Studio-Alternative](/alternatives/screen-studio/), [OpenScreen vs Cap](/compare/openscreen-vs-cap/) und zur [Loom-Alternative](/alternatives/loom/). Lizenzierung, Netzwerknutzung und Signierung stehen in der [FAQ](/docs/faq/), und die [OpenScreen-Startseite](/) bietet den vollständigen Überblick.

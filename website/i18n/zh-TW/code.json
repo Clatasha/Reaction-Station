@@ -16,8 +16,7 @@
     "message": "x86_64 · .dmg"
   },
   "download.macos.footnote": {
-    "message": "已簽署並完成公證，開啟時不需要在終端機操作。首次啟動時，請授予「螢幕錄製」與「輔助使用」權限。",
-    "description": "Screen Recording and Accessibility are macOS privacy settings: use the names macOS shows in your language."
+    "message": "已簽署並完成公證，開啟時不需要在終端機操作。首次啟動時，請在它顯示的視窗中授予權限。"
   },
   "download.windows.store.label": {
     "message": "Microsoft Store"

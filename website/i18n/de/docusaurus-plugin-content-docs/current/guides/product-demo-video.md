@@ -33,7 +33,7 @@ Unter Windows hält OpenScreen das HUD und das Notizfenster aus der Aufnahme her
 
 ## 2. Den Bildschirm oder ein Fenster aufnehmen {#2-record-the-screen-or-a-window}
 
-1. Unter Windows und macOS öffnest du die Quellenauswahl und wählst unter **Screens** einen Bildschirm oder unter **Windows** ein einzelnes Fenster. Unter Linux gibt es keine Auswahl in der App: Das Systemportal fragt bei jedem Take nach der Quelle. OpenScreen hat keine Bereichsaufnahme. Nimm also das Fenster oder den Bildschirm auf und schneide den Clip dann im Editor zu.
+1. Unter Windows und macOS öffnest du die Quellenauswahl und wählst unter **Bildschirme** einen Bildschirm oder unter **Fenster** ein einzelnes Fenster. Unter macOS 15.2 und neuer wählst du Bildschirm oder Fenster stattdessen in der Systemauswahl von Apple aus. Unter Linux gibt es keine Auswahl in der App: Das Systemportal fragt bei jedem Take nach der Quelle. OpenScreen hat keine Bereichsaufnahme. Nimm also das Fenster oder den Bildschirm auf und schneide den Clip dann im Editor zu.
 2. Schalte das Mikrofon ein und prüfe seine Pegelanzeige. Schalte Systemaudio ein, wenn das Produkt Töne macht, und die Webcam, wenn du im Bild sein willst.
 3. Behalte den bearbeitbaren Cursormodus, den Standard: Der Zeiger wird als Daten aufgezeichnet, du kannst ihn also später neu gestalten. Klicks werden unter Windows aufgezeichnet. Unter macOS brauchen sie die Berechtigung „Bedienungshilfen“. Unter Linux muss dein Benutzer in der Gruppe `input` sein, und Tippen zum Klicken auf dem Touchpad wird nicht erfasst ([Details](../installation.md#mouse-clicks-on-wayland)).
 4. Starte die Aufnahme. Vorher läuft ein 3-2-1-Countdown, der sich nicht abschalten lässt.

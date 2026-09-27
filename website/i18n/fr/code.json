@@ -16,8 +16,7 @@
     "message": "x86_64 · .dmg"
   },
   "download.macos.footnote": {
-    "message": "Signé et notarisé : il s'ouvre sans passer par le terminal. Au premier lancement, accordez les autorisations Enregistrement de l'écran et Accessibilité.",
-    "description": "Screen Recording and Accessibility are macOS privacy settings: use the names macOS shows in your language."
+    "message": "Signé et notarisé : il s'ouvre sans passer par le terminal. Au premier lancement, accordez les autorisations depuis la fenêtre qu'il affiche."
   },
   "download.windows.store.label": {
     "message": "Microsoft Store"

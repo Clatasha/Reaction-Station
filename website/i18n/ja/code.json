@@ -16,8 +16,7 @@
     "message": "x86_64 · .dmg"
   },
   "download.macos.footnote": {
-    "message": "署名・公証済みのため、ターミナルでの操作なしで開けます。初回起動時に「画面収録」と「アクセシビリティ」を許可してください。",
-    "description": "Screen Recording and Accessibility are macOS privacy settings: use the names macOS shows in your language."
+    "message": "署名・公証済みのため、ターミナルでの操作なしで開けます。初回起動時に表示されるウィンドウから権限を許可してください。"
   },
   "download.windows.store.label": {
     "message": "Microsoft Store"

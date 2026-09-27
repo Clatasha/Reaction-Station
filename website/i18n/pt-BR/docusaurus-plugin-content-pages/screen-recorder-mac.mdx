@@ -36,7 +36,7 @@ A captura de tela passa por um auxiliar nativo escrito em Swift sobre a ScreenCa
 
 - **Uma tela ou uma janela.** Escolha a fonte no gravador. Ele captura a 60 fps, até 3840×2160. Corte a imagem depois no editor.
 - **Um arquivo que sobrevive a uma falha.** O auxiliar codifica H.264 com o AVAssetWriter em um MP4 fragmentado, um fragmento por segundo. Se o gravador for encerrado no meio do caminho, o arquivo continua reproduzível até o último fragmento completo.
-- **Áudio do sistema.** A ScreenCaptureKit captura o que o Mac reproduz, e os próprios sons do OpenScreen são deixados de fora. No macOS 14.2 e posteriores, o sistema pede para você permitir a captura de áudio.
+- **Áudio do sistema.** O OpenScreen grava o que o Mac reproduz. No macOS 15.2 e posteriores, o sistema pede para você permiti-lo; nas versões anteriores, a permissão de Gravação de Tela o cobre.
 - **Microfone.** Escolha o dispositivo e acompanhe um medidor de nível de cinco barras nos controles de gravação.
 - **Um cursor editável.** Por padrão, o ponteiro do sistema é deixado de fora dos pixels e gravado como dados. Depois da gravação, você pode mudar o tamanho, a suavização e o tema dele, e adicionar um rebote de clique. Um botão alterna para o cursor do sistema, embutido na imagem.
 - **Webcam.** A câmera é gravada em um arquivo próprio durante a gravação. O editor a posiciona como picture-in-picture, empilhamento vertical ou quadro duplo, e pode remover, borrar ou substituir o fundo dela sem tela verde. O app é compatível com a Câmera de Continuidade, o recurso da Apple para usar um iPhone como webcam.
@@ -65,7 +65,7 @@ Como a velocidade de exportação do OpenScreen foi medida em relação a outras
 ## Primeiros passos {#getting-started}
 
 1. Baixe o `.dmg` Apple Silicon ou Intel na [página de download](/download/), cerca de 210 MB, e arraste o OpenScreen para Aplicativos. A build é assinada e notarizada, então nenhum passo no terminal é necessário.
-2. Em **Ajustes do Sistema → Privacidade e Segurança**, conceda **Gravação de Tela** e **Acessibilidade** ao OpenScreen. O [guia de instalação](/docs/installation/#macos) explica os dois.
+2. Conceda as permissões na janela que se abre na primeira execução. O [guia de instalação](/docs/installation/#macos) explica o que cada versão do macOS pede.
 3. Faça uma primeira gravação com o [início rápido](/docs/quick-start/). Ela abre no editor com os zooms automáticos já posicionados. [Gravação de tela](/docs/recording/) cobre as opções do gravador.
 
 Em outro sistema? Veja o OpenScreen para [Windows](/screen-recorder-windows/) e [Linux](/screen-recorder-linux/). Avaliando outros gravadores para Mac? Leia as páginas [alternativa ao Screen Studio](/alternatives/screen-studio/), [OpenScreen vs Cap](/compare/openscreen-vs-cap/) e [alternativa ao Loom](/alternatives/loom/). Licenciamento, uso de rede e assinatura estão cobertos nas [Perguntas frequentes](/docs/faq/), e a [página inicial do OpenScreen](/) tem o tour completo.

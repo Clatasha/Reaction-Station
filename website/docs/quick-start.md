@@ -22,7 +22,7 @@ Launching OpenScreen shows a small floating pill (the HUD) docked at the bottom 
 
 ## 2. Pick what to record
 
-Click the source picker (screen icon) to open the source selector. It lists your **Screens** and **Windows** in two tabs — pick a thumbnail and hit **Select**.
+Click the source picker (screen icon) to open the source selector. It lists your **Screens** and **Windows** in two tabs — pick a thumbnail and hit **Select**. On macOS 15.2 and later, you pick the screen or window in Apple's system picker instead.
 
 On Linux the HUD has no source picker. It reads *Your system will ask what to share*: when you press record, your desktop's own sharing dialog asks for the screen or window, before the countdown and again on every take.
 

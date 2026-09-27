@@ -33,7 +33,7 @@ On Windows, OpenScreen keeps the HUD and the Notes window out of the capture. On
 
 ## 2. Record the screen or a window
 
-1. On Windows and macOS, open the source picker and choose a display under **Screens** or a single window under **Windows**. On Linux there is no in-app picker: the system portal asks for the source on every take. OpenScreen has no region capture, so record the window or the screen, then crop the clip in the editor.
+1. On Windows and macOS, open the source picker and choose a display under **Screens** or a single window under **Windows**. On macOS 15.2 and later, you choose the display or window in Apple's system picker instead. On Linux there is no in-app picker: the system portal asks for the source on every take. OpenScreen has no region capture, so record the window or the screen, then crop the clip in the editor.
 2. Turn on the microphone and check its level meter. Turn on system audio if the product makes sound, and the webcam if you want to appear on screen.
 3. Keep the editable cursor mode, the default: the pointer is recorded as data, so you can restyle it later. Clicks are recorded on Windows. On macOS they need the Accessibility permission. On Linux your user must be in the `input` group, and touchpad tap-to-click is not captured ([details](../installation.md#mouse-clicks-on-wayland)).
 4. Press record. A 3-2-1 countdown runs first and cannot be turned off.

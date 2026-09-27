@@ -16,8 +16,7 @@
     "message": "x86_64 · .dmg"
   },
   "download.macos.footnote": {
-    "message": "Signiert und notarisiert, öffnet sich also ohne Schritt im Terminal. Erteile beim ersten Start die Berechtigungen „Bildschirmaufnahme“ und „Bedienungshilfen“.",
-    "description": "Screen Recording and Accessibility are macOS privacy settings: use the names macOS shows in your language."
+    "message": "Signiert und notarisiert, öffnet sich also ohne Schritt im Terminal. Erteile beim ersten Start die Berechtigungen im Fenster, das sich dabei öffnet."
   },
   "download.windows.store.label": {
     "message": "Microsoft Store"

@@ -22,7 +22,7 @@ Ao abrir o OpenScreen, aparece uma pequena cápsula flutuante (o HUD) fixada na 
 
 ## 2. Escolha o que gravar {#2-pick-what-to-record}
 
-Clique no seletor de fonte (ícone de tela) para abrir a seleção de fontes. Ela lista suas **Telas** e **Janelas** em duas abas — escolha uma miniatura e clique em **Compartilhar**.
+Clique no seletor de fonte (ícone de tela) para abrir a seleção de fontes. Ela lista suas **Telas** e **Janelas** em duas abas — escolha uma miniatura e clique em **Compartilhar**. No macOS 15.2 e posterior, em vez disso, você escolhe a tela ou a janela no seletor do sistema da Apple.
 
 No Linux, o HUD não tem seletor de fonte. Ele mostra *O sistema perguntará o que compartilhar*: quando você aperta gravar, a própria caixa de diálogo de compartilhamento do seu ambiente de desktop pergunta qual tela ou janela usar, antes da contagem regressiva e de novo a cada tomada.
 

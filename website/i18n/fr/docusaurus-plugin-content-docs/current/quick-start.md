@@ -22,7 +22,7 @@ Au lancement, OpenScreen affiche une petite pastille flottante (le HUD) ancrée 
 
 ## 2. Choisir ce qu'il faut enregistrer {#2-pick-what-to-record}
 
-Cliquez sur le sélecteur de source (icône d'écran) pour ouvrir le choix de la source. Il liste vos **Écrans** et vos **Fenêtres** dans deux onglets : choisissez une vignette et cliquez sur **Partager**.
+Cliquez sur le sélecteur de source (icône d'écran) pour ouvrir le choix de la source. Il liste vos **Écrans** et vos **Fenêtres** dans deux onglets : choisissez une vignette et cliquez sur **Partager**. Sous macOS 15.2 et ultérieur, vous choisissez plutôt l'écran ou la fenêtre dans le sélecteur du système d'Apple.
 
 Sous Linux, le HUD n'a pas de sélecteur de source. Il affiche *Le système vous demandera quoi partager* : quand vous lancez l'enregistrement, la boîte de dialogue de partage de votre bureau demande l'écran ou la fenêtre, avant le compte à rebours et de nouveau à chaque prise.
 

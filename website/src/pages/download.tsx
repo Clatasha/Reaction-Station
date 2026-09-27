@@ -68,9 +68,7 @@ function getPlatforms(): PlatformSpec[] {
 			footnote: translate({
 				id: "download.macos.footnote",
 				message:
-					"Signed and notarized, so it opens with no terminal step. Grant Screen Recording and Accessibility on first launch.",
-				description:
-					"Screen Recording and Accessibility are macOS privacy settings: use the names macOS shows in your language.",
+					"Signed and notarized, so it opens with no terminal step. On first launch, grant permissions from the window it shows.",
 			}),
 		},
 		{

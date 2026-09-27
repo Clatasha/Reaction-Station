@@ -4,7 +4,7 @@
   "download.macos.arm.sublabel": "M1 and newer · .dmg",
   "download.macos.intel.label": "Intel",
   "download.macos.intel.sublabel": "x86_64 · .dmg",
-  "download.macos.footnote": "Signed and notarized, so it opens with no terminal step. Grant Screen Recording and Accessibility on first launch.",
+  "download.macos.footnote": "Signed and notarized, so it opens with no terminal step. On first launch, grant permissions from the window it shows.",
   "download.windows.store.label": "Microsoft Store",
   "download.windows.store.sublabel": "Recommended · signed by Microsoft",
   "download.windows.exe.label": "Windows 10 & 11",

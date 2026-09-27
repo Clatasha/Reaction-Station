@@ -33,7 +33,7 @@ No Windows, o OpenScreen mantém o HUD e a janela de notas fora da captura. No m
 
 ## 2. Grave a tela ou uma janela {#2-record-the-screen-or-a-window}
 
-1. No Windows e no macOS, abra o seletor de fonte e escolha uma tela em **Telas** ou uma única janela em **Janelas**. No Linux não há seletor no app: o portal do sistema pede a fonte a cada tomada. O OpenScreen não tem captura de região, então grave a janela ou a tela e depois corte a imagem do clipe no editor.
+1. No Windows e no macOS, abra o seletor de fonte e escolha uma tela em **Telas** ou uma única janela em **Janelas**. No macOS 15.2 e posterior, em vez disso, você escolhe a tela ou a janela no seletor do sistema da Apple. No Linux não há seletor no app: o portal do sistema pede a fonte a cada tomada. O OpenScreen não tem captura de região, então grave a janela ou a tela e depois corte a imagem do clipe no editor.
 2. Ative o microfone e confira o medidor de nível. Ative o áudio do sistema se o produto emitir som, e a webcam se você quiser aparecer na tela.
 3. Mantenha o modo de cursor editável, que é o padrão: o ponteiro é gravado como dados, então você pode mudar o estilo dele depois. Os cliques são gravados no Windows. No macOS, eles exigem a permissão de Acessibilidade. No Linux, seu usuário precisa estar no grupo `input`, e o toque para clicar do touchpad não é capturado ([detalhes](../installation.md#mouse-clicks-on-wayland)).
 4. Aperte gravar. Uma contagem regressiva 3-2-1 roda antes e não pode ser desativada.
