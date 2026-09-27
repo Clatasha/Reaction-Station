@@ -26,7 +26,7 @@ On Windows, the recommended route is the [Microsoft Store](#windows). Everywhere
 | | Minimum | Recommended |
 |---|---|---|
 | **Windows** | Windows 10 version 1903 (build 18362) or later, x64, Intel 8th Gen / AMD Ryzen 2000 series or newer. Native capture needs Windows 10 version 2004 (build 19041) or later; older builds record through the [browser-capture fallback](#platform-differences) | Windows 11, Intel 12th Gen / AMD Ryzen 4000 series or newer |
-| **macOS** | macOS 13 (Ventura) — required by ScreenCaptureKit for capture | macOS 14 or later |
+| **macOS** | macOS 13 (Ventura) — required by ScreenCaptureKit for capture. Recording the microphone needs macOS 15 or later | macOS 15.2 or later |
 | **Linux** | x64. `xdg-desktop-portal` and PipeWire, which recording needs: the native capture helper goes through them, and a failure there is reported as an error. The [browser-capture fallback](#platform-differences) only takes over when a build is missing the helper itself. System audio additionally needs PipeWire as the sound server (the default on [Ubuntu 22.10+](https://discourse.ubuntu.com/t/kinetic-kudu-release-notes/27976) and [Fedora 34+](https://fedoraproject.org/wiki/Changes/DefaultPipeWire)). Recording mouse clicks on Wayland needs your user in the `input` group — see [Mouse clicks on Wayland](#mouse-clicks-on-wayland) | Same, kept up to date |
 | **RAM** | 8 GB | 16 GB |
 
@@ -38,11 +38,12 @@ Machines with integrated graphics older than roughly 8th-generation Intel (or th
 
 Download the `.dmg` installer from [Releases](https://github.com/getopenscreen/openscreen/releases) and drag OpenScreen into your Applications folder. Builds from 1.9.0 onward are signed with a Developer ID certificate and notarized by Apple, so Gatekeeper does not block them and no terminal step is needed.
 
-Then go to **System Settings → Privacy & Security** and grant **Screen Recording** and **Accessibility** to OpenScreen. Screen Recording is what lets it capture at all. Accessibility is what the default editable cursor needs to record the cursor shape and clicks: in that mode, pressing record without it opens a prompt that links to the setting, and recording starts once you have granted it and press record again.
+The first time you open it, OpenScreen shows a permissions window that lists every permission it uses, each with a button to grant it. You can reopen it at any time from OpenScreen's menu bar icon: **Permissions…**. What macOS asks for depends on its version:
 
-:::note macOS 15 and later re-ask periodically
-macOS re-requests screen-recording permission from time to time for every third-party screen recorder. That prompt comes from the operating system — it does not mean your install is broken or that an update went wrong. Grant it again when asked.
-:::
+- **macOS 15.2 and later:** you pick the screen or window in Apple's system picker, and that pick is your consent, so no **Screen Recording** permission is needed. System audio asks for its own, narrower permission: **System Audio Recording Only**.
+- **macOS 13 to 15.1:** OpenScreen uses its own source picker and needs **Screen Recording**, which also covers system audio. On 15.0 and 15.1, macOS also asks from time to time whether OpenScreen may access the screen directly, without the system picker: allow it.
+
+**Accessibility** is what the default editable cursor needs to record the cursor shape and clicks: in that mode, pressing record without it opens the permissions window, and recording starts once you have granted it and press record again.
 
 :::tip Upgrading from a version older than 1.9.0?
 Those builds were not signed with a Developer ID certificate, and macOS ties Screen Recording and Accessibility grants to an app's signature — so it cannot tell the new build is the same app, and the permissions you granted the old one do not carry over. If a new version won't record even after granting them, remove OpenScreen's entries under both permissions in System Settings, then launch it again and grant them fresh.
@@ -153,7 +154,7 @@ The editing tools are the same everywhere — zooms, backgrounds, crop/trim/spee
 | Capture pipeline | Native (ScreenCaptureKit) | Native (Windows Graphics Capture) on build 19041 and later; browser fallback on older builds or without the helper | Native (PipeWire via the ScreenCast portal); browser fallback without the helper, losing hardware encode and cursor telemetry |
 | Custom cursor / click effects | ✅ — clicks and cursor shape need the Accessibility permission | ✅ | ✅ on Wayland — click capture needs the `input` group ([details](#mouse-clicks-on-wayland)) |
 | Webcam | Browser capture, saved as a separate file (still works as PiP) | Native capture, saved as a separate file | Browser capture, saved as a separate file (still works as PiP) |
-| System audio | Works out of the box; permission prompt on macOS 14.2+ | Works out of the box | Needs PipeWire as the sound server (default on Ubuntu 22.10+, Fedora 34+) |
+| System audio | Works out of the box; its own permission prompt on macOS 15.2+, covered by Screen Recording on older versions | Works out of the box | Needs PipeWire as the sound server (default on Ubuntu 22.10+, Fedora 34+) |
 | MP4 export | ✅ | ✅ | ✅ — H.264 on the GPU through VAAPI when the GPU stack allows it (see the note below), software otherwise; H.265 is software-only |
 | GIF export | ✅ | ✅ | ✅ |
 | On-device transcription | Metal (Apple Silicon) / CPU | Vulkan / CPU | Vulkan / CPU |
