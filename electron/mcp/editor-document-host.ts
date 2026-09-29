@@ -90,7 +90,12 @@ export class EditorDocumentHost implements McpDocumentHost {
 	async snapshot(): Promise<AiEditionMcpHostSnapshot | null> {
 		const result = await this.request({ op: "snapshot" });
 		if (!result || result === TIMED_OUT || typeof result !== "object") return null;
-		return result as AiEditionMcpHostSnapshot;
+		// The revision is the apply guard: one that is missing or not a number would
+		// reach `applyAgentDocumentIfCurrent` as `undefined`, which skips the
+		// stale-edit check entirely. Treat such a reply as no snapshot at all.
+		const snapshot = result as Partial<AiEditionMcpHostSnapshot>;
+		if (typeof snapshot.revision !== "number" || !Number.isFinite(snapshot.revision)) return null;
+		return snapshot as AiEditionMcpHostSnapshot;
 	}
 
 	async apply(document: AxcutDocument, expectedRevision: number): Promise<McpApplyResult> {

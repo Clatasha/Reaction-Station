@@ -126,30 +126,26 @@ export function McpServerSettings({ open }: { open: boolean }) {
 				</div>
 				<p className={styles.hint}>{te("mcpServer.description")}</p>
 
-				<div className={styles.field}>
-					<label>{te("mcpServer.enableLabel")}</label>
-					<label
-						style={{
-							display: "flex",
-							alignItems: "center",
-							gap: 10,
-							font: "500 13px var(--font-body)",
-							color: "var(--fg-2)",
-							cursor: "pointer",
-						}}
-					>
-						<button
-							type="button"
-							data-testid="mcp-server-toggle"
-							className={`${styles.toggle} ${status.enabled ? styles.isOn : ""}`}
-							aria-pressed={status.enabled}
-							disabled={busy}
-							onClick={() => run(() => nativeBridgeClient.aiEdition.mcpSetEnabled(!status.enabled))}
-						/>
-						{te("mcpServer.enable")}
-					</label>
-					<p className={styles.hint}>{te("mcpServer.editsHint")}</p>
-				</div>
+				<ToggleField
+					label={te("mcpServer.enableLabel")}
+					text={te("mcpServer.enable")}
+					testId="mcp-server-toggle"
+					on={status.enabled}
+					disabled={busy}
+					onToggle={() => run(() => nativeBridgeClient.aiEdition.mcpSetEnabled(!status.enabled))}
+				/>
+
+				<ToggleField
+					label={te("mcpServer.editsLabel")}
+					text={te("mcpServer.allowEdits")}
+					hint={te("mcpServer.editsHint")}
+					testId="mcp-edits-toggle"
+					on={status.allowEdits}
+					disabled={busy}
+					onToggle={() =>
+						run(() => nativeBridgeClient.aiEdition.mcpSetAllowEdits(!status.allowEdits))
+					}
+				/>
 
 				<div className={styles.field}>
 					<label>{te("mcpServer.portLabel")}</label>
@@ -239,6 +235,52 @@ export function McpServerSettings({ open }: { open: boolean }) {
 				) : null}
 			</div>
 		</section>
+	);
+}
+
+/** The panes' switch, not a system checkbox, inside its label so the text toggles it too. */
+function ToggleField({
+	label,
+	text,
+	hint,
+	testId,
+	on,
+	disabled,
+	onToggle,
+}: {
+	label: string;
+	text: string;
+	hint?: string;
+	testId: string;
+	on: boolean;
+	disabled: boolean;
+	onToggle: () => void;
+}) {
+	return (
+		<div className={styles.field}>
+			<label>{label}</label>
+			<label
+				style={{
+					display: "flex",
+					alignItems: "center",
+					gap: 10,
+					font: "500 13px var(--font-body)",
+					color: "var(--fg-2)",
+					cursor: "pointer",
+				}}
+			>
+				<button
+					type="button"
+					data-testid={testId}
+					className={`${styles.toggle} ${on ? styles.isOn : ""}`}
+					aria-pressed={on}
+					disabled={disabled}
+					onClick={onToggle}
+				/>
+				{text}
+			</label>
+			{hint ? <p className={styles.hint}>{hint}</p> : null}
+		</div>
 	);
 }
 

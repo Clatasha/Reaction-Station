@@ -4865,17 +4865,16 @@ export function registerIpcHandlers(
 	// (Claude Code, Codex…). Built here because this is where the agent's own
 	// dependencies live, but NOT started here: the headless CLI shares this
 	// function and must never bind the port a running app is listening on.
-	// `main.ts` starts it. Its tools obey the same "Project edits" switch as the
-	// in-app agent, read on every call.
-	const mcpController = new McpController(
-		new McpSettingsStore(app.getPath("userData"), safeStorage),
-		{
-			host: new EditorDocumentHost(ipcMain),
-			editsAllowed: () => getAiEditionLlmConfig().getConfig()?.allowAgentEdits !== false,
-			cursor: agentCursorTelemetryReader,
-			version: app.getVersion(),
-		},
-	);
+	// `main.ts` starts it. Its writes have their own switch, off by default and
+	// read on every call — separate from the in-app agent's "Project edits", so
+	// turning the server on grants a client read access and nothing more.
+	const mcpSettings = new McpSettingsStore(app.getPath("userData"), safeStorage);
+	const mcpController = new McpController(mcpSettings, {
+		host: new EditorDocumentHost(ipcMain),
+		editsAllowed: () => mcpSettings.getSettings().allowEdits,
+		cursor: agentCursorTelemetryReader,
+		version: app.getVersion(),
+	});
 
 	registerNativeBridgeHandlers({
 		getPlatform: () => process.platform,

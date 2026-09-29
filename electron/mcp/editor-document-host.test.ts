@@ -65,6 +65,18 @@ describe("EditorDocumentHost", () => {
 		await expect(pending).resolves.toEqual({ document: { id: "d" }, revision: 3 });
 	});
 
+	it("treats a snapshot without a numeric revision as no snapshot", async () => {
+		const { host, fromRenderer } = setup();
+		const editor = new FakeWebContents();
+		fromRenderer(editor, AI_EDITION_MCP_HOST_CHANNEL, true);
+		// A missing revision would reach the apply guard as `undefined` and skip it.
+		for (const revision of [undefined, "3", Number.NaN]) {
+			const pending = host.snapshot();
+			await answer(editor, fromRenderer, { document: { id: "d" }, revision });
+			await expect(pending).resolves.toBeNull();
+		}
+	});
+
 	it("passes the apply verdict through", async () => {
 		const { host, fromRenderer } = setup();
 		const editor = new FakeWebContents();

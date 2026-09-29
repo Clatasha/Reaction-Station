@@ -8,10 +8,11 @@ import type { AiEditionMcpStatus } from "@/native/contracts";
 const TOKEN = "secret-token";
 const URL = "http://127.0.0.1:47821/mcp";
 
-function status(enabled: boolean): AiEditionMcpStatus {
+function status(enabled: boolean, allowEdits = false): AiEditionMcpStatus {
 	return {
 		enabled,
 		port: 47821,
+		allowEdits,
 		running: enabled,
 		url: URL,
 		token: enabled ? TOKEN : null,
@@ -23,6 +24,7 @@ const bridge = vi.hoisted(() => ({
 	mcpGetStatus: vi.fn(),
 	mcpSetEnabled: vi.fn(),
 	mcpSetPort: vi.fn(),
+	mcpSetAllowEdits: vi.fn(),
 	mcpRegenerateToken: vi.fn(),
 }));
 
@@ -64,6 +66,19 @@ describe("McpServerSettings", () => {
 		await waitFor(() => expect(bridge.mcpSetEnabled).toHaveBeenCalledWith(true));
 		expect(await screen.findByText(codexCommand(URL))).toBeInTheDocument();
 		expect(screen.queryByText(new RegExp(TOKEN))).not.toBeInTheDocument();
+	});
+
+	it("keeps MCP edits off until they are turned on", async () => {
+		bridge.mcpGetStatus.mockResolvedValue(status(true));
+		bridge.mcpSetAllowEdits.mockResolvedValue(status(true, true));
+		renderSection();
+		const toggle = await screen.findByTestId("mcp-edits-toggle");
+		expect(toggle).toHaveAttribute("aria-pressed", "false");
+		fireEvent.click(toggle);
+		await waitFor(() => expect(bridge.mcpSetAllowEdits).toHaveBeenCalledWith(true));
+		await waitFor(() =>
+			expect(screen.getByTestId("mcp-edits-toggle")).toHaveAttribute("aria-pressed", "true"),
+		);
 	});
 
 	it("copies the real token into the Claude Code command", async () => {

@@ -274,6 +274,12 @@ export const nativeBridgeClient = {
 				action: "mcp.setPort",
 				payload: { port },
 			}),
+		mcpSetAllowEdits: (allowEdits: boolean) =>
+			requireNativeBridgeData<AiEditionMcpStatus>({
+				domain: "aiEdition",
+				action: "mcp.setAllowEdits",
+				payload: { allowEdits },
+			}),
 		mcpRegenerateToken: () =>
 			requireNativeBridgeData<AiEditionMcpStatus>({
 				domain: "aiEdition",

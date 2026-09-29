@@ -13,6 +13,7 @@ import {
 import type { ChatEventSink } from "../ai-edition/chat-service";
 import type { DocumentService } from "../ai-edition/document-service";
 import { StylePresetError, type StylePresetService } from "../ai-edition/style-preset-service";
+import { isValidMcpPort } from "../mcp/mcp-settings-store";
 import {
 	type CursorTelemetryLoadResult,
 	TelemetryCursorAdapter,
@@ -578,15 +579,43 @@ export function registerNativeBridgeHandlers(context: NativeBridgeContext) {
 							);
 						case "mcp.getStatus":
 							return createSuccessResponse(requestId, await aiEditionService.mcpGetStatus());
+						// Renderer input: check the types here, so a bad value is reported as
+						// the bad request it is rather than failing later as an internal error.
 						case "mcp.setEnabled":
+							if (typeof request.payload?.enabled !== "boolean") {
+								return createErrorResponse(
+									requestId,
+									"INVALID_REQUEST",
+									"Invalid MCP enabled flag.",
+								);
+							}
 							return createSuccessResponse(
 								requestId,
 								await aiEditionService.mcpSetEnabled(request.payload.enabled),
 							);
 						case "mcp.setPort":
+							if (!isValidMcpPort(request.payload?.port)) {
+								return createErrorResponse(
+									requestId,
+									"INVALID_REQUEST",
+									"MCP port must be a whole number between 1024 and 65535.",
+								);
+							}
 							return createSuccessResponse(
 								requestId,
 								await aiEditionService.mcpSetPort(request.payload.port),
+							);
+						case "mcp.setAllowEdits":
+							if (typeof request.payload?.allowEdits !== "boolean") {
+								return createErrorResponse(
+									requestId,
+									"INVALID_REQUEST",
+									"Invalid MCP edit permission.",
+								);
+							}
+							return createSuccessResponse(
+								requestId,
+								await aiEditionService.mcpSetAllowEdits(request.payload.allowEdits),
 							);
 						case "mcp.regenerateToken":
 							return createSuccessResponse(requestId, await aiEditionService.mcpRegenerateToken());

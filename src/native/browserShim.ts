@@ -462,10 +462,11 @@ function createShimBridgeClient() {
 		if (taken) throw presetError("NAME_TAKEN", `A style preset named "${name}" already exists.`);
 	};
 
-	const shimMcp = { enabled: false, port: 47821, token: "shim-token" };
+	const shimMcp = { enabled: false, port: 47821, allowEdits: false, token: "shim-token" };
 	const shimMcpStatus = () => ({
 		enabled: shimMcp.enabled,
 		port: shimMcp.port,
+		allowEdits: shimMcp.allowEdits,
 		running: false,
 		url: `http://127.0.0.1:${shimMcp.port}/mcp`,
 		token: shimMcp.enabled ? shimMcp.token : null,
@@ -611,6 +612,10 @@ function createShimBridgeClient() {
 			},
 			mcpSetPort: (port: number) => {
 				shimMcp.port = port;
+				return Promise.resolve(shimMcpStatus());
+			},
+			mcpSetAllowEdits: (allowEdits: boolean) => {
+				shimMcp.allowEdits = allowEdits;
 				return Promise.resolve(shimMcpStatus());
 			},
 			mcpRegenerateToken: () => {

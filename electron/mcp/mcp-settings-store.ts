@@ -16,6 +16,12 @@ export const DEFAULT_MCP_PORT = 47821;
 export interface McpSettings {
 	enabled: boolean;
 	port: number;
+	/**
+	 * Whether MCP clients may run the tools that change the project. Off by
+	 * default and separate from the in-app agent's "Project edits": turning the
+	 * server on gives a client read access, and writing is a second decision.
+	 */
+	allowEdits: boolean;
 }
 
 export interface McpTokenCrypto {
@@ -49,9 +55,10 @@ export class McpSettingsStore {
 			return {
 				enabled: raw.enabled === true,
 				port: isValidMcpPort(raw.port) ? raw.port : DEFAULT_MCP_PORT,
+				allowEdits: raw.allowEdits === true,
 			};
 		} catch {
-			return { enabled: false, port: DEFAULT_MCP_PORT };
+			return { enabled: false, port: DEFAULT_MCP_PORT, allowEdits: false };
 		}
 	}
 

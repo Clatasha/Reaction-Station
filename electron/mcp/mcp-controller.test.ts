@@ -70,7 +70,19 @@ async function initializeStatus(url: string, token: string) {
 describe("McpSettingsStore", () => {
 	it("is off by default, on the default port", () => {
 		const store = new McpSettingsStore(dir, fakeCrypto);
-		expect(store.getSettings()).toEqual({ enabled: false, port: DEFAULT_MCP_PORT });
+		expect(store.getSettings()).toEqual({
+			enabled: false,
+			port: DEFAULT_MCP_PORT,
+			allowEdits: false,
+		});
+	});
+
+	it("keeps MCP edits off unless they were turned on explicitly", async () => {
+		expect(new McpSettingsStore(dir, fakeCrypto).getSettings().allowEdits).toBe(false);
+		await new McpSettingsStore(dir, fakeCrypto).setSettings({ enabled: true });
+		expect(new McpSettingsStore(dir, fakeCrypto).getSettings().allowEdits).toBe(false);
+		await new McpSettingsStore(dir, fakeCrypto).setSettings({ allowEdits: true });
+		expect(new McpSettingsStore(dir, fakeCrypto).getSettings().allowEdits).toBe(true);
 	});
 
 	it("keeps the token encrypted on disk and stable across instances", async () => {
@@ -124,6 +136,19 @@ describe("McpController", () => {
 		const status = await controller.setEnabled(true);
 		expect(status.running).toBe(false);
 		expect(status.error).toContain(String(port));
+	});
+
+	it("saves the edit permission without restarting the server", async () => {
+		const store = new McpSettingsStore(dir, fakeCrypto);
+		await store.setSettings({ port: await freePort() });
+		controller = new McpController(store, deps);
+		const on = await controller.setEnabled(true);
+		expect(on.allowEdits).toBe(false);
+
+		const allowed = await controller.setAllowEdits(true);
+		expect(allowed.allowEdits).toBe(true);
+		expect(allowed.token).toBe(on.token);
+		expect(await initializeStatus(allowed.url, allowed.token ?? "")).toBe(200);
 	});
 
 	it("locks out the old token once it is regenerated", async () => {

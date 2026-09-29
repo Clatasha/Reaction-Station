@@ -292,6 +292,10 @@ export class AiEditionService {
 		return this.mcp.setPort(port);
 	}
 
+	mcpSetAllowEdits(allowEdits: boolean): Promise<AiEditionMcpStatus> {
+		return this.mcp.setAllowEdits(allowEdits);
+	}
+
 	mcpRegenerateToken(): Promise<AiEditionMcpStatus> {
 		return this.mcp.regenerateToken();
 	}

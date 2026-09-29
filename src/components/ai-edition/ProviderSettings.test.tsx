@@ -35,6 +35,7 @@ vi.mock("@/native/client", () => ({
 				Promise.resolve({
 					enabled: false,
 					port: 47821,
+					allowEdits: false,
 					running: false,
 					url: "http://127.0.0.1:47821/mcp",
 					token: null,

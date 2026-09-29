@@ -66,7 +66,7 @@ export class McpController {
 
 	async getStatus(): Promise<AiEditionMcpStatus> {
 		await this.transition;
-		const { enabled, port } = this.store.getSettings();
+		const { enabled, port, allowEdits } = this.store.getSettings();
 		let token: string | null = null;
 		if (enabled) {
 			try {
@@ -78,6 +78,7 @@ export class McpController {
 		return {
 			enabled,
 			port,
+			allowEdits,
 			running: this.running !== null,
 			url: `http://127.0.0.1:${port}${MCP_ENDPOINT_PATH}`,
 			token,
@@ -98,6 +99,12 @@ export class McpController {
 			await this.store.setSettings({ port });
 			await this.applySettings();
 		});
+		return this.getStatus();
+	}
+
+	/** No restart needed: the server reads it on every call. */
+	async setAllowEdits(allowEdits: boolean): Promise<AiEditionMcpStatus> {
+		await this.serially(() => this.store.setSettings({ allowEdits }));
 		return this.getStatus();
 	}
 

@@ -7,9 +7,9 @@ OpenScreen can offer the in-app agent's tools to MCP clients the user runs thems
 | [`electron/mcp/openscreen-mcp-server.ts`](../../electron/mcp/openscreen-mcp-server.ts) | The MCP server and its local HTTP guard. Registers the tools, runs each call. |
 | [`electron/mcp/editor-document-host.ts`](../../electron/mcp/editor-document-host.ts) | Main-process side of the live document: asks the editor window for a snapshot and hands edits back. |
 | [`electron/mcp/mcp-controller.ts`](../../electron/mcp/mcp-controller.ts) | Lifecycle: start when enabled, restart on a port or token change, status for the settings UI. |
-| [`electron/mcp/mcp-settings-store.ts`](../../electron/mcp/mcp-settings-store.ts) | `mcp-server.json` (enabled, port) and `mcp-token.enc` (bearer token, `safeStorage`). |
+| [`electron/mcp/mcp-settings-store.ts`](../../electron/mcp/mcp-settings-store.ts) | `mcp-server.json` (enabled, port, allowEdits) and `mcp-token.enc` (bearer token, `safeStorage`). |
 | [`src/lib/ai-edition/store/mcpDocumentHost.ts`](../../src/lib/ai-edition/store/mcpDocumentHost.ts) | Renderer side: answers snapshot / apply requests from the project store. Mounted by `NewEditorShell`. |
-| [`src/components/ai-edition/McpServerSettings.tsx`](../../src/components/ai-edition/McpServerSettings.tsx) | The settings section: toggle, port, token, copyable `claude mcp add` / `codex mcp add` commands. |
+| [`src/components/ai-edition/McpServerSettings.tsx`](../../src/components/ai-edition/McpServerSettings.tsx) | The settings section: server toggle, its own Project edits toggle, port, token, copyable `claude mcp add` / `codex mcp add` commands. |
 
 ## One tool surface, two agents
 
@@ -17,7 +17,7 @@ Nothing about the tools is reimplemented. The server registers `TOOL_ARG_SCHEMAS
 
 So a tool added to the agent appears over MCP with no further work, and the MCP test asserts the listed tools equal `OPENSCREEN_TOOL_NAMES`. What the server adds is MCP metadata only: `readOnlyHint` for the reads (`!isMutatingTool`) and `destructiveHint` for `replaceTimeline` and the three `remove*` tools.
 
-The "Project edits" switch (`allowAgentEdits`) applies unchanged: it is read on every call and passed to the executor, which refuses writes when it is off, and the consent block of the system prompt is in the instructions.
+**Writes are a second opt-in.** MCP clients have their own "Project edits" switch, `allowEdits` in `mcp-server.json`, **off by default** and independent of the in-app agent's `allowAgentEdits`. Turning the server on therefore grants read access only. The value is read on every call and passed to the executor as `editsAllowed`, the same gate the in-app agent's switch drives: while it is off every mutating tool is refused with the executor's consent message, and the consent block of the system prompt is in the instructions. It is independent because `allowAgentEdits` defaults to allowed and lives in the provider form, so a user with no provider configured could never have turned MCP writes off.
 
 ## Where the document comes from
 
@@ -57,4 +57,3 @@ codex mcp add openscreen --url http://127.0.0.1:47821/mcp --bearer-token-env-var
 
 - **Only what the agent can do.** The server exposes the agent's timeline tools. Recording, export, import and project management are not tools, for MCP or for the in-app agent.
 - **An open editor is required.** With no editor window, or no project loaded, every tool answers "No project is open".
-- **The edits switch lives in the provider form.** `allowAgentEdits` is part of `LlmConfig`, so a user with no provider configured cannot turn edits off for MCP clients; it defaults to allowed.
