@@ -62,6 +62,8 @@ export interface NativeBridgeContext {
 	/** The one shared style preset service — it serialises writes per instance. */
 	getStylePresets: () => StylePresetService;
 	getAiEditionLlmConfig: () => import("../ai-edition/llm-config-store").LlmConfigStore;
+	/** The local MCP server's controller. Absent in the headless CLI. */
+	getMcpController?: () => import("../mcp/mcp-controller").McpController;
 	runAiEditionChat: (
 		projectId: string,
 		sessionId: string,
@@ -234,6 +236,7 @@ export function registerNativeBridgeHandlers(context: NativeBridgeContext) {
 		// Passed uncalled on purpose — invoking it here would build the store (and
 		// hit the macOS Keychain) while wiring the bridge at startup.
 		llmConfig: context.getAiEditionLlmConfig,
+		mcp: context.getMcpController?.(),
 		runChat: context.runAiEditionChat,
 		undoLastToolBatch: context.undoAiEditionToolBatch,
 		rewindToMessage: context.rewindToMessage,
@@ -573,6 +576,20 @@ export function registerNativeBridgeHandlers(context: NativeBridgeContext) {
 								requestId,
 								await aiEditionService.llmListProviderModels(request.payload.providerId),
 							);
+						case "mcp.getStatus":
+							return createSuccessResponse(requestId, await aiEditionService.mcpGetStatus());
+						case "mcp.setEnabled":
+							return createSuccessResponse(
+								requestId,
+								await aiEditionService.mcpSetEnabled(request.payload.enabled),
+							);
+						case "mcp.setPort":
+							return createSuccessResponse(
+								requestId,
+								await aiEditionService.mcpSetPort(request.payload.port),
+							);
+						case "mcp.regenerateToken":
+							return createSuccessResponse(requestId, await aiEditionService.mcpRegenerateToken());
 						case "chat.run": {
 							const sessionId = request.payload.sessionId;
 							const sink = buildChatEventSink(event.sender, sessionId);

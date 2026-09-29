@@ -402,6 +402,30 @@
 		"save": "保存",
 		"saveAndUse": "保存して使用"
 	},
+	"mcpServer": {
+		"title": "MCP サーバー",
+		"description": "Claude Code や Codex など、ご自身で実行する MCP クライアントが、エディターで開いているプロジェクトに AI 編集ツールを使えるようにします。クライアントは各自のアカウントでサインインし、OpenScreen がそれを見ることはありません。",
+		"enableLabel": "サーバー",
+		"enable": "MCP サーバーを有効にする",
+		"editsHint": "編集は内蔵エージェントと同じ「プロジェクトの編集」設定に従い、1 つずつ元に戻せます。",
+		"statusRunning": "実行中",
+		"statusOff": "オフ",
+		"statusError": "停止中",
+		"portLabel": "ポート",
+		"portApply": "適用",
+		"tokenLabel": "アクセストークン",
+		"tokenHint": "クライアントはこのトークンを送信する必要があります。再生成すると、古いトークンで設定したクライアントはすべて切断されます。",
+		"show": "表示",
+		"hide": "隠す",
+		"copy": "コピー",
+		"regenerate": "再生成",
+		"claudeCodeLabel": "Claude Code",
+		"codexLabel": "Codex",
+		"codexHint": "Codex は環境変数 {{env}} からトークンを読み取ります。Codex を起動するシェルで設定してください。",
+		"copied": "クリップボードにコピーしました",
+		"copyFailed": "コピーできませんでした",
+		"updateFailed": "MCP サーバーを更新できませんでした"
+	},
 	"cpuCompositor": {
 		"notice": "対応 GPU がないため CPU で描画しています。再生が遅くなります。",
 		"exportWarning": "対応 GPU がありません。この書き出しは CPU で実行されるため、通常よりはるかに時間がかかります。"

@@ -402,6 +402,30 @@
 		"save": "Uložit",
 		"saveAndUse": "Uložit a použít"
 	},
+	"mcpServer": {
+		"title": "MCP server",
+		"description": "Umožněte MCP klientům, které sami spouštíte, například Claude Code nebo Codex, používat nástroje pro úpravy s AI na projektu otevřeném v editoru. Přihlašují se vlastními účty; OpenScreen je nikdy nevidí.",
+		"enableLabel": "Server",
+		"enable": "Zapnout MCP server",
+		"editsHint": "Úpravy se řídí stejným nastavením Úpravy projektu jako vestavěný agent a každou lze vrátit zpět.",
+		"statusRunning": "Běží",
+		"statusOff": "Vypnuto",
+		"statusError": "Neběží",
+		"portLabel": "Port",
+		"portApply": "Použít",
+		"tokenLabel": "Přístupový token",
+		"tokenHint": "Klienti musí posílat tento token. Jeho obnovením se odpojí všichni klienti nastavení se starým tokenem.",
+		"show": "Zobrazit",
+		"hide": "Skrýt",
+		"copy": "Kopírovat",
+		"regenerate": "Obnovit",
+		"claudeCodeLabel": "Claude Code",
+		"codexLabel": "Codex",
+		"codexHint": "Codex čte token z proměnné prostředí {{env}}. Nastavte ji v terminálu, ze kterého Codex spouštíte.",
+		"copied": "Zkopírováno do schránky",
+		"copyFailed": "Kopírování se nezdařilo",
+		"updateFailed": "MCP server se nepodařilo aktualizovat"
+	},
 	"cpuCompositor": {
 		"notice": "Běží bez kompatibilního GPU, takže renderování probíhá na CPU a přehrávání je pomalejší.",
 		"exportWarning": "Žádné kompatibilní GPU: tento export běží na CPU a bude trvat mnohem déle než obvykle."

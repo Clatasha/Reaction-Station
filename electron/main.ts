@@ -1360,7 +1360,7 @@ appReady?.then(async () => {
 		showMainWindow();
 	}
 
-	registerIpcHandlers(
+	const { mcpController } = registerIpcHandlers(
 		createEditorWindowWrapper,
 		createSourceSelectorWindowWrapper,
 		createCountdownOverlayWindowWrapper,
@@ -1404,6 +1404,9 @@ appReady?.then(async () => {
 	}
 
 	createWindow();
+	// Off unless the user turned it on in Settings → AI. Started here rather than
+	// in registerIpcHandlers so neither the headless CLI nor a bench run binds it.
+	void mcpController.startIfEnabled();
 	void showPermissionsWindowIfNeeded().catch((error) =>
 		console.warn("[permissions] could not read the permissions at launch:", error),
 	);

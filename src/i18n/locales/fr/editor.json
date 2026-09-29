@@ -402,6 +402,30 @@
 		"save": "Enregistrer",
 		"saveAndUse": "Enregistrer et utiliser"
 	},
+	"mcpServer": {
+		"title": "Serveur MCP",
+		"description": "Permettez aux clients MCP que vous lancez vous-même, comme Claude Code ou Codex, d’utiliser les outils d’édition IA sur le projet ouvert dans l’éditeur. Ils se connectent avec leurs propres comptes ; OpenScreen ne les voit jamais.",
+		"enableLabel": "Serveur",
+		"enable": "Activer le serveur MCP",
+		"editsHint": "Les modifications suivent le même réglage Modifications du projet que l’agent intégré, et chacune peut être annulée.",
+		"statusRunning": "En cours",
+		"statusOff": "Désactivé",
+		"statusError": "Arrêté",
+		"portLabel": "Port",
+		"portApply": "Appliquer",
+		"tokenLabel": "Jeton d’accès",
+		"tokenHint": "Les clients doivent envoyer ce jeton. Le régénérer déconnecte tous les clients configurés avec l’ancien.",
+		"show": "Afficher",
+		"hide": "Masquer",
+		"copy": "Copier",
+		"regenerate": "Régénérer",
+		"claudeCodeLabel": "Claude Code",
+		"codexLabel": "Codex",
+		"codexHint": "Codex lit le jeton dans la variable d’environnement {{env}}. Définissez-la dans le terminal depuis lequel vous lancez Codex.",
+		"copied": "Copié dans le presse-papiers",
+		"copyFailed": "Impossible de copier",
+		"updateFailed": "Impossible de mettre à jour le serveur MCP"
+	},
 	"cpuCompositor": {
 		"notice": "Aucun GPU compatible — rendu sur CPU, la lecture est donc plus lente.",
 		"exportWarning": "Aucun GPU compatible : cet export tourne sur CPU et sera beaucoup plus long que d'habitude."

@@ -402,6 +402,30 @@
 		"save": "저장",
 		"saveAndUse": "저장 후 사용"
 	},
+	"mcpServer": {
+		"title": "MCP 서버",
+		"description": "Claude Code나 Codex처럼 직접 실행하는 MCP 클라이언트가 편집기에 열린 프로젝트에서 AI 편집 도구를 사용할 수 있게 합니다. 클라이언트는 자체 계정으로 로그인하며, OpenScreen은 이를 절대 보지 않습니다.",
+		"enableLabel": "서버",
+		"enable": "MCP 서버 사용",
+		"editsHint": "편집은 내장 에이전트와 같은 '프로젝트 편집' 설정을 따르며, 각 편집은 실행 취소할 수 있습니다.",
+		"statusRunning": "실행 중",
+		"statusOff": "꺼짐",
+		"statusError": "실행되지 않음",
+		"portLabel": "포트",
+		"portApply": "적용",
+		"tokenLabel": "액세스 토큰",
+		"tokenHint": "클라이언트는 이 토큰을 보내야 합니다. 다시 생성하면 이전 토큰으로 설정한 모든 클라이언트의 연결이 끊깁니다.",
+		"show": "표시",
+		"hide": "숨기기",
+		"copy": "복사",
+		"regenerate": "다시 생성",
+		"claudeCodeLabel": "Claude Code",
+		"codexLabel": "Codex",
+		"codexHint": "Codex는 {{env}} 환경 변수에서 토큰을 읽습니다. Codex를 실행하는 셸에서 설정하세요.",
+		"copied": "클립보드에 복사됨",
+		"copyFailed": "복사할 수 없습니다",
+		"updateFailed": "MCP 서버를 업데이트할 수 없습니다"
+	},
 	"cpuCompositor": {
 		"notice": "호환되는 GPU가 없어 CPU로 렌더링합니다. 재생이 느려집니다.",
 		"exportWarning": "호환되는 GPU가 없습니다. 이 내보내기는 CPU에서 실행되며 평소보다 훨씬 오래 걸립니다."

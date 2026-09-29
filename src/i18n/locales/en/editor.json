@@ -402,6 +402,30 @@
 		"save": "Save",
 		"saveAndUse": "Save & use"
 	},
+	"mcpServer": {
+		"title": "MCP server",
+		"description": "Let MCP clients you run yourself, such as Claude Code or Codex, use the AI editing tools on the project open in the editor. They sign in with their own accounts; OpenScreen never sees them.",
+		"enableLabel": "Server",
+		"enable": "Enable MCP server",
+		"editsHint": "Edits follow the same Project edits setting as the built-in agent, and each one can be undone.",
+		"statusRunning": "Running",
+		"statusOff": "Off",
+		"statusError": "Not running",
+		"portLabel": "Port",
+		"portApply": "Apply",
+		"tokenLabel": "Access token",
+		"tokenHint": "Clients must send this token. Regenerating it disconnects every client set up with the old one.",
+		"show": "Show",
+		"hide": "Hide",
+		"copy": "Copy",
+		"regenerate": "Regenerate",
+		"claudeCodeLabel": "Claude Code",
+		"codexLabel": "Codex",
+		"codexHint": "Codex reads the token from the {{env}} environment variable. Set it in the shell you start Codex from.",
+		"copied": "Copied to clipboard",
+		"copyFailed": "Could not copy",
+		"updateFailed": "Could not update the MCP server"
+	},
 	"cpuCompositor": {
 		"notice": "Running without a compatible GPU — rendering on CPU, so playback is slower.",
 		"exportWarning": "No compatible GPU: this export runs on CPU and will take much longer than usual."

@@ -402,6 +402,30 @@
 		"save": "Kaydet",
 		"saveAndUse": "Kaydet ve kullan"
 	},
+	"mcpServer": {
+		"title": "MCP sunucusu",
+		"description": "Claude Code veya Codex gibi kendi çalıştırdığınız MCP istemcilerinin, düzenleyicide açık olan projede yapay zekâ düzenleme araçlarını kullanmasına izin verin. Kendi hesaplarıyla oturum açarlar; OpenScreen bunları hiçbir zaman görmez.",
+		"enableLabel": "Sunucu",
+		"enable": "MCP sunucusunu etkinleştir",
+		"editsHint": "Düzenlemeler, yerleşik ajanla aynı Proje düzenlemeleri ayarına uyar ve her biri geri alınabilir.",
+		"statusRunning": "Çalışıyor",
+		"statusOff": "Kapalı",
+		"statusError": "Çalışmıyor",
+		"portLabel": "Bağlantı noktası",
+		"portApply": "Uygula",
+		"tokenLabel": "Erişim belirteci",
+		"tokenHint": "İstemciler bu belirteci göndermelidir. Yeniden oluşturmak, eskisiyle kurulan tüm istemcilerin bağlantısını keser.",
+		"show": "Göster",
+		"hide": "Gizle",
+		"copy": "Kopyala",
+		"regenerate": "Yeniden oluştur",
+		"claudeCodeLabel": "Claude Code",
+		"codexLabel": "Codex",
+		"codexHint": "Codex belirteci {{env}} ortam değişkeninden okur. Codex'i başlattığınız kabukta ayarlayın.",
+		"copied": "Panoya kopyalandı",
+		"copyFailed": "Kopyalanamadı",
+		"updateFailed": "MCP sunucusu güncellenemedi"
+	},
 	"cpuCompositor": {
 		"notice": "Uyumlu GPU yok — işleme CPU üzerinde yapılıyor, bu yüzden oynatma daha yavaş.",
 		"exportWarning": "Uyumlu GPU yok: bu dışa aktarma CPU üzerinde çalışır ve normalden çok daha uzun sürer."

@@ -402,6 +402,30 @@
 		"save": "儲存",
 		"saveAndUse": "儲存並使用"
 	},
+	"mcpServer": {
+		"title": "MCP 伺服器",
+		"description": "讓你自行執行的 MCP 用戶端（例如 Claude Code 或 Codex）在編輯器中開啟的專案上使用 AI 編輯工具。它們使用各自的帳號登入，OpenScreen 永遠不會看到這些帳號。",
+		"enableLabel": "伺服器",
+		"enable": "啟用 MCP 伺服器",
+		"editsHint": "編輯遵循與內建代理相同的「專案編輯」設定，每次編輯都可復原。",
+		"statusRunning": "執行中",
+		"statusOff": "已關閉",
+		"statusError": "未執行",
+		"portLabel": "連接埠",
+		"portApply": "套用",
+		"tokenLabel": "存取權杖",
+		"tokenHint": "用戶端必須傳送此權杖。重新產生後，使用舊權杖設定的所有用戶端都會中斷連線。",
+		"show": "顯示",
+		"hide": "隱藏",
+		"copy": "複製",
+		"regenerate": "重新產生",
+		"claudeCodeLabel": "Claude Code",
+		"codexLabel": "Codex",
+		"codexHint": "Codex 從環境變數 {{env}} 讀取權杖。請在啟動 Codex 的終端機中設定。",
+		"copied": "已複製到剪貼簿",
+		"copyFailed": "無法複製",
+		"updateFailed": "無法更新 MCP 伺服器"
+	},
 	"cpuCompositor": {
 		"notice": "沒有相容的 GPU，正在使用 CPU 算繪，因此播放較慢。",
 		"exportWarning": "沒有相容的 GPU：這次匯出將在 CPU 上執行，耗時會比平常長很多。"

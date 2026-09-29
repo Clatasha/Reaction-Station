@@ -30,6 +30,16 @@ vi.mock("@/native/client", () => ({
 					credentialSummary: [],
 				}),
 			llmListProviderModels: () => Promise.resolve({ models: [] }),
+			// The list screen also shows the MCP server section, which reads its status on open.
+			mcpGetStatus: () =>
+				Promise.resolve({
+					enabled: false,
+					port: 47821,
+					running: false,
+					url: "http://127.0.0.1:47821/mcp",
+					token: null,
+					error: null,
+				}),
 		},
 	},
 }));

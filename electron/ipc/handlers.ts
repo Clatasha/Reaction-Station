@@ -13,6 +13,7 @@ import {
 	desktopCapturer,
 	dialog,
 	ipcMain,
+	safeStorage,
 	screen,
 	shell,
 	systemPreferences,
@@ -69,6 +70,9 @@ import { isDiagnosticModeEnabled, mainLogBuffer } from "../diagnostics/main-log-
 import { mainT } from "../i18n";
 import { getInstallChannel } from "../install-channel";
 import { RECORDINGS_DIR } from "../main";
+import { EditorDocumentHost } from "../mcp/editor-document-host";
+import { McpController } from "../mcp/mcp-controller";
+import { McpSettingsStore } from "../mcp/mcp-settings-store";
 import { type AudioPeaksResult, getAudioPeaks } from "../media/audioPeaks";
 import {
 	readCursorRecordingFile as readCursorRecordingFileFrom,
@@ -4857,6 +4861,22 @@ export function registerIpcHandlers(
 		return aiEditionLlmConfigInstance;
 	};
 
+	// The local MCP server offers the agent's tools to MCP clients the user runs
+	// (Claude Code, Codex…). Built here because this is where the agent's own
+	// dependencies live, but NOT started here: the headless CLI shares this
+	// function and must never bind the port a running app is listening on.
+	// `main.ts` starts it. Its tools obey the same "Project edits" switch as the
+	// in-app agent, read on every call.
+	const mcpController = new McpController(
+		new McpSettingsStore(app.getPath("userData"), safeStorage),
+		{
+			host: new EditorDocumentHost(ipcMain),
+			editsAllowed: () => getAiEditionLlmConfig().getConfig()?.allowAgentEdits !== false,
+			cursor: agentCursorTelemetryReader,
+			version: app.getVersion(),
+		},
+	);
+
 	registerNativeBridgeHandlers({
 		getPlatform: () => process.platform,
 		getCurrentProjectPath: () => currentProjectPath,
@@ -4912,5 +4932,8 @@ export function registerIpcHandlers(
 		renameAiEditionChatSession: (projectId, sessionId, title) =>
 			renameSession(projectId, sessionId, title),
 		deleteAiEditionChatSession: (projectId, sessionId) => deleteSession(projectId, sessionId),
+		getMcpController: () => mcpController,
 	});
+
+	return { mcpController };
 }

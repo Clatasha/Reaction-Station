@@ -73,6 +73,12 @@ interface Window {
 		onAiEditionChatEvent: (
 			callback: (event: import("../src/native/contracts").AiEditionChatEvent) => void,
 		) => () => void;
+		/** Optional: absent in the browser shim and in tests that stub electronAPI. */
+		onAiEditionMcpRequest?: (
+			callback: (
+				request: import("../src/native/contracts").AiEditionMcpHostRequest,
+			) => Promise<import("../src/native/contracts").AiEditionMcpHostResponse["result"]>,
+		) => () => void;
 		requestCameraAccess: () => Promise<{
 			success: boolean;
 			granted: boolean;

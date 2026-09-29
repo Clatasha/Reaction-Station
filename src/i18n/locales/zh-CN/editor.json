@@ -402,6 +402,30 @@
 		"save": "保存",
 		"saveAndUse": "保存并使用"
 	},
+	"mcpServer": {
+		"title": "MCP 服务器",
+		"description": "让你自己运行的 MCP 客户端（如 Claude Code 或 Codex）在编辑器中打开的项目上使用 AI 编辑工具。它们使用各自的账号登录，OpenScreen 永远不会看到这些账号。",
+		"enableLabel": "服务器",
+		"enable": "启用 MCP 服务器",
+		"editsHint": "编辑遵循与内置智能体相同的“项目编辑”设置，每次编辑都可撤销。",
+		"statusRunning": "运行中",
+		"statusOff": "已关闭",
+		"statusError": "未运行",
+		"portLabel": "端口",
+		"portApply": "应用",
+		"tokenLabel": "访问令牌",
+		"tokenHint": "客户端必须发送此令牌。重新生成后，使用旧令牌配置的所有客户端都会断开连接。",
+		"show": "显示",
+		"hide": "隐藏",
+		"copy": "复制",
+		"regenerate": "重新生成",
+		"claudeCodeLabel": "Claude Code",
+		"codexLabel": "Codex",
+		"codexHint": "Codex 从环境变量 {{env}} 读取令牌。请在启动 Codex 的终端中设置它。",
+		"copied": "已复制到剪贴板",
+		"copyFailed": "无法复制",
+		"updateFailed": "无法更新 MCP 服务器"
+	},
 	"cpuCompositor": {
 		"notice": "没有兼容的 GPU，正在使用 CPU 渲染，因此播放较慢。",
 		"exportWarning": "没有兼容的 GPU：本次导出将在 CPU 上运行，耗时会比平常长很多。"

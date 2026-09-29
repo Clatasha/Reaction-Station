@@ -402,6 +402,30 @@
 		"save": "Speichern",
 		"saveAndUse": "Speichern & verwenden"
 	},
+	"mcpServer": {
+		"title": "MCP-Server",
+		"description": "Erlaube MCP-Clients, die du selbst ausführst, etwa Claude Code oder Codex, die KI-Bearbeitungswerkzeuge für das im Editor geöffnete Projekt zu nutzen. Sie melden sich mit ihren eigenen Konten an; OpenScreen sieht diese nie.",
+		"enableLabel": "Server",
+		"enable": "MCP-Server aktivieren",
+		"editsHint": "Bearbeitungen folgen derselben Einstellung „Projektänderungen“ wie der integrierte Agent und lassen sich einzeln rückgängig machen.",
+		"statusRunning": "Läuft",
+		"statusOff": "Aus",
+		"statusError": "Läuft nicht",
+		"portLabel": "Port",
+		"portApply": "Übernehmen",
+		"tokenLabel": "Zugriffstoken",
+		"tokenHint": "Clients müssen dieses Token senden. Ein neues Token trennt alle Clients, die mit dem alten eingerichtet wurden.",
+		"show": "Anzeigen",
+		"hide": "Ausblenden",
+		"copy": "Kopieren",
+		"regenerate": "Neu erzeugen",
+		"claudeCodeLabel": "Claude Code",
+		"codexLabel": "Codex",
+		"codexHint": "Codex liest das Token aus der Umgebungsvariable {{env}}. Setze sie in der Shell, aus der du Codex startest.",
+		"copied": "In die Zwischenablage kopiert",
+		"copyFailed": "Kopieren fehlgeschlagen",
+		"updateFailed": "MCP-Server konnte nicht aktualisiert werden"
+	},
 	"cpuCompositor": {
 		"notice": "Läuft ohne kompatible GPU — das Rendering erfolgt auf der CPU, die Wiedergabe ist daher langsamer.",
 		"exportWarning": "Keine kompatible GPU: Dieser Export läuft auf der CPU und dauert deutlich länger als üblich."

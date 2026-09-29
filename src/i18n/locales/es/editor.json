@@ -402,6 +402,30 @@
 		"save": "Guardar",
 		"saveAndUse": "Guardar y usar"
 	},
+	"mcpServer": {
+		"title": "Servidor MCP",
+		"description": "Permite que los clientes MCP que ejecutas tú mismo, como Claude Code o Codex, usen las herramientas de edición con IA en el proyecto abierto en el editor. Inician sesión con sus propias cuentas; OpenScreen nunca las ve.",
+		"enableLabel": "Servidor",
+		"enable": "Activar servidor MCP",
+		"editsHint": "Las ediciones siguen el mismo ajuste de Ediciones del proyecto que el agente integrado, y cada una se puede deshacer.",
+		"statusRunning": "En ejecución",
+		"statusOff": "Desactivado",
+		"statusError": "Sin ejecutar",
+		"portLabel": "Puerto",
+		"portApply": "Aplicar",
+		"tokenLabel": "Token de acceso",
+		"tokenHint": "Los clientes deben enviar este token. Regenerarlo desconecta a todos los clientes configurados con el anterior.",
+		"show": "Mostrar",
+		"hide": "Ocultar",
+		"copy": "Copiar",
+		"regenerate": "Regenerar",
+		"claudeCodeLabel": "Claude Code",
+		"codexLabel": "Codex",
+		"codexHint": "Codex lee el token de la variable de entorno {{env}}. Defínela en la terminal desde la que inicias Codex.",
+		"copied": "Copiado al portapapeles",
+		"copyFailed": "No se pudo copiar",
+		"updateFailed": "No se pudo actualizar el servidor MCP"
+	},
 	"cpuCompositor": {
 		"notice": "Sin GPU compatible: el renderizado se hace en la CPU, por lo que la reproducción es más lenta.",
 		"exportWarning": "Sin GPU compatible: esta exportación se ejecuta en la CPU y tardará mucho más de lo normal."
