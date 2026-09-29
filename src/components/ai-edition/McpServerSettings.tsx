@@ -21,19 +21,32 @@ export function codexCommand(url: string): string {
 	return `codex mcp add openscreen --url ${url} --bearer-token-env-var ${CODEX_TOKEN_ENV}`;
 }
 
+// Commands and the token wrap onto as many lines as they need. `nowrap` here made
+// the `1fr` grid column as wide as the longest command, which pushed the copy
+// buttons out of the dialog and gave the whole modal a horizontal scrollbar.
 const codeStyle: React.CSSProperties = {
 	flex: 1,
 	minWidth: 0,
-	overflowX: "auto",
-	whiteSpace: "nowrap",
+	whiteSpace: "pre-wrap",
+	overflowWrap: "anywhere",
 	padding: "6px 8px",
 	borderRadius: 6,
 	background: "var(--bg-2, rgba(127,127,127,0.12))",
-	font: "12px var(--font-mono)",
+	font: "12px/1.5 var(--font-mono)",
 	color: "var(--fg-2)",
+	// A command is copied and typed as-is, so it has to render as-is: Geist Mono's
+	// contextual alternates drew " --header" as "--header", hiding the space.
+	fontVariantLigatures: "none",
+	fontFeatureSettings: '"liga" 0, "calt" 0',
+	userSelect: "text",
 };
 
-const rowStyle: React.CSSProperties = { display: "flex", alignItems: "center", gap: 8 };
+const rowStyle: React.CSSProperties = {
+	display: "flex",
+	alignItems: "flex-start",
+	gap: 8,
+	minWidth: 0,
+};
 
 export function McpServerSettings({ open }: { open: boolean }) {
 	const te = useScopedT("editor");
@@ -244,6 +257,7 @@ function IconButton({
 		<button
 			type="button"
 			className={`${styles.btn} ${styles.btnSecondary}`}
+			style={{ flexShrink: 0 }}
 			title={label}
 			aria-label={label}
 			onClick={onClick}
