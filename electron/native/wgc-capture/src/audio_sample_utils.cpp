@@ -1,4 +1,5 @@
 #include "audio_sample_utils.h"
+#include "realtime_scheduling.h"
 
 #include <mfapi.h>
 
@@ -522,6 +523,7 @@ bool AudioMixer::start() {
     systemDecimator_.reset();
     microphoneDecimator_.reset();
     thread_ = std::thread([this] {
+        const MmcssThread mmcss(L"Pro Audio");
         mixLoop();
     });
     return true;
