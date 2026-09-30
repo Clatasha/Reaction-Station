@@ -8,13 +8,11 @@ import type { Readable } from "node:stream";
 
 import { resolveBinaryPath } from "./gpuDetector";
 import { snapWordBoundariesToAudio } from "./snapWordBoundaries";
-import {
-	STT_VAD_UNAVAILABLE,
-	type SttBackend,
-	type SttPhraseSegment,
-	type SttTiming,
-	type SttVadSegment,
-	type SttWordSegment,
+import type {
+	SttBackend,
+	SttPhraseSegment,
+	SttTiming,
+	SttWordSegment,
 } from "./transcriptionContract";
 import { cleanupWav, writeSamplesAsWav } from "./wav";
 
@@ -76,7 +74,6 @@ export interface WhisperServerStatus {
 	backend: SttBackend | null;
 	startedAtMs: number | null;
 	lastError: string | null;
-	vadAvailable: boolean;
 }
 
 /** Per-word entry inside a whisper-stt-server `/inference` JSON segment. */
@@ -127,11 +124,7 @@ export class WhisperServerManager {
 	private lastError: string | null = null;
 	private startedAtMs: number | null = null;
 	private inFlight: Promise<unknown> = Promise.resolve();
-	private starting: Promise<{
-		port: number;
-		backend: SttBackend;
-		vadAvailable: boolean;
-	}> | null = null;
+	private starting: Promise<{ port: number; backend: SttBackend }> | null = null;
 
 	/** Buffered stderr from the helper; surfaced on shutdown + poll failures. */
 	private stderrTail = "";
@@ -156,12 +149,12 @@ export class WhisperServerManager {
 		});
 	}
 
-	/** Check the server's HTTP root for a 200; resolves once responsive. Returns VAD availability. */
+	/** Check the server's HTTP root for a 200; resolves once responsive. */
 	private static async pollUntilReady(
 		baseUrl: string,
 		timeoutMs = 30_000,
 		shouldContinue: () => boolean = () => true,
-	): Promise<{ vad: boolean }> {
+	): Promise<void> {
 		const deadline = Date.now() + timeoutMs;
 		while (Date.now() < deadline) {
 			if (!shouldContinue()) throw new Error("whisper-stt-server exited before readiness");
@@ -172,10 +165,7 @@ export class WhisperServerManager {
 			);
 			try {
 				const res = await fetch(baseUrl, { method: "GET", signal: controller.signal });
-				if (res.ok) {
-					const body = typeof res.json === "function" ? await res.json().catch(() => null) : null;
-					return { vad: Boolean((body as { vad?: boolean } | null)?.vad) };
-				}
+				if (res.ok) return;
 			} catch {
 				// not up yet
 			} finally {
@@ -210,8 +200,6 @@ export class WhisperServerManager {
 		if (log) console.error(`[stt] ${message}`);
 	}
 
-	private vadAvailable = false;
-
 	/** True when a process is alive and a model is loaded. */
 	get status(): WhisperServerStatus {
 		return {
@@ -221,12 +209,7 @@ export class WhisperServerManager {
 			backend: this.backend,
 			startedAtMs: this.startedAtMs,
 			lastError: this.lastError,
-			vadAvailable: this.vadAvailable,
 		};
-	}
-
-	get isVadAvailable(): boolean {
-		return this.vadAvailable;
 	}
 
 	/**
@@ -234,9 +217,7 @@ export class WhisperServerManager {
 	 * if a server is already up we just return its port so the caller never pays
 	 * the cold-start cost twice.
 	 */
-	async start(
-		options: WhisperServerStartOptions,
-	): Promise<{ port: number; backend: SttBackend; vadAvailable: boolean }> {
+	async start(options: WhisperServerStartOptions): Promise<{ port: number; backend: SttBackend }> {
 		if (this.starting) return this.starting;
 		this.starting = this.startImpl(options).finally(() => {
 			this.starting = null;
@@ -246,7 +227,7 @@ export class WhisperServerManager {
 
 	private async startImpl(
 		options: WhisperServerStartOptions,
-	): Promise<{ port: number; backend: SttBackend; vadAvailable: boolean }> {
+	): Promise<{ port: number; backend: SttBackend }> {
 		if (this.shuttingDown) {
 			throw new Error("whisper-stt-server manager is shutting down");
 		}
@@ -254,7 +235,6 @@ export class WhisperServerManager {
 			return {
 				port: this.port,
 				backend: this.backend ?? options.backend ?? "whispercpp-cpu",
-				vadAvailable: this.vadAvailable,
 			};
 		}
 
@@ -283,9 +263,7 @@ export class WhisperServerManager {
 			throw new Error(`Whisper GGML model not found at ${options.modelPath}`);
 		}
 
-		const launch = async (
-			forceCpu: boolean,
-		): Promise<{ port: number; backend: SttBackend; vadAvailable: boolean }> => {
+		const launch = async (forceCpu: boolean): Promise<{ port: number; backend: SttBackend }> => {
 			const port = await WhisperServerManager.pickFreePort();
 			if (this.shuttingDown) {
 				throw new Error("whisper-stt-server manager is shutting down");
@@ -333,7 +311,6 @@ export class WhisperServerManager {
 					this.process = null;
 					this.port = null;
 					this.startedAtMs = null;
-					this.vadAvailable = false;
 				}
 			});
 			child.once("error", (err) => {
@@ -349,7 +326,6 @@ export class WhisperServerManager {
 					this.process = null;
 					this.port = null;
 					this.startedAtMs = null;
-					this.vadAvailable = false;
 				}
 			});
 
@@ -364,9 +340,8 @@ export class WhisperServerManager {
 				});
 				child.once("error", reject);
 			});
-			let readyInfo: { vad: boolean };
 			try {
-				readyInfo = await Promise.race([
+				await Promise.race([
 					WhisperServerManager.pollUntilReady(
 						`http://127.0.0.1:${port}`,
 						30_000,
@@ -386,8 +361,7 @@ export class WhisperServerManager {
 				this.recordError(message, { log: !alreadyLogged });
 				throw new Error(message);
 			}
-			this.vadAvailable = Boolean(readyInfo?.vad);
-			return { port, backend: activeBackend, vadAvailable: this.vadAvailable };
+			return { port, backend: activeBackend };
 		};
 
 		try {
@@ -413,7 +387,6 @@ export class WhisperServerManager {
 
 	/** Send SIGTERM and wait for the helper to exit. Resolves even if it was already down. */
 	async stop(): Promise<void> {
-		this.vadAvailable = false;
 		if (!this.process) {
 			this.port = null;
 			this.startedAtMs = null;
@@ -630,117 +603,4 @@ export class WhisperServerManager {
 			await cleanupWav(wavPath);
 		}
 	}
-
-	/** Run Voice Activity Detection (Silero VAD) to detect speech intervals. */
-	async detectVadSegments(opts: { samples: Float32Array }): Promise<SttVadSegment[]> {
-		const task = this.inFlight.then(() => this.detectVadSegmentsImpl(opts));
-		this.inFlight = task.catch(() => undefined);
-		return task;
-	}
-
-	private async detectVadChunk(samples: Float32Array): Promise<SttVadSegment[]> {
-		const wavPath = await writeSamplesAsWav(samples);
-		try {
-			const url = `${this.baseUrl()}/vad`;
-			const form = new FormData();
-			const fileBuffer = await readFile(wavPath);
-			const blob = new Blob([fileBuffer], { type: "audio/wav" });
-			form.set("file", blob, path.basename(wavPath));
-
-			let res: Response;
-			try {
-				res = await fetch(url, {
-					method: "POST",
-					body: form,
-					signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-				});
-			} catch (error) {
-				throw Object.assign(
-					new Error(
-						`whisper-stt-server /vad failed: ` +
-							`${error instanceof Error ? error.message : String(error)}; ` +
-							`stderr=${this.stderrTail.slice(-256)}`,
-					),
-					{ cause: error },
-				);
-			}
-
-			if (!res.ok) {
-				const text = await res.text().catch(() => "");
-				throw new Error(`whisper-stt-server /vad HTTP ${res.status}: ${text.slice(0, 512)}`);
-			}
-
-			const json = (await res.json().catch((error: unknown) => {
-				throw Object.assign(
-					new Error(
-						`whisper-stt-server /vad response was unreadable: ` +
-							`${error instanceof Error ? error.message : String(error)}`,
-					),
-					{ cause: error },
-				);
-			})) as { segments?: Array<{ start?: number | string; end?: number | string }> };
-
-			const raw = json.segments ?? [];
-			return raw.map((seg) => {
-				const startSec = this.toSec(seg.start, 0);
-				const endSec = this.toSec(seg.end, startSec);
-				return { startSec, endSec };
-			});
-		} finally {
-			await cleanupWav(wavPath);
-		}
-	}
-
-	private async detectVadSegmentsImpl(opts: { samples: Float32Array }): Promise<SttVadSegment[]> {
-		await this.ensureReady();
-		if (!this.vadAvailable) {
-			throw new Error(STT_VAD_UNAVAILABLE);
-		}
-		if (opts.samples.length === 0) return [];
-
-		const allSegments: SttVadSegment[] = [];
-		const totalSamples = opts.samples.length;
-		for (let offset = 0; offset < totalSamples; offset += MAX_VAD_CHUNK_SAMPLES) {
-			const chunkSamples = opts.samples.subarray(
-				offset,
-				Math.min(totalSamples, offset + MAX_VAD_CHUNK_SAMPLES),
-			);
-			const chunkSegments = await this.detectVadChunk(chunkSamples);
-			const offsetSec = offset / 16_000;
-			for (const seg of chunkSegments) {
-				allSegments.push({
-					startSec: Math.round((seg.startSec + offsetSec) * 1000) / 1000,
-					endSec: Math.round((seg.endSec + offsetSec) * 1000) / 1000,
-				});
-			}
-		}
-
-		return mergeVadIntervals(allSegments);
-	}
-}
-
-/**
- * Silero VAD processes audio quickly, but buffering hours of 16 kHz audio as
- * single WAV blobs can exhaust Node memory. We bound individual VAD passes to
- * chunks of at most 3 minutes (180s = 2,880,000 samples @ 16 kHz), keeping
- * memory under ~6 MB per WAV, and merge the resulting intervals.
- */
-export const MAX_VAD_CHUNK_SAMPLES = 16_000 * 180;
-
-/**
- * Merges contiguous or overlapping speech segments into non-overlapping intervals.
- */
-export function mergeVadIntervals(segments: SttVadSegment[]): SttVadSegment[] {
-	if (segments.length <= 1) return segments.filter((seg) => seg.endSec > seg.startSec);
-	const merged: SttVadSegment[] = [];
-	for (const seg of segments) {
-		if (seg.endSec <= seg.startSec) continue;
-		const last = merged[merged.length - 1];
-		if (last && seg.startSec <= last.endSec) {
-			last.endSec = Math.max(last.endSec, seg.endSec);
-		} else {
-			merged.push({ startSec: seg.startSec, endSec: seg.endSec });
-		}
-	}
-	return merged;
 }
