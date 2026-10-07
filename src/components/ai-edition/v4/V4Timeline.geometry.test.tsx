@@ -1104,6 +1104,38 @@ describe("timeline Workspace controls and context actions", () => {
 		expect(duplicateClip).toHaveBeenCalledWith("c@3");
 		expect(setCurrentTime).not.toHaveBeenCalled();
 	});
+	it("duplicates the right-clicked microphone group without dragging or seeking", async () => {
+		const duplicateItem = vi.fn();
+		const { tl, setCurrentTime } = renderTimeline(undefined, undefined, undefined, undefined, {
+			duplicateItem,
+			audioTracks: [
+				{
+					id: "mic-fragment",
+					trackId: "mic-group",
+					assetId: "mic",
+					kind: "voiceover",
+					startMs: 0,
+					endMs: 2000,
+					durationSec: 2,
+					offsetMs: 0,
+					gainDb: 0,
+					fadeInMs: 0,
+					fadeOutMs: 0,
+					recordingSource: "microphone",
+				},
+			],
+		});
+		const microphone = document.querySelector('[data-timeline-kind="audio"]')!;
+		fireEvent.pointerDown(microphone, { button: 2 });
+		fireEvent.contextMenu(microphone, { clientX: 450, clientY: 550 });
+		const duplicate = await screen.findByRole("menuitem", { name: "context.duplicate" });
+		fireEvent.pointerDown(duplicate, { button: 0 });
+		fireEvent.pointerUp(duplicate, { button: 0 });
+		fireEvent.click(duplicate);
+		expect(tl.selectAudioTrack).toHaveBeenCalledWith("mic-group");
+		expect(duplicateItem).toHaveBeenCalledWith("audio", "mic-group");
+		expect(setCurrentTime).not.toHaveBeenCalled();
+	});
 	it("right click Delete removes the clicked region rather than another selection", async () => {
 		const removeRegion = vi.fn();
 		const { pill } = renderTimeline(undefined, undefined, undefined, undefined, { removeRegion });

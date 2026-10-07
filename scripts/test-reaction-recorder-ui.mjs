@@ -12,6 +12,8 @@ const application = await electron.launch({
 	env: { ...process.env, OPENSCREEN_DISABLE_CONTENT_PROTECTION: "1" },
 	timeout: 60_000,
 });
+let editor;
+const editorErrors = [];
 try {
 	const page = await application.firstWindow();
 	const errors = [];
@@ -138,7 +140,8 @@ try {
 	);
 	const editorWindow = application.waitForEvent("window");
 	await page.getByTestId("launch-open-studio-button").click();
-	const editor = await editorWindow;
+	editor = await editorWindow;
+	editor.on("pageerror", (error) => editorErrors.push(error.message));
 	await editor.getByText("Microphone", { exact: true }).last().waitFor({ timeout: 60_000 });
 	await editor.getByText("Desktop audio", { exact: true }).last().waitFor({ timeout: 60_000 });
 	const getImportedDocument = () =>
@@ -185,6 +188,7 @@ try {
 	const tracks = editor.locator('[class*="tlTracks_"]').first();
 	const originalTracksHeight = await tracks.evaluate((el) => el.clientHeight);
 	await microphone.click({ button: "right" });
+	await editor.screenshot({ path: path.join(output, "timeline-before-duplicate.png") });
 	await editor.getByRole("menuitem", { name: "Duplicate", exact: true }).click();
 	await expect.poll(async () => (await getImportedDocument()).audioTracks.length).toBe(3);
 	await expect.poll(() => tracks.evaluate((el) => el.clientHeight)).toBe(originalTracksHeight);
@@ -214,6 +218,57 @@ try {
 	console.log(
 		"Packaged recorder UI smoke passed. Native capture and OS click-through require desktop testing.",
 	);
+} catch (error) {
+	if (editor && !editor.isClosed()) {
+		await editor.screenshot({ path: path.join(output, "editor-failure.png") }).catch(() => {
+			/* Preserve the original test failure if screenshot capture fails. */
+		});
+		console.error(
+			"Editor diagnostics:",
+			JSON.stringify({
+				errors: editorErrors,
+				toasts: await editor
+					.locator("[data-sonner-toast]")
+					.allTextContents()
+					.catch(() => []),
+				projects: await editor
+					.evaluate(async () => {
+						const list = await window.electronAPI.invokeNativeBridge({
+							domain: "aiEdition",
+							action: "document.listProjects",
+							requestId: crypto.randomUUID(),
+						});
+						return Promise.all(
+							(list.data ?? []).map(async (project) => {
+								const result = await window.electronAPI.invokeNativeBridge({
+									domain: "aiEdition",
+									action: "document.get",
+									payload: { projectId: project.id },
+									requestId: crypto.randomUUID(),
+								});
+								return {
+									id: project.id,
+									audioTracks: result.data?.document?.audioTracks?.length,
+									error: result.error,
+								};
+							}),
+						);
+					})
+					.catch(() => []),
+				menus: await editor
+					.getByRole("menu")
+					.allTextContents()
+					.catch(() => []),
+				audioPills: await editor
+					.locator('[data-timeline-kind="audio"]')
+					.evaluateAll((items) =>
+						items.map((item) => ({ id: item.dataset.timelineId, label: item.textContent })),
+					)
+					.catch(() => []),
+			}),
+		);
+	}
+	throw error;
 } finally {
 	await application.close();
 }

@@ -1,5 +1,5 @@
 name: Reaction Station Windows test installer
-run-name: Reaction Station 0.5 timeline media test (${{ github.ref_name }})
+run-name: Reaction Station 0.5 timeline menu fix test (${{ github.ref_name }})
 
 on:
   workflow_dispatch:

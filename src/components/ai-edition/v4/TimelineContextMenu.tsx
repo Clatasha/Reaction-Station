@@ -21,7 +21,7 @@ export function TimelineContextMenu({
 }: {
 	target: TimelineContextTarget | null;
 	onClose: () => void;
-	onAction: (action: TimelineMenuAction) => void;
+	onAction: (action: TimelineMenuAction, target: TimelineContextTarget) => void;
 }) {
 	const t = useScopedT("timeline");
 	const lastTarget = useRef(target);
@@ -34,8 +34,11 @@ export function TimelineContextMenu({
 			role="menuitem"
 			className={styles.appMenuRow}
 			onClick={() => {
+				// Exit animations can leave a menu button mounted after dismissal.
+				// Dispatch with the item that opened the menu, before clearing it.
+				const selected = target ?? lastTarget.current;
+				if (selected) onAction(action, selected);
 				onClose();
-				onAction(action);
 			}}
 		>
 			{icon}

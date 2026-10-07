@@ -1941,9 +1941,7 @@ export function V4Timeline({
 				: undefined;
 		setContextTarget({ kind, id, x, y, element: item ?? undefined, muted });
 	};
-	const runContextAction = (action: TimelineMenuAction) => {
-		const target = contextTarget;
-		if (!target) return;
+	const runContextAction = (action: TimelineMenuAction, target: TimelineContextTarget) => {
 		if (action === "fit") {
 			fitTimelineToWindow();
 			return;
