@@ -26,6 +26,22 @@ try {
 			),
 		)
 		.toBe(true);
+	const checkCloseInsideDock = async () => {
+		const surface = await dock.boundingBox();
+		const close = await page
+			.getByRole("button", { name: "Quit Reaction Station", exact: true })
+			.boundingBox();
+		if (
+			!surface ||
+			!close ||
+			close.x < surface.x ||
+			close.y < surface.y ||
+			close.x + close.width > surface.x + surface.width + 1 ||
+			close.y + close.height > surface.y + surface.height + 1
+		)
+			throw new Error("Recorder Close is outside the dock");
+	};
+	await checkCloseInsideDock();
 	await page.getByTestId("launch-system-audio-button").click();
 	await dock.screenshot({ path: path.join(output, "recorder-dock.png") });
 	await page.getByRole("button", { name: "Session controls", exact: true }).click();
@@ -50,6 +66,7 @@ try {
 	await page.getByRole("button", { name: "Switch to vertical bar", exact: true }).click();
 	await page.locator("[data-tray-layout='vertical']").waitFor();
 	await expect.poll(async () => (await dock.boundingBox())?.width ?? 1000).toBeLessThan(100);
+	await checkCloseInsideDock();
 	await dock.screenshot({ path: path.join(output, "vertical-dock.png") });
 	if (errors.length) throw new Error(errors.join("\n"));
 	const recordings = await application.evaluate(
@@ -153,6 +170,32 @@ try {
 	await editor.getByText("Microphone", { exact: true }).last().click();
 	await editor.getByRole("slider").first().waitFor();
 	await editor.screenshot({ path: path.join(output, "separate-audio-editor.png") });
+	await editor.getByRole("button", { name: "Workspace", exact: true }).click();
+	const snapping = editor.getByRole("switch", { name: /Enable snapping/ });
+	await expect(snapping).toHaveAttribute("aria-checked", "true");
+	await snapping.click();
+	await expect(snapping).toHaveAttribute("aria-checked", "false");
+	await snapping.click();
+	await editor.screenshot({ path: path.join(output, "workspace-menu.png") });
+	await editor.keyboard.press("Escape");
+	const microphone = editor
+		.locator('[data-timeline-kind="audio"]')
+		.filter({ hasText: "Microphone" })
+		.first();
+	await microphone.click({ button: "right" });
+	await editor.getByRole("menuitem", { name: "Duplicate", exact: true }).click();
+	await expect.poll(async () => (await getImportedDocument()).audioTracks.length).toBe(3);
+	const copied = (await getImportedDocument()).audioTracks.find(
+		(track) => !document.audioTracks.some((original) => original.id === track.id),
+	);
+	const copiedId = copied.trackId ?? copied.id;
+	await editor
+		.locator(`[data-timeline-kind="audio"][data-timeline-id="${copiedId}"]`)
+		.click({ button: "right" });
+	await editor.screenshot({ path: path.join(output, "timeline-context-menu.png") });
+	await editor.getByRole("menuitem", { name: "Delete", exact: true }).click();
+	await expect.poll(async () => (await getImportedDocument()).audioTracks.length).toBe(2);
+
 	console.log(
 		"Packaged editor imported and persisted both synchronized audio sources with the fallback mix suppressed.",
 	);

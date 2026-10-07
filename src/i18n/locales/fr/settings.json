@@ -278,7 +278,8 @@
 		"slipHint": "Maintenez {{modifier}} et faites glisser pour déplacer l'audio dans la piste",
 		"help": "Volume, fondus et boucle de cette piste audio. Elle se mixe par-dessus l’enregistrement dans l’aperçu et à l’export. Une piste de musique baisse d’elle-même quand quelqu’un parle. Faites glisser la piste sur la timeline pour la déplacer ou la redimensionner, ou maintenez Alt en glissant pour déplacer l’audio à l’intérieur.",
 		"add": "Ajouter une piste audio",
-		"mute": "Muet"
+		"mute": "Muet",
+		"noRoomToDuplicate": "No room for a duplicate in this lane. Shorten the item or move it first."
 	},
 	"layout": {
 		"help": "Composition de la webcam avec l'écran : incrustation, empilement vertical, double cadre, forme, arrondi, taille, position et effet miroir.",

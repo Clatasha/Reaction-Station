@@ -432,5 +432,18 @@
 	"cpuCompositor": {
 		"notice": "Sem GPU compatível — a renderização ocorre na CPU, então a reprodução fica mais lenta.",
 		"exportWarning": "Sem GPU compatível: esta exportação roda na CPU e vai demorar muito mais que o normal."
+	},
+	"workspace": {
+		"title": "Workspace",
+		"snapping": "Enable snapping",
+		"showGuides": "Show alignment guides",
+		"snapToPlayhead": "Snap to playhead",
+		"snapToItems": "Snap to item edges",
+		"snapToClips": "Snap to clip boundaries",
+		"showWaveforms": "Show audio waveforms",
+		"fitTimeline": "Fit timeline to window",
+		"shortcuts": "Keyboard shortcuts",
+		"reset": "Reset workspace",
+		"snapHint": "Hold Shift while dragging to temporarily bypass snapping."
 	}
 }

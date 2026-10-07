@@ -278,7 +278,8 @@
 		"slipHint": "Hold {{modifier}} and drag to slide the audio inside the track",
 		"help": "Volume, fades and looping for this audio track. It mixes over the recording in the preview and the export. A music track dips on its own while someone speaks. Drag the track on the timeline to move or resize it, or hold Alt and drag to slide the audio inside it.",
 		"add": "Add audio track",
-		"mute": "Mute"
+		"mute": "Mute",
+		"noRoomToDuplicate": "No room for a duplicate in this lane. Shorten the item or move it first."
 	},
 	"layout": {
 		"help": "How the webcam is composed with the screen: picture-in-picture, vertical stack, dual frame, shape, roundness, size, position, and mirroring.",

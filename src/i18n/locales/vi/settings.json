@@ -278,7 +278,8 @@
 		"slipHint": "Giữ {{modifier}} và kéo để trượt âm thanh bên trong bản âm thanh",
 		"help": "Âm lượng, fade và lặp của rãnh âm thanh này. Nó được trộn lên trên bản ghi trong xem trước và khi xuất. Rãnh nhạc tự động nhỏ lại khi có người nói. Kéo rãnh trên dòng thời gian để di chuyển hoặc đổi kích thước, hoặc giữ Alt và kéo để trượt âm thanh bên trong.",
 		"add": "Thêm bản âm thanh",
-		"mute": "Tắt tiếng"
+		"mute": "Tắt tiếng",
+		"noRoomToDuplicate": "No room for a duplicate in this lane. Shorten the item or move it first."
 	},
 	"layout": {
 		"help": "Cách ghép webcam với màn hình: hình trong hình, xếp dọc, khung đôi, hình dạng, độ bo tròn, kích thước, vị trí và lật gương.",

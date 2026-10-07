@@ -103,5 +103,14 @@
 		"recordingUnavailable": "여기에서는 녹음할 수 없습니다",
 		"saveFailed": "녹음을 저장하지 못했습니다",
 		"importFailed": "오디오 파일을 가져오지 못했습니다"
+	},
+	"context": {
+		"title": "Timeline actions",
+		"duplicate": "Duplicate",
+		"delete": "Delete",
+		"editClip": "Edit clip",
+		"mute": "Mute audio",
+		"unmute": "Unmute audio",
+		"fit": "Fit timeline to window"
 	}
 }

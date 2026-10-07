@@ -278,7 +278,8 @@
 		"slipHint": "Mantén presionado {{modifier}} y arrastra para desplazar el audio dentro de la pista",
 		"help": "Volumen, fundidos y bucle de esta pista de audio. Se mezcla sobre la grabación en la vista previa y en la exportación. Una pista de música baja sola mientras alguien habla. Arrastra la pista en la línea de tiempo para moverla o redimensionarla, o mantén Alt y arrastra para desplazar el audio dentro.",
 		"add": "Añadir pista de audio",
-		"mute": "Silenciar"
+		"mute": "Silenciar",
+		"noRoomToDuplicate": "No room for a duplicate in this lane. Shorten the item or move it first."
 	},
 	"layout": {
 		"help": "Cómo se compone la webcam con la pantalla: imagen en imagen, pila vertical, marco doble, forma, redondez, tamaño, posición y efecto espejo.",

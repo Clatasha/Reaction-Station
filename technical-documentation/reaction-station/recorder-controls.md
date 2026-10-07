@@ -49,3 +49,11 @@ The editor app menu → Keyboard Shortcuts offers all editor command bindings, i
 Existing saved assignments are retained. If an old custom assignment occupies a newly configurable command's default key, that new command starts unassigned instead of taking over the key. Changes also update native File/Edit menu accelerators and toolbar hints. Text inputs keep standard text editing and dialogs keep Enter/Escape and focus navigation. Mouse wheel gestures and operating system/window shortcuts are separate from editor command bindings.
 
 This change is queued for the next feature batch; no installer build is dispatched solely for keyboard customization.
+
+## Creator workspace batch
+
+The recorder's Hide and Close buttons are inside the dock header in horizontal and vertical layouts. Timeline items expose right-click menus (also Shift+F10 on a focused item): video clips offer Duplicate, Delete and Edit clip; audio layers offer Duplicate, Delete and Mute/Unmute; effect/trim regions offer Duplicate and Delete. Actions use normal document saves and undo history. Video duplication preserves source edits; audio duplication keeps its source offset, gain, mute and fades in an independent group. A region copy is placed in the next available same-lane gap with a frame of separation; a full lane reports that there is no room.
+
+Workspace sits beside the app dropdown. It saves snapping, timeline guide and waveform visibility, and individual magnets for the playhead, item edges and clip boundaries. Moving effects/audio can snap from either edge, resizing snaps the edited edge, and the radius stays eight screen pixels at every zoom level. Shift temporarily bypasses snapping; Alt audio slipping retains its source-window behavior. Clip cards remain a contiguous reorder lane. Timeline guides are editing aids and never appear in exports. Fit timeline to window, Reset workspace and Keyboard Shortcuts are also available.
+
+Defaults: G toggles snapping, Ctrl/Cmd+Shift+G toggles guides, and Home fits the timeline. These commands join the editable shortcut list. The Windows package smoke script checks dock Close containment and the saved Workspace/menu wiring in the next combined build. This batch has not dispatched an installer build.

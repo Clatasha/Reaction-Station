@@ -61,6 +61,7 @@ import {
 	setTimelineScale,
 } from "@/lib/ai-edition/timeline/newRegionDuration";
 import { ventilateSpanAcrossClips } from "@/lib/ai-edition/timeline/region-ventilation";
+import { snapTimelineEdge } from "@/lib/ai-edition/timeline/snapping";
 import { coalesceRegionsForRuler } from "@/lib/ai-edition/timeline/timelineMap";
 import {
 	coalescedTrimGroups,
@@ -68,10 +69,16 @@ import {
 	ventilateTimelineSpanToTrims,
 } from "@/lib/ai-edition/timeline/trim-mapping";
 import { formatBinding } from "@/lib/shortcuts";
+import { fitTimelineToWindow, useWorkspace } from "@/lib/workspace";
 import { nativeBridgeClient } from "@/native/client";
 import { TransportBar } from "../TransportBar";
 import type { VideoSource } from "../VirtualPreview";
 import styles from "./EditorShellV4.module.css";
+import {
+	TimelineContextMenu,
+	type TimelineContextTarget,
+	type TimelineMenuAction,
+} from "./TimelineContextMenu";
 
 // The AI option's prompt — sent straight to the chat agent via the prompt-bus.
 //
@@ -491,6 +498,7 @@ const AudioLanePill = memo(function AudioLanePill({
 		sourceEndSec: number;
 	} | null;
 }) {
+	const showWaveforms = useWorkspace((state) => state.showWaveforms);
 	const duration = assetDurationSec ?? track.durationSec;
 	return (
 		<>
@@ -509,17 +517,21 @@ const AudioLanePill = memo(function AudioLanePill({
 						height: AUDIO_ROW_HEIGHT_PX,
 					}}
 				>
-					<ClipWaveform
-						videoUrl={url}
-						assetDurationSec={duration}
-						sourceStartSec={ghost.sourceStartSec}
-						sourceEndSec={ghost.sourceEndSec}
-						gain={audioGainScalar(track.gainDb) * outputGain}
-					/>
+					{showWaveforms ? (
+						<ClipWaveform
+							videoUrl={url}
+							assetDurationSec={duration}
+							sourceStartSec={ghost.sourceStartSec}
+							sourceEndSec={ghost.sourceEndSec}
+							gain={audioGainScalar(track.gainDb) * outputGain}
+						/>
+					) : null}
 				</div>
 			) : null}
 			<div
 				role="button"
+				data-timeline-kind="audio"
+				data-timeline-id={track.id}
 				tabIndex={0}
 				className={`${styles.lanePill} ${styles.laneAudio}${
 					selected ? ` ${styles.lanePillSel}` : ""
@@ -549,15 +561,17 @@ const AudioLanePill = memo(function AudioLanePill({
 					style={{ left: 0 }}
 					onPointerDown={(e) => onStartDrag(e, track, "l")}
 				/>
-				<ClipWaveform
-					videoUrl={url}
-					assetDurationSec={duration}
-					sourceStartSec={sourceStartSec}
-					sourceEndSec={sourceEndSec}
-					// Track gain AND the project output gain — `finish_audio` applies both and
-					// clamps, so scaling by the track gain alone under-read a boosted output.
-					gain={audioGainScalar(track.gainDb) * outputGain}
-				/>
+				{showWaveforms ? (
+					<ClipWaveform
+						videoUrl={url}
+						assetDurationSec={duration}
+						sourceStartSec={sourceStartSec}
+						sourceEndSec={sourceEndSec}
+						// Track gain AND the project output gain — `finish_audio` applies both and
+						// clamps, so scaling by the track gain alone under-read a boosted output.
+						gain={audioGainScalar(track.gainDb) * outputGain}
+					/>
+				) : null}
 				{/* Where the file starts over, so a looping bed reads as one deliberate
 			    repeat rather than a mystery. Only drawn when the pill actually
 			    outruns its source — otherwise there is nothing to repeat. */}
@@ -624,6 +638,8 @@ export function V4Timeline({
 	onAddVoiceover: () => void;
 }) {
 	const t = useScopedT("timeline");
+	const workspace = useWorkspace();
+	const [contextTarget, setContextTarget] = useState<TimelineContextTarget | null>(null);
 	// The live bindings, not the defaults: these keys are remappable, and a menu
 	// that taught the wrong one would be worse than teaching none.
 	const { shortcuts, isMac } = useShortcuts();
@@ -647,6 +663,11 @@ export function V4Timeline({
 	// not a select). Reset at the start of each new clip pointerdown.
 	const didClipDragRef = useRef(false);
 	const [nav, setNav] = useState({ start: 0, end: 1 });
+	useEffect(() => {
+		const fit = () => setNav({ start: 0, end: 1 });
+		window.addEventListener("reaction-station-fit-timeline", fit);
+		return () => window.removeEventListener("reaction-station-fit-timeline", fit);
+	}, []);
 	// On-screen width of one full (unzoomed) timeline, in px. The ruler needs it
 	// to pick a tick step that reads at THIS panel size — a step that looks right
 	// on a wide window crams into an unreadable smear on a narrow one.
@@ -785,6 +806,27 @@ export function V4Timeline({
 		label: formatSec(g.end - g.start),
 		sourceIds: g.ids,
 	}));
+
+	const collectSnapTargets = (excludeIds: string[] = []) => {
+		const prefs = useWorkspace.getState();
+		const targets = [0, total];
+		if (prefs.snapToClips)
+			targets.push(...clips.flatMap((c) => [c.timelineStartSec, c.timelineEndSec]));
+		if (prefs.snapToPlayhead) targets.push(useProjectStore.getState().currentTimeSec);
+		if (prefs.snapToItems) {
+			targets.push(
+				...[...annPills, ...speedPills, ...zoomPills, ...trimPills, ...cameraFullscreenPills]
+					.filter((p) => !p.sourceIds.some((id) => excludeIds.includes(id)))
+					.flatMap((p) => [p.start, p.end]),
+			);
+			targets.push(
+				...collapseTracksToPills(tl.audioTracks)
+					.filter((t) => !excludeIds.includes(t.id))
+					.flatMap((t) => [t.startMs / 1000, t.endMs / 1000]),
+			);
+		}
+		return [...new Set(targets)];
+	};
 
 	// Ruler ticks are chosen from what is actually ON SCREEN, not from the clip
 	// length: the canvas is widened by 1/navSpan, so the same recording shows one
@@ -951,6 +993,7 @@ export function V4Timeline({
 	// back to source-seconds through their carrying clip.
 	const startPillDrag = useCallback(
 		(e: ReactPointerEvent, pill: LanePill, dragMode: "move" | "l" | "r") => {
+			if (e.button !== 0) return;
 			e.preventDefault();
 			e.stopPropagation();
 			// Scale drag deltas against the canvas (full zoomed timeline) width, so a
@@ -975,28 +1018,20 @@ export function V4Timeline({
 			// The radius is in PIXELS: as a fraction of total (it was 1.2%) it was a
 			// 21-second magnet on a 30-minute project, so a pill dragged anywhere near
 			// a junction jumped to it however far you zoomed in to place it precisely.
-			const snapTargets = [
-				0,
-				total,
-				...clips.map((c) => c.timelineStartSec),
-				...clips.map((c) => c.timelineEndSec),
-			];
-			// 0 = no snapping at all while the panel is unmeasured (first paint):
-			// better to drop the edge exactly where it was released than to move it
-			// by a radius computed from a width we do not have.
-			const snapThresh = pxPerSec > 0 ? PILL_SNAP_PX / pxPerSec : 0;
-			const snap = (v: number): number => {
-				let best = v;
-				let bestD = snapThresh;
-				for (const t of snapTargets) {
-					const d = Math.abs(t - v);
-					if (d < bestD) {
-						bestD = d;
-						best = t;
-					}
-				}
-				setSnapPct(best === v ? null : (best / total) * 100);
-				return best;
+			const snapTargets = collectSnapTargets(pill.sourceIds);
+			const snap = (
+				value: number,
+				ev: PointerEvent,
+				duration = 0,
+				min = 0,
+				max = total,
+			): number => {
+				const prefs = useWorkspace.getState();
+				const threshold =
+					prefs.snapping && !ev.shiftKey && pxPerSec > 0 ? PILL_SNAP_PX / pxPerSec : 0;
+				const result = snapTimelineEdge(value, snapTargets, threshold, duration, min, max);
+				setSnapPct(prefs.showGuides && result.guide !== null ? (result.guide / total) * 100 : null);
+				return result.value;
 			};
 			const apply = async (start: number, end: number): Promise<void> => {
 				const s = Math.max(0, Math.min(end - MIN_REGION_SEC, start));
@@ -1033,14 +1068,14 @@ export function V4Timeline({
 				let ns = pill.start;
 				let ne = pill.end;
 				if (dragMode === "move") {
-					ns = Math.max(0, Math.min(total - dur, snap(pill.start + dxSec)));
+					ns = snap(pill.start + dxSec, ev, dur, 0, total - dur);
 					ne = ns + dur;
 				} else if (dragMode === "l") {
-					ns = Math.max(0, Math.min(pill.end - MIN_REGION_SEC, snap(pill.start + dxSec)));
+					ns = snap(pill.start + dxSec, ev, 0, 0, pill.end - MIN_REGION_SEC);
 					ne = pill.end;
 				} else {
 					ns = pill.start;
-					ne = Math.min(total, Math.max(pill.start + MIN_REGION_SEC, snap(pill.end + dxSec)));
+					ne = snap(pill.end + dxSec, ev, 0, pill.start + MIN_REGION_SEC, total);
 				}
 				const nextState = { id: pill.id, kind: pill.kind, start: ns, end: ne };
 				activePillDragRef.current = nextState;
@@ -1066,7 +1101,7 @@ export function V4Timeline({
 			window.addEventListener("pointermove", move);
 			window.addEventListener("pointerup", up);
 		},
-		[tl, selectPill, total, clips, pxPerSec],
+		[tl, selectPill, total, clips, pxPerSec, collectSnapTargets],
 	);
 
 	// Live preview geometry for an audio track being dragged (issue #350), the
@@ -1139,6 +1174,7 @@ export function V4Timeline({
 	// once, on pointerup.
 	const startAudioDrag = useCallback(
 		(e: ReactPointerEvent, track: AxcutAudioTrack, mode: "move" | "l" | "r") => {
+			if (e.button !== 0) return;
 			e.preventDefault();
 			e.stopPropagation();
 			tl.selectAudioTrack(track.id);
@@ -1182,25 +1218,20 @@ export function V4Timeline({
 					: origTrimEnd;
 			// Snap the moving edge to clip boundaries and the timeline ends, same PILL_SNAP_PX
 			// magnet the region pills use.
-			const snapTargets = [
-				0,
-				total,
-				...clips.map((c) => c.timelineStartSec),
-				...clips.map((c) => c.timelineEndSec),
-			];
-			const snapThresh = pxPerSec > 0 ? PILL_SNAP_PX / pxPerSec : 0;
-			const snap = (v: number): number => {
-				let best = v;
-				let bestD = snapThresh;
-				for (const target of snapTargets) {
-					const d = Math.abs(target - v);
-					if (d < bestD) {
-						bestD = d;
-						best = target;
-					}
-				}
-				setSnapPct(best === v ? null : (best / total) * 100);
-				return best;
+			const snapTargets = collectSnapTargets([track.id]);
+			const snap = (
+				value: number,
+				ev: PointerEvent,
+				duration = 0,
+				min = 0,
+				max = total,
+			): number => {
+				const prefs = useWorkspace.getState();
+				const threshold =
+					prefs.snapping && !ev.shiftKey && pxPerSec > 0 ? PILL_SNAP_PX / pxPerSec : 0;
+				const result = snapTimelineEdge(value, snapTargets, threshold, duration, min, max);
+				setSnapPct(prefs.showGuides && result.guide !== null ? (result.guide / total) * 100 : null);
+				return result.value;
 			};
 			const move = (ev: PointerEvent) => {
 				if (slipping) {
@@ -1238,14 +1269,14 @@ export function V4Timeline({
 					// Cap so the whole track lands by `total`: no pill past 100%, and the
 					// export (which truncates at the programme end) matches what's shown.
 					const upper = Math.max(0, total - (origTrimEnd - origTrimStart));
-					ns = Math.min(Math.max(0, snap(origStart + dxSec)), upper);
+					ns = snap(origStart + dxSec, ev, spanSec, 0, upper);
 				} else if (mode === "l") {
 					// The left edge can't cross the right one, and can't reveal more head
 					// than the source has (trimStart floors at 0 → head floors at
 					// origStart - origTrimStart).
 					const rightEdge = origStart + (origTrimEnd - origTrimStart);
 					const lowerLeft = Math.max(0, origStart - origTrimStart);
-					let newLeft = snap(origStart + dxSec);
+					let newLeft = snap(origStart + dxSec, ev, 0, lowerLeft, rightEdge - MIN_REGION_SEC);
 					newLeft = Math.min(Math.max(newLeft, lowerLeft), rightEdge - MIN_REGION_SEC);
 					ns = newLeft;
 					nts = origTrimStart + (newLeft - origStart);
@@ -1253,7 +1284,13 @@ export function V4Timeline({
 				} else {
 					// Right edge: move the out-point, head fixed. Snap on the timeline
 					// position of the edge, then map back to a source out-point.
-					const snappedRight = snap(origStart + (origTrimEnd - origTrimStart) + dxSec);
+					const snappedRight = snap(
+						origStart + (origTrimEnd - origTrimStart) + dxSec,
+						ev,
+						0,
+						origStart + MIN_REGION_SEC,
+						Math.min(total, origStart + maxEnd - origTrimStart),
+					);
 					const newTrimEnd = origTrimStart + (snappedRight - origStart);
 					// Cap the out-point at the source length AND the programme end (`total`).
 					nte = Math.min(
@@ -1311,7 +1348,7 @@ export function V4Timeline({
 		// navSpan: the slip rate is derived from the VISIBLE width, so a zoom that
 		// leaves `total` alone still changes it. Left out, the rate froze at whatever
 		// the zoom was when the callback was last built.
-		[tl, total, clips, pxPerSec, navSpan],
+		[tl, total, clips, pxPerSec, navSpan, collectSnapTargets],
 	);
 
 	const startNavDrag = useCallback(
@@ -1678,6 +1715,8 @@ export function V4Timeline({
 		return (
 			<div
 				key={seg.key}
+				data-timeline-kind={seg.interactive ? p.kind : undefined}
+				data-timeline-id={seg.interactive ? p.id : undefined}
 				role={seg.interactive ? "button" : undefined}
 				tabIndex={seg.interactive ? 0 : undefined}
 				className={`${styles.lanePill} ${laneOf(p.kind)}${
@@ -1831,8 +1870,65 @@ export function V4Timeline({
 		);
 	};
 
+	const openTimelineContext = (element: HTMLElement, x: number, y: number) => {
+		const item = element.closest<HTMLElement>("[data-timeline-kind]");
+		const kind = (item?.dataset.timelineKind ?? "empty") as TimelineContextTarget["kind"];
+		const id = item?.dataset.timelineId ?? "";
+		if (kind === "clip") tl.selectClip(id);
+		else if (kind === "audio") tl.selectAudioTrack(id);
+		else if (kind !== "empty") tl.selectRegion(kind, id);
+		const muted =
+			kind === "audio"
+				? collapseTracksToPills(tl.audioTracks).find((track) => track.id === id)?.muted
+				: undefined;
+		setContextTarget({ kind, id, x, y, element: item ?? undefined, muted });
+	};
+	const runContextAction = (action: TimelineMenuAction) => {
+		const target = contextTarget;
+		if (!target) return;
+		if (action === "fit") {
+			fitTimelineToWindow();
+			return;
+		}
+		if (target.kind === "empty") return;
+		if (target.kind === "clip") {
+			const clip = clips.find((clip) => clip.id === target.id);
+			if (!clip) return;
+			if (action === "duplicate") void tl.duplicateClip(target.id);
+			if (action === "delete") void tl.removeClip(target.id);
+			if (action === "edit") onEditClip(clip);
+		} else if (action === "duplicate") void tl.duplicateItem(target.kind, target.id);
+		else if (target.kind === "audio") {
+			if (action === "delete") void tl.removeAudioTrack(target.id);
+			if (action === "mute") void tl.updateAudioTrack(target.id, { muted: !target.muted });
+		} else if (action === "delete") void tl.removeRegion(target.kind, target.id);
+	};
+
 	return (
-		<div className={styles.tl} ref={panelRef}>
+		<div
+			className={styles.tl}
+			ref={panelRef}
+			onContextMenu={(event) => {
+				event.preventDefault();
+				event.stopPropagation();
+				openTimelineContext(event.target as HTMLElement, event.clientX, event.clientY);
+			}}
+			onKeyDown={(event) => {
+				if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
+					event.preventDefault();
+					event.nativeEvent.stopPropagation();
+					const element = event.target as HTMLElement;
+					const rect = element.getBoundingClientRect();
+					openTimelineContext(element, rect.left, rect.bottom);
+				}
+			}}
+		>
+			<TimelineContextMenu
+				target={contextTarget}
+				onClose={() => setContextTarget(null)}
+				onAction={runContextAction}
+			/>
+
 			<div className={styles.tlToolbar}>
 				{showLanes ? (
 					// Its own provider rather than leaning on the app root's: the toolbar
@@ -2142,8 +2238,22 @@ export function V4Timeline({
 
 				<div ref={tracksRef} className={styles.tlTracks} onPointerDown={startScrub}>
 					<div ref={canvasRef} className={styles.tlCanvas} style={canvasStyle}>
-						{snapPct !== null ? (
-							<div aria-hidden className={styles.tlSnapGuide} style={{ left: `${snapPct}%` }} />
+						{workspace.showGuides ? (
+							<div className={styles.tlGuideGrid} aria-hidden>
+								{rulerTicks.ticks
+									.filter((tick) => tick.major)
+									.map((tick) => (
+										<span key={tick.sec} style={{ left: `${pctOf(tick.sec)}%` }} />
+									))}
+							</div>
+						) : null}
+						{workspace.showGuides && snapPct !== null ? (
+							<div
+								aria-hidden
+								className={styles.tlSnapGuide}
+								data-testid="timeline-snap-guide"
+								style={{ left: `${snapPct}%` }}
+							/>
 						) : null}
 
 						{showLanes ? (
@@ -2345,6 +2455,9 @@ export function V4Timeline({
 									<div
 										key={c.id}
 										data-clip-id={c.id}
+										data-timeline-kind="clip"
+										data-timeline-id={c.id}
+										tabIndex={0}
 										className={`${styles.tlClip}${narrow ? ` ${styles.tlClipNarrow}` : ""}${
 											// Amber, because nobody shot it. Same token the mark it replaces
 											// used, so an insertion still reads as one at a glance.
@@ -2382,13 +2495,15 @@ export function V4Timeline({
 										// comes from matters less than what can be done with it.
 										title={`${asset?.label ?? c.assetId}\n${t("toolbar.dragToReorderHint")}`}
 									>
-										<ClipWaveform
-											videoUrl={clipVideoUrl}
-											assetDurationSec={asset?.durationSec}
-											sourceStartSec={c.sourceStartSec}
-											sourceEndSec={c.sourceEndSec ?? c.sourceStartSec + dur}
-											gain={audioGainScalar(settings.audioGainDb)}
-										/>
+										{workspace.showWaveforms ? (
+											<ClipWaveform
+												videoUrl={clipVideoUrl}
+												assetDurationSec={asset?.durationSec}
+												sourceStartSec={c.sourceStartSec}
+												sourceEndSec={c.sourceEndSec ?? c.sourceStartSec + dur}
+												gain={audioGainScalar(settings.audioGainDb)}
+											/>
+										) : null}
 										<div className={styles.tlClipLabel}>
 											<button
 												type="button"

@@ -432,5 +432,18 @@
 	"cpuCompositor": {
 		"notice": "Không có GPU tương thích — kết xuất trên CPU nên phát lại chậm hơn.",
 		"exportWarning": "Không có GPU tương thích: lần xuất này chạy trên CPU và sẽ lâu hơn bình thường rất nhiều."
+	},
+	"workspace": {
+		"title": "Workspace",
+		"snapping": "Enable snapping",
+		"showGuides": "Show alignment guides",
+		"snapToPlayhead": "Snap to playhead",
+		"snapToItems": "Snap to item edges",
+		"snapToClips": "Snap to clip boundaries",
+		"showWaveforms": "Show audio waveforms",
+		"fitTimeline": "Fit timeline to window",
+		"shortcuts": "Keyboard shortcuts",
+		"reset": "Reset workspace",
+		"snapHint": "Hold Shift while dragging to temporarily bypass snapping."
 	}
 }

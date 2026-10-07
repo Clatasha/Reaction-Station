@@ -278,7 +278,8 @@
 		"slipHint": "按住 {{modifier}} 並拖曳，可在音軌內滑動音訊",
 		"help": "此音訊軌道的音量、淡入淡出與循環。在預覽與匯出時都會混合到錄影之上。有人說話時，音樂軌道會自動降低音量。在時間軸上拖曳可移動或調整大小，按住 Alt 拖曳則可在其中滑動音訊。",
 		"add": "新增音訊軌道",
-		"mute": "靜音"
+		"mute": "靜音",
+		"noRoomToDuplicate": "No room for a duplicate in this lane. Shorten the item or move it first."
 	},
 	"layout": {
 		"help": "攝影機與螢幕的合成方式：子母畫面、垂直堆疊、雙畫面、形狀、圓角、大小、位置與鏡像。",

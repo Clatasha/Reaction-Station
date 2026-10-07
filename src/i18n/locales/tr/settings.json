@@ -278,7 +278,8 @@
 		"slipHint": "{{modifier}} tuşunu basılı tutup sürükleyerek sesi parça içinde kaydırın",
 		"help": "Bu ses kanalının seviyesi, geçişleri ve döngüsü. Önizlemede ve dışa aktarımda kaydın üzerine miksleniyor. Müzik kanalı, biri konuşurken kendiliğinden kısılır. Kanalı taşımak veya yeniden boyutlandırmak için zaman çizelgesinde sürükleyin; içindeki sesi kaydırmak için Alt tuşunu basılı tutarak sürükleyin.",
 		"add": "Ses parçası ekle",
-		"mute": "Sessiz"
+		"mute": "Sessiz",
+		"noRoomToDuplicate": "No room for a duplicate in this lane. Shorten the item or move it first."
 	},
 	"layout": {
 		"help": "Web kamerasının ekranla birleştirilme biçimi: resim içinde resim, dikey yığın, çift çerçeve, şekil, yuvarlaklık, boyut, konum ve aynalama.",

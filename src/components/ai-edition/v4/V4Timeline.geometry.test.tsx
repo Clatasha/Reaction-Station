@@ -37,6 +37,7 @@ import type { I18nNamespace } from "@/i18n/config";
 import { getAvailableLocales, translate } from "@/i18n/loader";
 import type { useTimeline } from "@/lib/ai-edition/store/useTimeline";
 import { DEFAULT_SHORTCUTS, formatBinding } from "@/lib/shortcuts";
+import { DEFAULT_WORKSPACE, useWorkspace } from "@/lib/workspace";
 import { V4Timeline } from "./V4Timeline";
 
 beforeAll(() => {
@@ -170,7 +171,7 @@ function renderTimeline(
 		// A getter: a test that empties `annotationRegions` renders no such pill, and an eager
 		// lookup would throw before its own assertions ran.
 		get pill() {
-			return screen.getByTitle("toolbar.newAnnotation");
+			return screen.getAllByTitle("toolbar.newAnnotation")[0];
 		},
 		clipEls: Array.from(document.querySelectorAll<HTMLElement>("[data-clip-id]")),
 		tl,
@@ -179,6 +180,7 @@ function renderTimeline(
 }
 
 afterEach(() => {
+	useWorkspace.setState(DEFAULT_WORKSPACE);
 	vi.unstubAllGlobals();
 });
 
@@ -1081,5 +1083,44 @@ describe("V4Timeline toolbar tooltips", () => {
 		const wide = document.querySelector("[class*=lanePill]") as HTMLElement;
 		expect(wide).toHaveTextContent("toolbar.newAnnotation");
 		expect(wide).not.toHaveAttribute("title");
+	});
+});
+
+describe("timeline Workspace controls and context actions", () => {
+	it("right clicks the target clip and duplicates it without dragging or seeking", async () => {
+		const duplicateClip = vi.fn();
+		const { clipEls, tl, setCurrentTime } = renderTimeline(
+			[clip(0, 3), clip(3, 7)],
+			undefined,
+			undefined,
+			undefined,
+			{ duplicateClip },
+		);
+		fireEvent.contextMenu(clipEls[1], { clientX: 200, clientY: 100 });
+		expect(tl.selectClip).toHaveBeenCalledWith("c@3");
+		fireEvent.click(await screen.findByRole("menuitem", { name: "context.duplicate" }));
+		expect(duplicateClip).toHaveBeenCalledWith("c@3");
+		expect(setCurrentTime).not.toHaveBeenCalled();
+	});
+	it("right click Delete removes the clicked region rather than another selection", async () => {
+		const removeRegion = vi.fn();
+		const { pill } = renderTimeline(undefined, undefined, undefined, undefined, { removeRegion });
+		fireEvent.contextMenu(pill, { clientX: 100, clientY: 100 });
+		fireEvent.click(await screen.findByRole("menuitem", { name: "context.delete" }));
+		expect(removeRegion).toHaveBeenCalledWith("annotation", "ann1");
+	});
+	it("snaps a dragged edge to another item, and honours the Workspace switch", async () => {
+		const { pill, tl } = renderTimeline(undefined, undefined, undefined, undefined, {
+			annotationRegions: [
+				{ id: "ann1", startMs: 10_000, endMs: 11_000 },
+				{ id: "ann2", startMs: 500_000, endMs: 501_000 },
+			],
+		});
+		const right = pill.querySelectorAll("span")[1];
+		await act(async () => dragHandle(right, 240)); // 491 seconds, within 8 pixels of the second item.
+		expect(tl.updateAnnotationSpan).toHaveBeenLastCalledWith("ann1", 10_000, 500_000);
+		act(() => useWorkspace.getState().toggle("snapping"));
+		await act(async () => dragHandle(pill.lastElementChild!, 240));
+		expect(tl.updateAnnotationSpan).toHaveBeenLastCalledWith("ann1", 10_000, 491_000);
 	});
 });

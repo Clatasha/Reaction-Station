@@ -1232,6 +1232,17 @@ export function LaunchWindow() {
 								<SlidersHorizontal size={16} />
 								<span>{t("reaction.controls")}</span>
 							</button>
+							<div className={styles.dockWindowControls}>
+								<HudWindowControls
+									vertical={false}
+									disabled={saving}
+									hideLabel={t("tooltips.hideHUD")}
+									hideTooltip={t("tooltips.hideHUDTip")}
+									closeLabel={t("tooltips.closeApp")}
+									onHide={sendHudOverlayHide}
+									onClose={sendHudOverlayClose}
+								/>
+							</div>
 						</div>
 						<div
 							className={`${styles.hudTransport} ${isVertical ? styles.hudTransportVertical : ""}`}
@@ -1394,16 +1405,6 @@ export function LaunchWindow() {
 								/>
 
 								<HudDivider vertical={isVertical} />
-
-								<HudWindowControls
-									vertical={isVertical}
-									disabled={saving}
-									hideLabel={t("tooltips.hideHUD")}
-									hideTooltip={t("tooltips.hideHUDTip")}
-									closeLabel={t("tooltips.closeApp")}
-									onHide={sendHudOverlayHide}
-									onClose={sendHudOverlayClose}
-								/>
 							</div>
 						</div>
 					</div>

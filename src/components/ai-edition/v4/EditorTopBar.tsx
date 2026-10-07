@@ -27,6 +27,7 @@ import { moveMenuFocus } from "@/lib/menuKeyboard";
 import { formatBinding } from "@/lib/shortcuts";
 import { StylePresetsMenu } from "../StylePresetsMenu";
 import styles from "./EditorShellV4.module.css";
+import { WorkspaceMenu } from "./WorkspaceMenu";
 
 export type EditorMode = "media" | "edit" | "rec";
 
@@ -106,6 +107,7 @@ export function EditorTopBar({
 				) : null}
 			</span>
 			<AppMenu actions={actions} />
+			<WorkspaceMenu />
 			<span className={styles.sep} aria-hidden />
 			<span className={styles.projectSlot}>
 				<ProjectNameField title={projectTitle} onRename={actions.renameProject} />

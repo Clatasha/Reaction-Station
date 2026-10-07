@@ -21,6 +21,10 @@ import {
 	removeAudioTrack as removeAudioTrackInDocument,
 	trackGroupId,
 } from "../document/audioTracks";
+import {
+	type DuplicableTimelineKind,
+	duplicateTimelineItem,
+} from "../document/duplicateTimelineItem";
 import { createId } from "../document/ids";
 import { resolveAspectRatioValue } from "../document/outputFormat";
 import {
@@ -1627,6 +1631,20 @@ export function useTimeline() {
 		[updateAudioTrack],
 	);
 
+	const duplicateItem = useCallback(
+		async (kind: DuplicableTimelineKind, id: string) => {
+			const current = useProjectStore.getState().document;
+			if (!current) return;
+			const next = duplicateTimelineItem(current, kind, id);
+			if (next === current) {
+				toast.info(ts("audioTrack.noRoomToDuplicate"));
+				return;
+			}
+			await saveDocument(next, { history: true });
+		},
+		[saveDocument, ts],
+	);
+
 	return {
 		zoomRegions: document?.zoomRanges ?? [],
 		trimRanges: document?.timeline.trimRanges ?? [],
@@ -1671,6 +1689,7 @@ export function useTimeline() {
 		insertClipAt,
 		moveClip,
 		duplicateClip,
+		duplicateItem,
 		removeClip,
 		selectClip,
 		updateTrim,

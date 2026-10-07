@@ -432,5 +432,18 @@
 	"cpuCompositor": {
 		"notice": "호환되는 GPU가 없어 CPU로 렌더링합니다. 재생이 느려집니다.",
 		"exportWarning": "호환되는 GPU가 없습니다. 이 내보내기는 CPU에서 실행되며 평소보다 훨씬 오래 걸립니다."
+	},
+	"workspace": {
+		"title": "Workspace",
+		"snapping": "Enable snapping",
+		"showGuides": "Show alignment guides",
+		"snapToPlayhead": "Snap to playhead",
+		"snapToItems": "Snap to item edges",
+		"snapToClips": "Snap to clip boundaries",
+		"showWaveforms": "Show audio waveforms",
+		"fitTimeline": "Fit timeline to window",
+		"shortcuts": "Keyboard shortcuts",
+		"reset": "Reset workspace",
+		"snapHint": "Hold Shift while dragging to temporarily bypass snapping."
 	}
 }

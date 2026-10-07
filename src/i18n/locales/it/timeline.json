@@ -103,5 +103,14 @@
 		"recordingUnavailable": "La registrazione non è disponibile qui",
 		"saveFailed": "Impossibile salvare la registrazione",
 		"importFailed": "Impossibile importare il file audio"
+	},
+	"context": {
+		"title": "Timeline actions",
+		"duplicate": "Duplicate",
+		"delete": "Delete",
+		"editClip": "Edit clip",
+		"mute": "Mute audio",
+		"unmute": "Unmute audio",
+		"fit": "Fit timeline to window"
 	}
 }

@@ -54,6 +54,7 @@ import {
 } from "@/lib/ai-edition/timeline/trim-mapping";
 import { firstTimelineBusyView } from "@/lib/ai-edition/transcription/status";
 import { matchesShortcut, type ShortcutAction } from "@/lib/shortcuts";
+import { fitTimelineToWindow, useWorkspace } from "@/lib/workspace";
 import { nativeBridgeClient } from "@/native";
 import type { AiEditionProjectSummary } from "@/native/contracts";
 import { resolveVisibleClips } from "@/native/sceneDescription";
@@ -1231,6 +1232,21 @@ export function NewEditorShell() {
 			// flag per dialog — the flag version knew only about the two dialogs whose open state
 			// happened to live in a context, so Z/T/C kept adding regions under Export (#434).
 			if (isModalOpen()) return;
+			if (matches("toggleSnapping")) {
+				e.preventDefault();
+				useWorkspace.getState().toggle("snapping");
+				return;
+			}
+			if (matches("toggleGuides")) {
+				e.preventDefault();
+				useWorkspace.getState().toggle("showGuides");
+				return;
+			}
+			if (matches("fitTimeline")) {
+				e.preventDefault();
+				fitTimelineToWindow();
+				return;
+			}
 
 			if (matches("saveProjectAs")) {
 				e.preventDefault();
@@ -1483,6 +1499,7 @@ export function NewEditorShell() {
 		isMac,
 		togglePlay,
 		handleSeek,
+		openVoiceoverFlow,
 	]);
 
 	const showTimeline = mode !== "rec";

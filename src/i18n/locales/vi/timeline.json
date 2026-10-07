@@ -103,5 +103,14 @@
 		"recordingUnavailable": "Không thể ghi âm ở đây",
 		"saveFailed": "Không thể lưu bản ghi",
 		"importFailed": "Không thể nhập tệp âm thanh"
+	},
+	"context": {
+		"title": "Timeline actions",
+		"duplicate": "Duplicate",
+		"delete": "Delete",
+		"editClip": "Edit clip",
+		"mute": "Mute audio",
+		"unmute": "Unmute audio",
+		"fit": "Fit timeline to window"
 	}
 }

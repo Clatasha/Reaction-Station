@@ -655,3 +655,6 @@
 .channelSlider input::-webkit-slider-thumb:hover {
  border-color: #d8c5ff;
 }
+
+.dockWindowControls { flex-shrink: 0; -webkit-app-region: no-drag; }
+.hudBarHorizontal .hudTransport { box-sizing: border-box; }

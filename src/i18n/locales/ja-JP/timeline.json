@@ -103,5 +103,14 @@
 		"recordingUnavailable": "ここでは録音できません",
 		"saveFailed": "録音を保存できませんでした",
 		"importFailed": "音声ファイルを読み込めませんでした"
+	},
+	"context": {
+		"title": "Timeline actions",
+		"duplicate": "Duplicate",
+		"delete": "Delete",
+		"editClip": "Edit clip",
+		"mute": "Mute audio",
+		"unmute": "Unmute audio",
+		"fit": "Fit timeline to window"
 	}
 }

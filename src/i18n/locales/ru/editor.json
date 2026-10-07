@@ -432,5 +432,18 @@
 	"cpuCompositor": {
 		"notice": "Совместимый GPU не найден — отрисовка на CPU, поэтому воспроизведение медленнее.",
 		"exportWarning": "Совместимый GPU не найден: этот экспорт выполняется на CPU и займёт намного больше времени."
+	},
+	"workspace": {
+		"title": "Workspace",
+		"snapping": "Enable snapping",
+		"showGuides": "Show alignment guides",
+		"snapToPlayhead": "Snap to playhead",
+		"snapToItems": "Snap to item edges",
+		"snapToClips": "Snap to clip boundaries",
+		"showWaveforms": "Show audio waveforms",
+		"fitTimeline": "Fit timeline to window",
+		"shortcuts": "Keyboard shortcuts",
+		"reset": "Reset workspace",
+		"snapHint": "Hold Shift while dragging to temporarily bypass snapping."
 	}
 }

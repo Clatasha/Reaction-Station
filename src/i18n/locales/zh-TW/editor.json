@@ -432,5 +432,18 @@
 	"cpuCompositor": {
 		"notice": "沒有相容的 GPU，正在使用 CPU 算繪，因此播放較慢。",
 		"exportWarning": "沒有相容的 GPU：這次匯出將在 CPU 上執行，耗時會比平常長很多。"
+	},
+	"workspace": {
+		"title": "Workspace",
+		"snapping": "Enable snapping",
+		"showGuides": "Show alignment guides",
+		"snapToPlayhead": "Snap to playhead",
+		"snapToItems": "Snap to item edges",
+		"snapToClips": "Snap to clip boundaries",
+		"showWaveforms": "Show audio waveforms",
+		"fitTimeline": "Fit timeline to window",
+		"shortcuts": "Keyboard shortcuts",
+		"reset": "Reset workspace",
+		"snapHint": "Hold Shift while dragging to temporarily bypass snapping."
 	}
 }

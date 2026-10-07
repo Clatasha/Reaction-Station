@@ -1,4 +1,7 @@
 export const SHORTCUT_ACTIONS = [
+	"toggleSnapping",
+	"toggleGuides",
+	"fitTimeline",
 	"cutSelected",
 	"undo",
 	"redo",
@@ -122,6 +125,9 @@ export function findConflict(
 }
 
 export const DEFAULT_SHORTCUTS: ShortcutsConfig = {
+	toggleSnapping: { key: "g" },
+	toggleGuides: { key: "g", ctrl: true, shift: true },
+	fitTimeline: { key: "home" },
 	cutSelected: { key: "x", ctrl: true },
 	undo: { key: "z", ctrl: true },
 	redo: { key: "z", ctrl: true, shift: true },
@@ -155,6 +161,9 @@ export const DEFAULT_SHORTCUTS: ShortcutsConfig = {
 };
 
 export const SHORTCUT_LABELS: Record<ShortcutAction, string> = {
+	toggleSnapping: "Toggle snapping",
+	toggleGuides: "Toggle alignment guides",
+	fitTimeline: "Fit timeline to window",
 	cutSelected: "Cut Selected",
 	undo: "Undo",
 	redo: "Redo",

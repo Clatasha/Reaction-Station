@@ -2093,7 +2093,7 @@
 .tlSnapGuide {
 	position: absolute;
 	top: 0;
-	bottom: 66px;
+	bottom: 0;
 	width: 2px;
 	background: var(--danger);
 	box-shadow: 0 0 6px color-mix(in oklch, var(--danger) 60%, transparent);
@@ -2180,3 +2180,15 @@
 	border-radius: 999px;
 	background: var(--danger);
 }
+
+.workspaceTrigger { display:flex; align-items:center; gap:6px; flex-shrink:0; border:0; background:transparent; color:var(--fg-2); cursor:pointer; padding:7px; border-radius:var(--r-sm); font-size:12px; }
+.workspaceTrigger:hover { background:var(--surface-hi); }
+.workspaceMenu { width:270px; padding:5px; -webkit-app-region:no-drag; }
+.workspaceMenu kbd { margin-left:auto; font-size:10px; color:var(--muted); }
+.workspaceHint { padding:6px 9px; font-size:11px; color:var(--muted); }
+@media (max-width: 1080px) { .workspaceTrigger {gap:3px; padding:5px;} .workspaceTrigger > svg:first-child {display:none;} }
+
+.tlGuideGrid { position:absolute; inset:0; pointer-events:none; z-index:8; }
+.tlGuideGrid span { position:absolute; top:0; bottom:0; width:1px; background:var(--border); opacity:0.25; }
+
+.timelineContextMenu { width:210px; padding:5px; }

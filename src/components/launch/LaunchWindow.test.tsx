@@ -2256,3 +2256,10 @@ describe("Reaction Station global recording actions", () => {
 		delete window.electronAPI.onRecordingShortcut;
 	});
 });
+
+it("keeps Close inside the recorder header and outside the transport row", () => {
+	renderLaunchWindow();
+	const close = screen.getByRole("button", { name: "Close App" });
+	expect(close.closest('[class*="dockHeader"]')).toBeTruthy();
+	expect(close.closest('[class*="hudTransport"]')).toBeNull();
+});

@@ -103,5 +103,14 @@
 		"recordingUnavailable": "Burada kayıt kullanılamıyor",
 		"saveFailed": "Kayıt kaydedilemedi",
 		"importFailed": "Ses dosyası içe aktarılamadı"
+	},
+	"context": {
+		"title": "Timeline actions",
+		"duplicate": "Duplicate",
+		"delete": "Delete",
+		"editClip": "Edit clip",
+		"mute": "Mute audio",
+		"unmute": "Unmute audio",
+		"fit": "Fit timeline to window"
 	}
 }

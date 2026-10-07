@@ -43,7 +43,10 @@
 		"newProject": "New Project",
 		"openProject": "Open Project",
 		"openShortcuts": "Keyboard Shortcuts",
-		"exportProject": "Export"
+		"exportProject": "Export",
+		"toggleSnapping": "Toggle snapping",
+		"toggleGuides": "Toggle alignment guides",
+		"fitTimeline": "Fit timeline to window"
 	},
 	"fixedActions": {
 		"undo": "تراجع",

@@ -432,5 +432,18 @@
 	"cpuCompositor": {
 		"notice": "لا توجد بطاقة رسومات متوافقة — تتم المعالجة على المعالج، لذا يكون التشغيل أبطأ.",
 		"exportWarning": "لا توجد بطاقة رسومات متوافقة: يتم هذا التصدير على المعالج وسيستغرق وقتًا أطول بكثير من المعتاد."
+	},
+	"workspace": {
+		"title": "Workspace",
+		"snapping": "Enable snapping",
+		"showGuides": "Show alignment guides",
+		"snapToPlayhead": "Snap to playhead",
+		"snapToItems": "Snap to item edges",
+		"snapToClips": "Snap to clip boundaries",
+		"showWaveforms": "Show audio waveforms",
+		"fitTimeline": "Fit timeline to window",
+		"shortcuts": "Keyboard shortcuts",
+		"reset": "Reset workspace",
+		"snapHint": "Hold Shift while dragging to temporarily bypass snapping."
 	}
 }
