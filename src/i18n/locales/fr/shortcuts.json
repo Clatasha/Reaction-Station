@@ -27,7 +27,23 @@
 		"deleteSelected": "Supprimer la sélection",
 		"playPause": "Lecture / Pause",
 		"copySelected": "Copier la sélection",
-		"paste": "Coller"
+		"paste": "Coller",
+		"cutSelected": "Cut Selected",
+		"undo": "Undo",
+		"redo": "Redo",
+		"redoAlternate": "Redo (alternate)",
+		"deleteAlternate": "Delete Selected (Delete)",
+		"deleteBackspace": "Delete Selected (Backspace)",
+		"cycleAnnotationsForward": "Next Annotation",
+		"cycleAnnotationsBackward": "Previous Annotation",
+		"frameBack": "Previous Frame",
+		"frameForward": "Next Frame",
+		"saveProject": "Save Project",
+		"saveProjectAs": "Save Project As",
+		"newProject": "New Project",
+		"openProject": "Open Project",
+		"openShortcuts": "Keyboard Shortcuts",
+		"exportProject": "Export"
 	},
 	"fixedActions": {
 		"undo": "Annuler",
@@ -39,5 +55,8 @@
 		"zoomTimeline": "Zoom de la timeline",
 		"frameBack": "Image précédente",
 		"frameForward": "Image suivante"
-	}
+	},
+	"unassigned": "Unassigned",
+	"clearShortcut": "Clear shortcut",
+	"mouseGestures": "Mouse gestures"
 }

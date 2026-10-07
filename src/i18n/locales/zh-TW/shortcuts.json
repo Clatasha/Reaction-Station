@@ -27,7 +27,23 @@
 		"deleteSelected": "刪除所選",
 		"playPause": "播放 / 暫停",
 		"copySelected": "複製所選",
-		"paste": "貼上"
+		"paste": "貼上",
+		"cutSelected": "Cut Selected",
+		"undo": "Undo",
+		"redo": "Redo",
+		"redoAlternate": "Redo (alternate)",
+		"deleteAlternate": "Delete Selected (Delete)",
+		"deleteBackspace": "Delete Selected (Backspace)",
+		"cycleAnnotationsForward": "Next Annotation",
+		"cycleAnnotationsBackward": "Previous Annotation",
+		"frameBack": "Previous Frame",
+		"frameForward": "Next Frame",
+		"saveProject": "Save Project",
+		"saveProjectAs": "Save Project As",
+		"newProject": "New Project",
+		"openProject": "Open Project",
+		"openShortcuts": "Keyboard Shortcuts",
+		"exportProject": "Export"
 	},
 	"fixedActions": {
 		"undo": "復原",
@@ -39,5 +55,8 @@
 		"zoomTimeline": "縮放時間軸",
 		"frameBack": "上一影格",
 		"frameForward": "下一影格"
-	}
+	},
+	"unassigned": "Unassigned",
+	"clearShortcut": "Clear shortcut",
+	"mouseGestures": "Mouse gestures"
 }

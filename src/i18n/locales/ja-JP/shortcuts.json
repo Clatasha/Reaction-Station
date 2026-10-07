@@ -27,7 +27,23 @@
 		"deleteSelected": "選択を削除",
 		"playPause": "再生 / 一時停止",
 		"copySelected": "選択をコピー",
-		"paste": "貼り付け"
+		"paste": "貼り付け",
+		"cutSelected": "Cut Selected",
+		"undo": "Undo",
+		"redo": "Redo",
+		"redoAlternate": "Redo (alternate)",
+		"deleteAlternate": "Delete Selected (Delete)",
+		"deleteBackspace": "Delete Selected (Backspace)",
+		"cycleAnnotationsForward": "Next Annotation",
+		"cycleAnnotationsBackward": "Previous Annotation",
+		"frameBack": "Previous Frame",
+		"frameForward": "Next Frame",
+		"saveProject": "Save Project",
+		"saveProjectAs": "Save Project As",
+		"newProject": "New Project",
+		"openProject": "Open Project",
+		"openShortcuts": "Keyboard Shortcuts",
+		"exportProject": "Export"
 	},
 	"fixedActions": {
 		"undo": "元に戻す",
@@ -39,5 +55,8 @@
 		"zoomTimeline": "タイムラインをズーム",
 		"frameBack": "フレームを戻す",
 		"frameForward": "フレームを進める"
-	}
+	},
+	"unassigned": "Unassigned",
+	"clearShortcut": "Clear shortcut",
+	"mouseGestures": "Mouse gestures"
 }

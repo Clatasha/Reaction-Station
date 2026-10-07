@@ -27,7 +27,23 @@
 		"deleteSelected": "Smazat vybrané",
 		"playPause": "Přehrát / Pozastavit",
 		"copySelected": "Kopírovat vybrané",
-		"paste": "Vložit"
+		"paste": "Vložit",
+		"cutSelected": "Cut Selected",
+		"undo": "Undo",
+		"redo": "Redo",
+		"redoAlternate": "Redo (alternate)",
+		"deleteAlternate": "Delete Selected (Delete)",
+		"deleteBackspace": "Delete Selected (Backspace)",
+		"cycleAnnotationsForward": "Next Annotation",
+		"cycleAnnotationsBackward": "Previous Annotation",
+		"frameBack": "Previous Frame",
+		"frameForward": "Next Frame",
+		"saveProject": "Save Project",
+		"saveProjectAs": "Save Project As",
+		"newProject": "New Project",
+		"openProject": "Open Project",
+		"openShortcuts": "Keyboard Shortcuts",
+		"exportProject": "Export"
 	},
 	"fixedActions": {
 		"undo": "Zpět",
@@ -39,5 +55,8 @@
 		"zoomTimeline": "Přiblížit časovou osu",
 		"frameBack": "Snímek zpět",
 		"frameForward": "Snímek dopředu"
-	}
+	},
+	"unassigned": "Unassigned",
+	"clearShortcut": "Clear shortcut",
+	"mouseGestures": "Mouse gestures"
 }

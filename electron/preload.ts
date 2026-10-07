@@ -463,6 +463,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
 	// renderer: AppKit matches the menu's key equivalent before the key event is
 	// delivered to the web contents, so the document-level keydown handler never
 	// runs. See `electron/edit-menu.ts`.
+	onMenuClipboard: (callback: (action: "cutSelected" | "copySelected" | "paste") => void) => {
+		const listener = (
+			_event: Electron.IpcRendererEvent,
+			action: "cutSelected" | "copySelected" | "paste",
+		) => callback(action);
+		ipcRenderer.on("menu-clipboard", listener);
+		return () => ipcRenderer.removeListener("menu-clipboard", listener);
+	},
 	onMenuUndo: (callback: () => void) => {
 		const listener = () => callback();
 		ipcRenderer.on("menu-undo", listener);

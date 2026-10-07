@@ -13,7 +13,8 @@ import {
 	shell,
 	Tray,
 } from "electron";
-import { ShortcutBinding } from "../src/lib/shortcuts";
+import { bindingToAccelerator } from "../src/lib/shortcutAccelerator";
+import { DEFAULT_SHORTCUTS, mergeWithDefaults, type ShortcutBinding } from "../src/lib/shortcuts";
 import {
 	type AboutFacts,
 	COPYRIGHT,
@@ -235,6 +236,16 @@ function sendEditorUndoRedo(channel: EditorUndoRedoChannel) {
 	routeEditorUndoRedo(channel, targetWindow, () => !!targetWindow && isEditorWindow(targetWindow));
 }
 
+let menuShortcuts = DEFAULT_SHORTCUTS;
+async function loadMenuShortcuts() {
+	try {
+		menuShortcuts = mergeWithDefaults(
+			JSON.parse(await fs.readFile(path.join(app.getPath("userData"), "shortcuts.json"), "utf8")),
+		);
+	} catch {
+		menuShortcuts = DEFAULT_SHORTCUTS;
+	}
+}
 function setupApplicationMenu() {
 	const isMac = process.platform === "darwin";
 	const template: Electron.MenuItemConstructorOptions[] = [];
@@ -304,23 +315,23 @@ function setupApplicationMenu() {
 			submenu: [
 				{
 					label: mainT("dialogs", "unsavedChanges.newProject") || "New Project",
-					accelerator: "CmdOrCtrl+N",
+					accelerator: bindingToAccelerator(menuShortcuts.newProject),
 					click: () => sendEditorMenuAction("menu-new-project"),
 				},
 				{ type: "separator" as const },
 				{
 					label: mainT("dialogs", "unsavedChanges.loadProject") || "Load Project…",
-					accelerator: "CmdOrCtrl+O",
+					accelerator: bindingToAccelerator(menuShortcuts.openProject),
 					click: () => sendEditorMenuAction("menu-load-project"),
 				},
 				{
 					label: mainT("dialogs", "unsavedChanges.saveProject") || "Save Project…",
-					accelerator: "CmdOrCtrl+S",
+					accelerator: bindingToAccelerator(menuShortcuts.saveProject),
 					click: () => sendEditorMenuAction("menu-save-project"),
 				},
 				{
 					label: mainT("dialogs", "unsavedChanges.saveProjectAs") || "Save Project As…",
-					accelerator: "CmdOrCtrl+Shift+S",
+					accelerator: bindingToAccelerator(menuShortcuts.saveProjectAs),
 					click: () => sendEditorMenuAction("menu-save-project-as"),
 				},
 				...(isMac
@@ -340,6 +351,15 @@ function setupApplicationMenu() {
 			submenu: buildEditMenuSubmenu({
 				label: (key, fallback) => mainT("common", key) || fallback,
 				dispatch: sendEditorUndoRedo,
+				shortcuts: menuShortcuts,
+				dispatchClipboard: (action) => {
+					const focused = BrowserWindow.getFocusedWindow();
+					if (!focused || focused.isDestroyed()) return;
+					if (isEditorWindow(focused)) focused.webContents.send("menu-clipboard", action);
+					else if (action === "cutSelected") focused.webContents.cut();
+					else if (action === "copySelected") focused.webContents.copy();
+					else focused.webContents.paste();
+				},
 			}),
 		},
 		{
@@ -1258,8 +1278,10 @@ appReady?.then(async () => {
 
 	ipcMain.handle("get-recording-shortcuts", () => loadRecordingShortcuts());
 	ipcMain.handle("save-recording-shortcuts", (_, config) => saveRecordingShortcuts(config));
-	ipcMain.handle("update-global-shortcut", (_, binding: ShortcutBinding) => {
+	ipcMain.handle("update-global-shortcut", async (_, binding: ShortcutBinding) => {
 		const success = registerOpenAppShortcut(binding, showMainWindow);
+		await loadMenuShortcuts();
+		setupApplicationMenu();
 		return { success };
 	});
 
@@ -1371,6 +1393,7 @@ appReady?.then(async () => {
 	updateTrayMenu();
 	startBackgroundUpdateTimer();
 	configureAboutPanel();
+	await loadMenuShortcuts();
 	setupApplicationMenu();
 	await ensureRecordingsDir();
 

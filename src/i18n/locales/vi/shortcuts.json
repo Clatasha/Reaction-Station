@@ -27,7 +27,23 @@
 		"deleteSelected": "Xóa mục đã chọn",
 		"playPause": "Phát / Tạm dừng",
 		"copySelected": "Sao chép mục đã chọn",
-		"paste": "Dán"
+		"paste": "Dán",
+		"cutSelected": "Cut Selected",
+		"undo": "Undo",
+		"redo": "Redo",
+		"redoAlternate": "Redo (alternate)",
+		"deleteAlternate": "Delete Selected (Delete)",
+		"deleteBackspace": "Delete Selected (Backspace)",
+		"cycleAnnotationsForward": "Next Annotation",
+		"cycleAnnotationsBackward": "Previous Annotation",
+		"frameBack": "Previous Frame",
+		"frameForward": "Next Frame",
+		"saveProject": "Save Project",
+		"saveProjectAs": "Save Project As",
+		"newProject": "New Project",
+		"openProject": "Open Project",
+		"openShortcuts": "Keyboard Shortcuts",
+		"exportProject": "Export"
 	},
 	"fixedActions": {
 		"undo": "Hoàn tác",
@@ -39,5 +55,8 @@
 		"zoomTimeline": "Thu phóng Trục thời gian",
 		"frameBack": "Lùi một khung hình",
 		"frameForward": "Tiến một khung hình"
-	}
+	},
+	"unassigned": "Unassigned",
+	"clearShortcut": "Clear shortcut",
+	"mouseGestures": "Mouse gestures"
 }

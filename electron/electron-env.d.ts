@@ -454,6 +454,9 @@ interface Window {
 		onMenuSaveProjectAs: (callback: () => void) => () => void;
 		/** Edit > Undo / Redo. On macOS the menu is the only route Cmd+Z has to the
 		 *  renderer at all — see `electron/edit-menu.ts`. */
+		onMenuClipboard: (
+			callback: (action: "cutSelected" | "copySelected" | "paste") => void,
+		) => () => void;
 		onMenuUndo: (callback: () => void) => () => void;
 		onMenuRedo: (callback: () => void) => () => void;
 		quitApp: () => void;

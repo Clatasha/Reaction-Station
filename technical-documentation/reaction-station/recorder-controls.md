@@ -41,3 +41,11 @@ Separate tracks persist as normal project audio assets and use the existing proj
 This first capture implementation is **Windows native only**. Browser capture and native macOS/Linux recordings still store a combined mix. Old recordings cannot be split into independent sources after the fact. WAV tracks need roughly 660 MiB per hour per enabled source at 48 kHz stereo; keep them with the video/project. Long tracks use RF64 when RIFF's 4 GiB limit is exceeded.
 
 Validation includes source-channel PCM isolation and shared-clock tests, portable WAV header tests, atomic import/fallback and project round-trip tests, trim/speed export serialization, and a real decoder/mixer/stretch Rust test. The Windows packaging workflow also imports synthetic source files through the packaged editor and saves an editor preview. Real microphone/desktop capture and OS interaction still require the manual desktop pass.
+
+## Editor keyboard customization
+
+The editor app menu → Keyboard Shortcuts offers all editor command bindings, including Cut Selected, Add Trim, Undo/Redo (and alternate redo), Delete/Backspace, frame stepping, annotation navigation, project new/open/save, Export, and the shortcut dialog itself. Click a binding and press its replacement; conflicting editor commands offer Swap. Clear removes the keyboard binding while leaving toolbar/menu commands usable. Reset restores defaults when saved. Recorder global shortcuts remain in recorder settings and are suspended while the editor is active.
+
+Existing saved assignments are retained. If an old custom assignment occupies a newly configurable command's default key, that new command starts unassigned instead of taking over the key. Changes also update native File/Edit menu accelerators and toolbar hints. Text inputs keep standard text editing and dialogs keep Enter/Escape and focus navigation. Mouse wheel gestures and operating system/window shortcuts are separate from editor command bindings.
+
+This change is queued for the next feature batch; no installer build is dispatched solely for keyboard customization.

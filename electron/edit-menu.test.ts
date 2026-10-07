@@ -1,3 +1,4 @@
+import { DEFAULT_SHORTCUTS } from "../src/lib/shortcuts";
 // Regression cover for the macOS half of #433.
 //
 // The Edit menu used to carry `role: "undo"` / `role: "redo"` with
@@ -141,4 +142,25 @@ describe("routeEditorUndoRedo", () => {
 		expect(target.webContents.undo).not.toHaveBeenCalled();
 		expect(isEditor).not.toHaveBeenCalled();
 	});
+});
+
+it("updates menu accelerators from saved bindings, including cleared keys", () => {
+	const dispatchClipboard = vi.fn();
+	const items = buildEditMenuSubmenu({
+		label: (_key, fallback) => fallback,
+		dispatch: vi.fn(),
+		dispatchClipboard,
+		shortcuts: {
+			...DEFAULT_SHORTCUTS,
+			undo: { key: "u", alt: true },
+			cutSelected: { key: "k", ctrl: true },
+			redo: { key: "" },
+		},
+	});
+	expect(items.find((item) => item.label === "Undo")?.accelerator).toBe("Alt+U");
+	expect(items.find((item) => item.label === "Redo")?.accelerator).toBe("");
+	const cut = items.find((item) => item.label === "Cut");
+	expect(cut?.accelerator).toBe("CommandOrControl+K");
+	cut?.click?.(undefined as never, undefined as never, undefined as never);
+	expect(dispatchClipboard).toHaveBeenCalledWith("cutSelected");
 });

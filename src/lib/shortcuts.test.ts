@@ -6,6 +6,7 @@ import {
 	findConflict,
 	formatFirstFixedBinding,
 	formatFixedShortcut,
+	matchesShortcut,
 	mergeWithDefaults,
 	SHORTCUT_ACTIONS,
 	SHORTCUT_LABELS,
@@ -85,5 +86,36 @@ describe("formatFirstFixedBinding", () => {
 	it("has nothing to show for a row without a binding, or an unknown row", () => {
 		expect(formatFirstFixedBinding("panTimeline", false)).toBeUndefined();
 		expect(formatFirstFixedBinding("nope", false)).toBeUndefined();
+	});
+});
+
+describe("editable command bindings", () => {
+	it("reports undo and frame keys as swappable commands instead of reserved keys", () => {
+		expect(findConflict({ key: "z", ctrl: true }, "addTrim", DEFAULT_SHORTCUTS)).toEqual({
+			type: "configurable",
+			action: "undo",
+		});
+		expect(findConflict({ key: "arrowleft" }, "cutSelected", DEFAULT_SHORTCUTS)).toEqual({
+			type: "configurable",
+			action: "frameBack",
+		});
+	});
+	it("preserves a previous custom assignment that used a newly configurable key", () => {
+		const saved = mergeWithDefaults({ addTrim: { key: "x", ctrl: true } });
+		expect(saved.addTrim).toEqual({ key: "x", ctrl: true });
+		expect(saved.cutSelected.key).toBe("");
+	});
+	it("round trips cleared bindings and ignores malformed stored bindings", () => {
+		expect(mergeWithDefaults({ undo: { key: "" } }).undo.key).toBe("");
+		expect(mergeWithDefaults({ undo: { key: 42 } as never }).undo).toEqual(DEFAULT_SHORTCUTS.undo);
+	});
+	it("does not dispatch an unassigned shortcut", () => {
+		expect(
+			matchesShortcut(
+				{ key: "", ctrlKey: false, shiftKey: false, altKey: false } as KeyboardEvent,
+				{ key: "" },
+				false,
+			),
+		).toBe(false);
 	});
 });

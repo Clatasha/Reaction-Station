@@ -27,7 +27,23 @@
 		"deleteSelected": "Seçileni Sil",
 		"playPause": "Oynat / Duraklat",
 		"copySelected": "Seçileni Kopyala",
-		"paste": "Yapıştır"
+		"paste": "Yapıştır",
+		"cutSelected": "Cut Selected",
+		"undo": "Undo",
+		"redo": "Redo",
+		"redoAlternate": "Redo (alternate)",
+		"deleteAlternate": "Delete Selected (Delete)",
+		"deleteBackspace": "Delete Selected (Backspace)",
+		"cycleAnnotationsForward": "Next Annotation",
+		"cycleAnnotationsBackward": "Previous Annotation",
+		"frameBack": "Previous Frame",
+		"frameForward": "Next Frame",
+		"saveProject": "Save Project",
+		"saveProjectAs": "Save Project As",
+		"newProject": "New Project",
+		"openProject": "Open Project",
+		"openShortcuts": "Keyboard Shortcuts",
+		"exportProject": "Export"
 	},
 	"fixedActions": {
 		"undo": "Geri Al",
@@ -39,5 +55,8 @@
 		"zoomTimeline": "Zaman Çizelgesini Yakınlaştır",
 		"frameBack": "Önceki Kare",
 		"frameForward": "Sonraki Kare"
-	}
+	},
+	"unassigned": "Unassigned",
+	"clearShortcut": "Clear shortcut",
+	"mouseGestures": "Mouse gestures"
 }

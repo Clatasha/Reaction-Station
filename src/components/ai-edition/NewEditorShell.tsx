@@ -53,7 +53,7 @@ import {
 	ventilateTimelineSpanToTrims,
 } from "@/lib/ai-edition/timeline/trim-mapping";
 import { firstTimelineBusyView } from "@/lib/ai-edition/transcription/status";
-import { matchesShortcut } from "@/lib/shortcuts";
+import { matchesShortcut, type ShortcutAction } from "@/lib/shortcuts";
 import { nativeBridgeClient } from "@/native";
 import type { AiEditionProjectSummary } from "@/native/contracts";
 import { resolveVisibleClips } from "@/native/sceneDescription";
@@ -311,10 +311,14 @@ export function NewEditorShell() {
 	// edit the user just undid came back. `history: false` is load-bearing — a
 	// recording save here would push the restored document straight back onto the
 	// stack and clear the redo the undo had just created.
-	const { runUndo, runRedo } = useUndoRedoShortcuts(() => {
-		const doc = useProjectStore.getState().document;
-		if (doc) void useProjectStore.getState().saveDocument(doc, { history: false });
-	});
+	const { runUndo, runRedo } = useUndoRedoShortcuts(
+		() => {
+			const doc = useProjectStore.getState().document;
+			if (doc) void useProjectStore.getState().saveDocument(doc, { history: false });
+		},
+		shortcuts,
+		isMac,
+	);
 	const [copiedClipId, setCopiedClipId] = useState<string | null>(null);
 	const [projectSummaries, setProjectSummaries] = useState<AiEditionProjectSummary[]>([]);
 	const seekSeqRef = useRef(0);
@@ -1215,7 +1219,9 @@ export function NewEditorShell() {
 	}, [tl]);
 
 	useEffect(() => {
-		const onKey = (e: KeyboardEvent) => {
+		const onKey = (e: KeyboardEvent, menuAction?: ShortcutAction) => {
+			const matches = (action: ShortcutAction) =>
+				menuAction ? menuAction === action : matchesShortcut(e, shortcuts[action], isMac);
 			if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) return;
 			if (e.target instanceof HTMLElement && e.target.isContentEditable) return;
 			// A modal owns the screen. Its own controls are buttons, not text fields, so the two
@@ -1225,13 +1231,23 @@ export function NewEditorShell() {
 			// flag per dialog — the flag version knew only about the two dialogs whose open state
 			// happened to live in a context, so Z/T/C kept adding regions under Export (#434).
 			if (isModalOpen()) return;
-			const ctrl = e.ctrlKey || e.metaKey;
-			if (ctrl && e.key === "s") {
+
+			if (matches("saveProjectAs")) {
 				e.preventDefault();
 				void handleSave();
 				return;
 			}
-			if (ctrl && e.key === "n") {
+			if (matches("exportProject")) {
+				e.preventDefault();
+				handleExport();
+				return;
+			}
+			if (matches("saveProject")) {
+				e.preventDefault();
+				void handleSave();
+				return;
+			}
+			if (matches("newProject")) {
 				e.preventDefault();
 				void (async () => {
 					const choice = await promptUnsaved("new");
@@ -1245,7 +1261,7 @@ export function NewEditorShell() {
 				})();
 				return;
 			}
-			if (ctrl && e.key === "o") {
+			if (matches("openProject")) {
 				e.preventDefault();
 				void (async () => {
 					const choice = await promptUnsaved("open");
@@ -1259,9 +1275,14 @@ export function NewEditorShell() {
 				})();
 				return;
 			}
-			if (!hasProject && e.key !== "?") return;
-			if (ctrl && (e.key === "z" || e.key.toLowerCase() === "y")) return;
-			if (e.key === "?" || (e.shiftKey && e.key === "/")) {
+			if (!hasProject && !matches("openShortcuts")) return;
+			if (
+				[shortcuts.undo, shortcuts.redo, shortcuts.redoAlternate].some((binding) =>
+					matchesShortcut(e, binding, isMac),
+				)
+			)
+				return;
+			if (matches("openShortcuts")) {
 				e.preventDefault();
 				openShortcutsConfig();
 				return;
@@ -1290,7 +1311,7 @@ export function NewEditorShell() {
 			// F2.9 — configurable actions read the user's saved bindings instead
 			// of hardcoded keys, so rebinding in the shortcuts dialog actually
 			// changes runtime behavior.
-			if (matchesShortcut(e, shortcuts.copySelected, isMac)) {
+			if (matches("copySelected")) {
 				// A pill and a clip can no longer both be selected (see selectRegion /
 				// selectClip), so this reads the one the user actually picked instead
 				// of preferring clips whatever was clicked last.
@@ -1309,7 +1330,7 @@ export function NewEditorShell() {
 					return;
 				}
 			}
-			if (ctrl && e.key.toLowerCase() === "x") {
+			if (matches("cutSelected")) {
 				// F2.8 — cut: remember the region in the clipboard, then remove it.
 				// Trims included now that copying one means copying its length.
 				if (tl.selection) {
@@ -1319,7 +1340,7 @@ export function NewEditorShell() {
 					return;
 				}
 			}
-			if (matchesShortcut(e, shortcuts.paste, isMac)) {
+			if (matches("paste")) {
 				e.preventDefault();
 				// Paste what was COPIED. It used to fall back to `tl.clipSelection`,
 				// so a clip merely being selected hijacked the paste — and since
@@ -1333,17 +1354,17 @@ export function NewEditorShell() {
 				void pasteRegion();
 				return;
 			}
-			if (matchesShortcut(e, shortcuts.playPause, isMac)) {
+			if (matches("playPause")) {
 				e.preventDefault();
 				togglePlay();
 				return;
 			}
-			if (matchesShortcut(e, shortcuts.deleteSelected, isMac)) {
+			if (matches("deleteSelected")) {
 				e.preventDefault();
 				deleteSelection();
 				return;
 			}
-			if (e.key === "Delete" || e.key === "Backspace") {
+			if (matches("deleteAlternate") || matches("deleteBackspace")) {
 				e.preventDefault();
 				deleteSelection();
 				return;
@@ -1353,50 +1374,50 @@ export function NewEditorShell() {
 			// way most regions get created. Left on the flat default they came out
 			// under two pixels on a 30-minute recording, hidden behind the playhead
 			// they were created at. See timeline/newRegionDuration.
-			if (matchesShortcut(e, shortcuts.addZoom, isMac)) {
+			if (matches("addZoom")) {
 				e.preventDefault();
 				void tl.addZoom(newRegionDurationSec());
 				return;
 			}
-			if (matchesShortcut(e, shortcuts.addTrim, isMac)) {
+			if (matches("addTrim")) {
 				e.preventDefault();
 				void tl.addTrim(newRegionDurationSec());
 				return;
 			}
-			if (matchesShortcut(e, shortcuts.addAnnotation, isMac)) {
+			if (matches("addAnnotation")) {
 				e.preventDefault();
 				void tl.addAnnotation(newRegionDurationSec());
 				return;
 			}
 			// Unlike its neighbours this opens a file picker rather than dropping a region at
 			// the playhead — there is nothing to size, so it takes no duration (issue #350).
-			if (matchesShortcut(e, shortcuts.addAudio, isMac)) {
+			if (matches("addAudio")) {
 				e.preventDefault();
 				void tl.addAudio();
 				return;
 			}
-			if (matchesShortcut(e, shortcuts.addVoiceover, isMac)) {
+			if (matches("addVoiceover")) {
 				e.preventDefault();
 				openVoiceoverFlow();
 				return;
 			}
-			if (matchesShortcut(e, shortcuts.addSpeed, isMac)) {
+			if (matches("addSpeed")) {
 				e.preventDefault();
 				void tl.addSpeed(newRegionDurationSec());
 				return;
 			}
-			if (matchesShortcut(e, shortcuts.addCameraFullscreen, isMac)) {
+			if (matches("addCameraFullscreen")) {
 				e.preventDefault();
 				void tl.addCameraFullscreen(newRegionDurationSec());
 				return;
 			}
 
-			// Fixed (non-configurable) shortcuts advertised in the shortcuts dialog.
-			if (e.key === "Tab") {
+			// Navigation follows the same saved bindings as editing commands.
+			if (matches("cycleAnnotationsForward") || matches("cycleAnnotationsBackward")) {
 				const annotations = [...tl.annotationRegions].sort((a, b) => a.startMs - b.startMs);
 				if (annotations.length > 0) {
 					e.preventDefault();
-					const direction = e.shiftKey ? -1 : 1;
+					const direction = matches("cycleAnnotationsBackward") ? -1 : 1;
 					const currentId = tl.selection?.kind === "annotation" ? tl.selection.id : null;
 					const currentIndex = currentId ? annotations.findIndex((a) => a.id === currentId) : -1;
 					const nextIndex =
@@ -1409,21 +1430,49 @@ export function NewEditorShell() {
 				}
 				return;
 			}
-			if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+			if (matches("frameBack") || matches("frameForward")) {
 				e.preventDefault();
 				const frameStepSec = 1 / 60;
-				const direction = e.key === "ArrowLeft" ? -1 : 1;
+				const direction = matches("frameBack") ? -1 : 1;
 				const playhead = useProjectStore.getState().currentTimeSec;
 				handleSeek(Math.max(0, playhead + direction * frameStepSec));
 				return;
 			}
 		};
+		const unsubscribeClipboard = window.electronAPI?.onMenuClipboard?.((action) => {
+			const target = window.document.activeElement;
+			if (
+				target instanceof HTMLInputElement ||
+				target instanceof HTMLTextAreaElement ||
+				(target instanceof HTMLElement && target.isContentEditable)
+			) {
+				window.document.execCommand?.(
+					action === "cutSelected" ? "cut" : action === "copySelected" ? "copy" : "paste",
+				);
+				return;
+			}
+			const binding = shortcuts[action];
+			// A menu click remains usable when its keyboard shortcut is unassigned.
+			const event = new KeyboardEvent("keydown", {
+				key: binding.key,
+				ctrlKey: !isMac && !!binding.ctrl,
+				metaKey: isMac && !!binding.ctrl,
+				shiftKey: !!binding.shift,
+				altKey: !!binding.alt,
+				cancelable: true,
+			});
+			onKey(event, action);
+		});
 		window.addEventListener("keydown", onKey);
-		return () => window.removeEventListener("keydown", onKey);
+		return () => {
+			window.removeEventListener("keydown", onKey);
+			unsubscribeClipboard?.();
+		};
 	}, [
 		hasProject,
 		handleCopyRegion,
 		handleSave,
+		handleExport,
 		pasteRegion,
 		tl,
 		promptUnsaved,
