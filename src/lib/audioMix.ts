@@ -26,6 +26,7 @@ export const MIC_FADE_IN_S = 0.02;
 
 export type MixAudioTracksInput = {
 	controllable?: boolean;
+	initialLevels?: { microphone: number; system: number };
 	systemAudioTrack?: MediaStreamTrack | null | undefined;
 	micAudioTrack?: MediaStreamTrack | null | undefined;
 };
@@ -55,6 +56,7 @@ export function mixAudioTracks({
 	systemAudioTrack,
 	micAudioTrack,
 	controllable = false,
+	initialLevels = { microphone: 1, system: 1 },
 }: MixAudioTracksInput): MixAudioTracksResult {
 	if (!micAudioTrack && (!controllable || !systemAudioTrack)) {
 		return { context: null, track: systemAudioTrack ?? null };
@@ -68,6 +70,7 @@ export function mixAudioTracks({
 		const systemSource = context.createMediaStreamSource(new MediaStream([systemAudioTrack]));
 		if (controllable) {
 			systemGain = context.createGain();
+			systemGain.gain.setValueAtTime(initialLevels.system, context.currentTime);
 			systemSource.connect(systemGain).connect(destination);
 		} else systemSource.connect(destination);
 	}
@@ -77,7 +80,10 @@ export function mixAudioTracks({
 		const micSource = context.createMediaStreamSource(new MediaStream([micAudioTrack]));
 		micGain = context.createGain();
 		micGain.gain.setValueAtTime(0, context.currentTime);
-		micGain.gain.linearRampToValueAtTime(micTargetGain, context.currentTime + MIC_FADE_IN_S);
+		micGain.gain.linearRampToValueAtTime(
+			micTargetGain * initialLevels.microphone,
+			context.currentTime + MIC_FADE_IN_S,
+		);
 		micSource.connect(micGain).connect(destination);
 	}
 	return {

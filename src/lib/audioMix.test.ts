@@ -201,3 +201,18 @@ describe("live browser mix", () => {
 		expect(system.gain.setTargetAtTime).toHaveBeenLastCalledWith(0.2, 0.5, 0.015);
 	});
 });
+
+it("creates pre-muted browser channels at zero gain before connecting the recorder", () => {
+	stubMediaStream();
+	const context = stubAudioContext();
+	mixAudioTracks({
+		systemAudioTrack: track("system"),
+		micAudioTrack: track("mic"),
+		controllable: true,
+		initialLevels: { microphone: 0, system: 0 },
+	});
+	const [system, mic] = context.createGain.mock.results.map((r) => r.value);
+	expect(system.gain.setValueAtTime).toHaveBeenCalledWith(0, 0.5);
+	expect(mic.gain.linearRampToValueAtTime).toHaveBeenCalledWith(0, 0.5 + MIC_FADE_IN_S);
+	vi.unstubAllGlobals();
+});

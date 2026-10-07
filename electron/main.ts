@@ -68,6 +68,8 @@ import {
 } from "./permissions";
 import { setDisplaySleepBlocked } from "./recording/displaySleepBlocker";
 import {
+	activateRecordingShortcuts,
+	deactivateRecordingShortcuts,
 	initializeRecordingShortcuts,
 	loadRecordingShortcuts,
 	saveRecordingShortcuts,
@@ -170,6 +172,7 @@ function createWindow() {
 	}
 
 	mainWindow = createHudOverlayWindow();
+	activateRecordingShortcuts();
 }
 
 function showMainWindow() {
@@ -1016,6 +1019,7 @@ function createEditorWindowWrapper() {
 		isForceClosing = false;
 		mainWindow = null;
 	}
+	deactivateRecordingShortcuts();
 	mainWindow = createEditorWindow();
 	editorHasUnsavedChanges = false;
 
@@ -1425,6 +1429,7 @@ appReady?.then(async () => {
 			setTimeout(() => app.exit(0), 100);
 		});
 		const query = Object.fromEntries(new URLSearchParams(benchArg.slice("--bench=".length)));
+		deactivateRecordingShortcuts();
 		mainWindow = createEditorWindow({ ...query, windowType: "bench" });
 		return;
 	}

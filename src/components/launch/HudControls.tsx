@@ -415,6 +415,7 @@ export const HudRecordButton = memo(function HudRecordButton({
 	startLabel: string;
 	onClick: () => void;
 }) {
+	const vertical = useContext(HudVerticalContext);
 	return (
 		// The tooltip is the only one: it carries the name, and a native `title` beside it
 		// stacked a second, OS-drawn tooltip on the same button.
@@ -423,7 +424,7 @@ export const HudRecordButton = memo(function HudRecordButton({
 				data-testid="launch-record-button"
 				disabled={saving}
 				// A soft red wash at rest, so the main action reads as one from across the bar.
-				className={`flex h-[40px] shrink-0 items-center justify-center rounded-[12px] border-0 transition-all duration-150 ${recording || saving ? "min-w-[78px] px-3" : "min-w-[90px] px-3"} ${hudFocusClasses} ${styles.electronNoDrag} ${
+				className={`flex ${vertical && recording ? "h-[58px]" : "h-[40px]"} shrink-0 items-center justify-center rounded-[12px] border-0 transition-all duration-150 ${vertical ? "w-[44px]" : recording || saving ? "min-w-[78px] px-3" : "min-w-[90px] px-3"} ${hudFocusClasses} ${styles.electronNoDrag} ${
 					saving
 						? "bg-transparent opacity-60 cursor-not-allowed"
 						: "bg-[#ff7049]/15 hover:bg-[#ff7049]/25"
@@ -432,7 +433,9 @@ export const HudRecordButton = memo(function HudRecordButton({
 				aria-label={label}
 				style={{ flex: "0 0 auto" }}
 			>
-				<div className="flex items-center justify-center gap-2">
+				<div
+					className={`flex items-center justify-center ${vertical ? "flex-col gap-1" : "gap-2"}`}
+				>
 					{saving ? (
 						<div className="animate-spin flex items-center justify-center">
 							{getIcon("spinner", "text-[#f87171]")}
@@ -443,11 +446,15 @@ export const HudRecordButton = memo(function HudRecordButton({
 							className={paused ? "text-amber-400" : "text-[#f87171]"}
 						/>
 					)}
-					{!saving && !recording && (
+					{!saving && !recording && !vertical && (
 						<span className="text-xs font-semibold text-[#ff967b]">{startLabel}</span>
 					)}
 					{saving && (
-						<span className="text-[#f87171] text-xs font-semibold select-none">{savingLabel}</span>
+						<span
+							className={vertical ? "sr-only" : "text-[#f87171] text-xs font-semibold select-none"}
+						>
+							{savingLabel}
+						</span>
 					)}
 					{recording && (
 						<span

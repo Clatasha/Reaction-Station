@@ -92,4 +92,18 @@ describe("recording global shortcuts", () => {
 		expect(mocks.callbacks.has("CommandOrControl+Shift+R")).toBe(true);
 		expect(mocks.callbacks.has("CommandOrControl+X")).toBe(false);
 	});
+	it("releases recording keys for editing and restores the configured actions when the HUD returns", async () => {
+		const engine = await import("./recordingShortcuts");
+		const trigger = vi.fn();
+		await engine.initializeRecordingShortcuts(trigger);
+		const next = { ...DEFAULT_RECORDING_SHORTCUTS, record: { key: "x", ctrl: true, shift: true } };
+		expect((await engine.saveRecordingShortcuts(next)).success).toBe(true);
+		mocks.callbacks.set("CommandOrControl+Shift+O", () => undefined);
+		engine.deactivateRecordingShortcuts();
+		expect([...mocks.callbacks.keys()]).toEqual(["CommandOrControl+Shift+O"]);
+		engine.activateRecordingShortcuts();
+		mocks.callbacks.get("CommandOrControl+Shift+X")?.();
+		expect(trigger).toHaveBeenLastCalledWith("record");
+		expect(mocks.callbacks.has("CommandOrControl+Shift+R")).toBe(false);
+	});
 });

@@ -1201,7 +1201,11 @@ export function LaunchWindow() {
 									Reaction Station<small>{t("reaction.creatorStudio")}</small>
 								</span>
 							</div>
-							<div className={styles.dockStatus} data-recording={recording && !paused}>
+							<div
+								className={styles.dockStatus}
+								role="status"
+								data-recording={recording && !paused}
+							>
 								<span />
 								{t(
 									saving

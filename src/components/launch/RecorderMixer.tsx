@@ -143,6 +143,9 @@ export function RecorderMixer({
 											max={100}
 											step={1}
 											value={levels[channel]}
+											style={{
+												background: `linear-gradient(to right, ${muted[channel] ? "#665b76" : "#b899ff"} ${levels[channel]}%, #403747 ${levels[channel]}%)`,
+											}}
 											disabled={disabled}
 											onChange={(event) => onLevel(channel, Number(event.target.value))}
 										/>

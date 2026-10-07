@@ -13,7 +13,7 @@ The recorder accepts these global shortcuts while it is open, including while an
 | Ctrl + Shift + M | Mute / unmute microphone |
 | Ctrl + Shift + S | Mute / unmute system audio |
 
-On macOS, use Command instead of Ctrl. Change the combinations in Controls → Hotkeys between takes. Settings persist across app launches. Saving duplicate or occupied combinations keeps the previous bindings and settings. An occupied shortcut at startup is logged; other available shortcuts still register. Recording shortcuts do not operate on the editor.
+On macOS, use Command instead of Ctrl. Change the combinations in Controls → Hotkeys between takes. Settings persist across app launches. Saving duplicate or occupied combinations keeps the previous bindings and settings. An occupied shortcut at startup is logged; other available shortcuts still register. Recording shortcuts are unregistered while the editor is open so they do not intercept editing or browser shortcuts; reopening the recorder restores the saved combinations.
 
 ## Live audio
 

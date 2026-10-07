@@ -323,17 +323,17 @@
 }
 
 .languageMenuItemActive {
-	background: rgba(16, 185, 129, 0.14);
+	background: rgba(178, 154, 255, 0.14);
 	color: #ffffff;
 }
 
-/* The popovers' own buttons: a mint ring for keyboard focus, like the bar's. Inset,
+/* The popovers' own buttons: a violet ring for keyboard focus, like the bar's. Inset,
    so a scrolling panel's overflow cannot clip it. */
 .hudModalClose:focus-visible,
 .hudModalAboutAction:focus-visible,
 .languageMenuItem:focus-visible {
 	outline: none;
-	box-shadow: inset 0 0 0 2px rgba(16, 185, 129, 0.7);
+	box-shadow: inset 0 0 0 2px rgba(178, 154, 255, 0.7);
 }
 
 /* Device-picker popovers (microphone / camera) reuse the language menu's
@@ -370,6 +370,7 @@
 }
 
 .dockHeader {
+	align-self: stretch;
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
@@ -467,7 +468,7 @@
 }
 
 .hudBarVertical .dockStatus {
-	font-size: 9px;
+	font-size: 0;
 }
 
 .recorderPanel {
@@ -635,3 +636,22 @@
 	outline-offset: 3px;
 }
 
+
+.hudBarVertical {
+ scrollbar-width: thin;
+ scrollbar-color: #786591 transparent;
+}
+.channelSlider input {
+ height: 4px;
+ border-radius: 999px;
+}
+.channelSlider input::-webkit-slider-thumb {
+ width: 12px;
+ height: 12px;
+ background: #d8c5ff;
+ border-color: #d8c5ff;
+ box-shadow: 0 0 0 3px #b899ff18;
+}
+.channelSlider input::-webkit-slider-thumb:hover {
+ border-color: #d8c5ff;
+}

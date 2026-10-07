@@ -11,6 +11,8 @@ import {
 import { bindingToAccelerator } from "./globalShortcut";
 
 let registered = new Map<string, RecordingAction>();
+let configured = DEFAULT_RECORDING_SHORTCUTS;
+let initialized = false;
 let trigger: (action: RecordingAction) => void = () => {
 	/* Installed when the GUI starts. */
 };
@@ -49,6 +51,7 @@ function prepareRecordingShortcuts(config: RecordingShortcuts) {
 			for (const accelerator of registered.keys())
 				if (!next.has(accelerator)) globalShortcut.unregister(accelerator);
 			registered = next;
+			configured = config;
 		},
 	};
 }
@@ -68,12 +71,15 @@ export async function loadRecordingShortcuts(): Promise<RecordingShortcuts> {
 	}
 	return DEFAULT_RECORDING_SHORTCUTS;
 }
-export async function initializeRecordingShortcuts(onAction: (action: RecordingAction) => void) {
-	trigger = onAction;
-	const saved = await loadRecordingShortcuts();
-	// Register independently at startup so one occupied OS shortcut doesn't disable the others.
+export function deactivateRecordingShortcuts() {
+	for (const accelerator of registered.keys()) globalShortcut.unregister(accelerator);
+	registered.clear();
+}
+export function activateRecordingShortcuts() {
+	if (!initialized || registered.size) return;
+	// One occupied shortcut must not disable the other recording controls.
 	for (const action of RECORDING_ACTIONS) {
-		const accelerator = bindingToAccelerator(saved[action]);
+		const accelerator = bindingToAccelerator(configured[action]);
 		try {
 			if (
 				globalShortcut.register(accelerator, () => {
@@ -87,6 +93,12 @@ export async function initializeRecordingShortcuts(onAction: (action: RecordingA
 			console.warn(`Invalid recording shortcut: ${accelerator}`);
 		}
 	}
+}
+export async function initializeRecordingShortcuts(onAction: (action: RecordingAction) => void) {
+	trigger = onAction;
+	configured = await loadRecordingShortcuts();
+	initialized = true;
+	activateRecordingShortcuts();
 }
 let saving = false;
 export async function saveRecordingShortcuts(config: RecordingShortcuts) {

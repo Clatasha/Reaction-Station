@@ -2052,6 +2052,10 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 				setLevels,
 			} = mixAudioTracks({
 				controllable: true,
+				initialLevels: {
+					microphone: audioMuted.microphone ? 0 : audioLevels.microphone / 100,
+					system: audioMuted.system ? 0 : audioLevels.system / 100,
+				},
 				systemAudioTrack,
 				micAudioTrack,
 			});
