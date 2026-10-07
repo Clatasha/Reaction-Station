@@ -451,5 +451,8 @@
 		"dark": "داكنة",
 		"light": "فاتحة",
 		"custom": "مخصصة"
+	},
+	"mediaAnimation": {
+		"title": "Animation"
 	}
 }

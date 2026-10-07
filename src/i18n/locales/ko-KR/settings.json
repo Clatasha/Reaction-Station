@@ -451,5 +451,8 @@
 		"dark": "어둡게",
 		"light": "밝게",
 		"custom": "사용자 지정"
+	},
+	"mediaAnimation": {
+		"title": "Animation"
 	}
 }

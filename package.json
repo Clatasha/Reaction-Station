@@ -1,9 +1,9 @@
 {
 	"name": "reaction-station",
 	"private": true,
-	"version": "0.4.0",
+	"version": "0.5.0",
 	"description": "Reaction Station by Clatasha: screen recording and video editing",
-	"homepage": "https://github.com/Clatasha/openscreen",
+	"homepage": "https://github.com/Clatasha/Reaction-Station",
 	"license": "MIT",
 	"type": "module",
 	"packageManager": "npm@10.9.4",
@@ -17,7 +17,7 @@
 	},
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/Clatasha/openscreen.git"
+		"url": "git+https://github.com/Clatasha/Reaction-Station.git"
 	},
 	"contributors": [
 		{

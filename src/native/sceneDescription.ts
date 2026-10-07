@@ -46,6 +46,7 @@ import { resolveClipSourceEndSec } from "@/lib/ai-edition/timeline/clipDuration"
 import { removedRawSpans } from "@/lib/ai-edition/timeline/programme-time";
 import { takeProgramme } from "@/lib/ai-edition/timeline/take-programme";
 import { projectRegionsToSource } from "@/lib/ai-edition/timeline/timelineMap";
+import { findRawClipForSegment } from "@/lib/ai-edition/timeline/virtual-preview";
 import {
 	MAGNIFICATION_REFERENCE_PX,
 	MAX_ZOOM_SCALE,
@@ -216,6 +217,10 @@ export interface SceneAnnotation {
 	};
 	/** Present for `kind: "image"` — the authored `imageContent` (path or data URI). */
 	imagePath?: string;
+	videoPath?: string;
+	videoSourceStartSec?: number;
+	mediaAnimation?: string;
+	mediaAnimationOffsetSec?: number;
 	/** Present for `kind: "figure"`. */
 	figure?: {
 		direction:
@@ -455,9 +460,13 @@ export interface SceneCursor {
 }
 
 /** Everything native needs to compose the scene, serialized from one document. */
+export interface SceneClipInput extends CompositorClipInput {
+	mediaAnimation?: { name: string; startSec: number };
+}
+
 export interface SceneDescription {
 	/** Ordered clips (multiclip) with source trims — same shape the export already uses. */
-	clips: CompositorClipInput[];
+	clips: SceneClipInput[];
 	layout: SceneLayout;
 	effects: SceneEffects;
 	background: SceneBackground;
@@ -978,7 +987,7 @@ export function buildSceneDescription(
 		return entries;
 	});
 	const visibleClips = resolveVisibleClips(document);
-	const clips: CompositorClipInput[] = visibleClips.flatMap((clip) => {
+	const clips: SceneClipInput[] = visibleClips.flatMap((clip) => {
 		const asset = assetById.get(clip.assetId);
 		if (!asset?.originalPath) return [];
 		const camera = assetCameraSource(asset);
@@ -992,6 +1001,16 @@ export function buildSceneDescription(
 		return [
 			{
 				screenPath: asset.originalPath,
+				...(clip.mediaAnimation && clip.mediaAnimation !== "none"
+					? {
+							mediaAnimation: {
+								name: clip.mediaAnimation,
+								startSec:
+									findRawClipForSegment(clip, document.timeline.clips)?.sourceStartSec ??
+									clip.sourceStartSec,
+							},
+						}
+					: {}),
 				webcamPath: camera.path,
 				sourceStartSec: clip.sourceStartSec,
 				sourceEndSec: resolveClipSourceEndSec(clip, asset),
@@ -1430,7 +1449,19 @@ export function buildSceneDescription(
 					// `content.startsWith("data:image")`), `imageContent` being the parallel slot
 					// older documents used. Reading them the other way round would render an image
 					// the preview isn't showing.
-					return { ...base, imagePath: region.content || region.imageContent || "" };
+					const media = region.mediaAssetId ? assetById.get(region.mediaAssetId) : undefined;
+					return {
+						...base,
+						imagePath: region.content || region.imageContent || "",
+						...(media
+							? {
+									videoPath: media.originalPath,
+									videoSourceStartSec: region.mediaSourceStartSec ?? 0,
+								}
+							: {}),
+						mediaAnimation: style.textAnimation ?? "none",
+						mediaAnimationOffsetSec: region.mediaSourceStartSec ?? 0,
+					};
 				}
 				if (region.type === "figure") {
 					const figure = region.figureData;

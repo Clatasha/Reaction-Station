@@ -451,5 +451,8 @@
 		"dark": "ダーク",
 		"light": "ライト",
 		"custom": "カスタム"
+	},
+	"mediaAnimation": {
+		"title": "Animation"
 	}
 }

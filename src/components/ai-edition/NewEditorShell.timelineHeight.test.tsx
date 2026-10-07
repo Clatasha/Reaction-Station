@@ -28,7 +28,6 @@ vi.mock("@/contexts/I18nContext", () => ({
 
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { EditorDialogsProvider } from "@/contexts/EditorDialogsContext";
-import { AUDIO_ROW_EXPANSION_PX } from "@/lib/ai-edition/document/audioTracks";
 import { createAudioTrack, createEmptyDocument } from "@/lib/ai-edition/schema";
 import { useProjectStore } from "@/lib/ai-edition/store/projectStore";
 import {
@@ -192,7 +191,7 @@ describe("NewEditorShell timeline height", () => {
 		expect(localStorage.getItem("os-editor-timeline-height")).toBe(String(MAX_TIMELINE_HEIGHT_PX));
 	});
 
-	it("dynamically expands height by AUDIO_ROW_EXPANSION_PX when transitioning from 1 to 2 audio lanes and shrinks back", () => {
+	it("keeps the preview height when audio tracks exceed eight default lanes", () => {
 		const { container } = renderShell();
 		const root = container.firstElementChild as HTMLElement;
 		expect(root.style.gridTemplateRows).toBe(`58px 1fr ${DEFAULT_TIMELINE_HEIGHT_PX}px`);
@@ -220,10 +219,24 @@ describe("NewEditorShell timeline height", () => {
 			useProjectStore.setState({ document: doc });
 		});
 
-		const expectedExpandedHeight = DEFAULT_TIMELINE_HEIGHT_PX + AUDIO_ROW_EXPANSION_PX;
+		const expectedExpandedHeight = DEFAULT_TIMELINE_HEIGHT_PX;
 		expect(root.style.gridTemplateRows).toBe(`58px 1fr ${expectedExpandedHeight}px`);
 
-		// Remove music track (returning to 1 audio row)
+		act(() => {
+			useProjectStore.setState({
+				document: {
+					...doc,
+					audioTracks: Array.from({ length: 12 }, (_, i) => ({
+						...doc.audioTracks[0],
+						id: `audio-${i}`,
+						trackId: `audio-${i}`,
+					})),
+				},
+			});
+		});
+		expect(root.style.gridTemplateRows).toBe(`58px 1fr ${DEFAULT_TIMELINE_HEIGHT_PX}px`);
+
+		// Remove extra tracks
 		const singleTrackDoc = {
 			...doc,
 			audioTracks: [doc.audioTracks[0]],

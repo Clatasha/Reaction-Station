@@ -406,6 +406,10 @@ export interface AnnotationRegion {
 	content: string; // Legacy - still used for current type
 	textContent?: string; // Separate storage for text
 	imageContent?: string; // Separate storage for image data URL
+	mediaAssetId?: string;
+	mediaLayerId?: string;
+	mediaOffsetMs?: number;
+	mediaSourceStartSec?: number;
 	/** `"frame"`: placed on the output frame. Absent: on the footage (see annotations/placement.ts). */
 	space?: "frame";
 	position: AnnotationPosition;

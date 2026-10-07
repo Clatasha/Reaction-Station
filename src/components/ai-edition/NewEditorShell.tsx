@@ -5,10 +5,6 @@ import { toFileUrl } from "@/components/video-editor/projectPersistence";
 import { useEditorDialogActions } from "@/contexts/EditorDialogsContext";
 import { useScopedT } from "@/contexts/I18nContext";
 import { useShortcuts } from "@/contexts/ShortcutsContext";
-import {
-	AUDIO_ROW_EXPANSION_PX,
-	computeAudioRowCount,
-} from "@/lib/ai-edition/document/audioTracks";
 import { createId } from "@/lib/ai-edition/document/ids";
 import {
 	migrateProjectDataToAxcutDocument,
@@ -40,12 +36,22 @@ import {
 	useTranscriptionStore,
 } from "@/lib/ai-edition/store/transcriptionStore";
 import { useUndoRedoShortcuts } from "@/lib/ai-edition/store/undo";
-import { future as redoStack, past as undoStack } from "@/lib/ai-edition/store/undoStack";
+import {
+	currentWriteEpoch,
+	future as redoStack,
+	past as undoStack,
+} from "@/lib/ai-edition/store/undoStack";
 import { useChatPromptBus } from "@/lib/ai-edition/store/useChatPromptBus";
 import { useSequentialTimelineOps } from "@/lib/ai-edition/store/useSequentialTimelineOps";
 import { useTimeline } from "@/lib/ai-edition/store/useTimeline";
 import { isGeneratedAssetId } from "@/lib/ai-edition/timeline/clip-parts";
 import { mergeCloseCuts } from "@/lib/ai-edition/timeline/cut-breath";
+import { probeVideoDuration } from "@/lib/ai-edition/timeline/duration";
+import {
+	droppedMediaKind,
+	type MediaDropPlacement,
+	readDroppedImage,
+} from "@/lib/ai-edition/timeline/mediaDrop";
 import { newRegionDurationSec } from "@/lib/ai-edition/timeline/newRegionDuration";
 import {
 	dropTrimPillsByIds,
@@ -247,17 +253,9 @@ export function NewEditorShell() {
 		return Math.min(MAX_TIMELINE_HEIGHT_PX, Math.max(MIN_TIMELINE_HEIGHT_PX, val));
 	});
 
-	// The timeline height automatically expands by AUDIO_ROW_EXPANSION_PX (+29px)
-	// whenever the project transitions between 1 and 2 stacked audio rows (e.g. voiceover + music).
-	const audioRowCount = useMemo(
-		() => computeAudioRowCount(document?.audioTracks ?? []),
-		[document?.audioTracks],
-	);
-	const extraAudioHeightPx = Math.max(0, audioRowCount - 1) * AUDIO_ROW_EXPANSION_PX;
-	const timelineHeightPx = Math.min(
-		MAX_TIMELINE_HEIGHT_PX,
-		Math.max(MIN_TIMELINE_HEIGHT_PX, timelineBaseHeightPx + extraAudioHeightPx),
-	);
+	// Eight default lanes fit the saved panel size. Additional lanes scroll instead
+	// of taking height from the preview; only the resize handle changes this size.
+	const timelineHeightPx = timelineBaseHeightPx;
 	const [inspectorOpen, setInspectorOpen] = useState(true);
 	const [facet, setFacet] = useState<Facet>("effects");
 	const [openProjectOpen, setOpenProjectOpen] = useState(false);
@@ -558,18 +556,53 @@ export function NewEditorShell() {
 	// closure, `clips.length` stays frozen at the last render, so the second add lands
 	// before the first instead of after it.
 	const handleDropAsset = useCallback(
-		(assetId: string) =>
-			enqueueTimelineWrite(() => {
+		(assetId: string, placement: MediaDropPlacement = "sequence", dropTime?: number) =>
+			enqueueTimelineWrite(async () => {
 				const doc = useProjectStore.getState().document;
+				const projectId = useProjectStore.getState().projectId;
+				const epoch = currentWriteEpoch();
+				const superseded = () =>
+					useProjectStore.getState().projectId !== projectId || currentWriteEpoch() !== epoch;
 				// An audio asset has no video, so it must never become a clip (issue
 				// #350) — it goes on the audio lane as a track. Adding it "to the
 				// timeline" reuses its existing track if it already has one (importing
 				// already placed one) so the same file can't stack up duplicate lanes.
 				if (doc?.assets.find((a) => a.id === assetId)?.kind === "audio") {
 					if (doc.audioTracks.some((t) => t.assetId === assetId)) return Promise.resolve();
-					return tl.addAudioTrack(assetId).then(() => undefined);
+					return tl.addAudioTrack(assetId, dropTime).then(() => undefined);
 				}
-				const at = doc?.timeline.clips.length ?? 0;
+				const asset = doc?.assets.find((a) => a.id === assetId);
+				if (placement === "overlay" && asset) {
+					const durationSec =
+						asset.durationSec ?? (await probeVideoDuration(toFileUrl(asset.originalPath)));
+					if (superseded()) return;
+					if (!durationSec) throw new Error("Could not read video duration");
+					const startSec = dropTime ?? useProjectStore.getState().currentTimeSec;
+					await tl.addMediaOverlay({ assetId, content: asset.label, startSec, durationSec });
+					// Keep overlay sound on an independently editable audio lane.
+					if (superseded()) return;
+					if (superseded()) return;
+					if (!asset.sourceAudioMuted) {
+						const state = useProjectStore.getState();
+						const audio = await state.addAudioAsset(asset.originalPath, `${asset.label} audio`);
+						if (audio)
+							await tl.addAudioTrack(audio.id, startSec, {
+								durationSec,
+								spanSec: Math.min(
+									durationSec,
+									Math.max(0, (doc?.timeline.clips.at(-1)?.timelineEndSec ?? 0) - startSec),
+								),
+							});
+					}
+					return;
+				}
+				const found =
+					dropTime === undefined
+						? -1
+						: (doc?.timeline.clips.findIndex(
+								(c) => (c.timelineStartSec + c.timelineEndSec) / 2 > dropTime,
+							) ?? -1);
+				const at = found < 0 ? (doc?.timeline.clips.length ?? 0) : found;
 				return tl.insertClipAt(assetId, at);
 			}).catch((error) => {
 				toast.error(te("mediaStage.couldNotAddAsset"), {
@@ -578,6 +611,44 @@ export function NewEditorShell() {
 				throw error;
 			}),
 		[tl, te, enqueueTimelineWrite],
+	);
+
+	const handleDropFiles = useCallback(
+		async (files: File[], placement: MediaDropPlacement, dropTime: number) => {
+			let nextTime = dropTime;
+			const projectId = useProjectStore.getState().projectId;
+			for (const file of files) {
+				try {
+					const kind = droppedMediaKind(file.name);
+					if (!kind) throw new Error(`Unsupported media file: ${file.name}`);
+					if (kind === "image" && placement === "overlay") {
+						const content = await readDroppedImage(file);
+						await enqueueTimelineWrite(async () => {
+							if (useProjectStore.getState().projectId !== projectId) return;
+							await tl.addMediaOverlay({ content, startSec: nextTime, durationSec: 5 });
+						});
+						continue;
+					}
+					const path = window.electronAPI.getPathForFile(file);
+					if (!path) throw new Error("Could not access the dropped file");
+					const asset = await enqueueTimelineWrite(async () => {
+						const state = useProjectStore.getState();
+						if (state.projectId !== projectId) return null;
+						return kind === "audio"
+							? state.addAudioAsset(path, file.name)
+							: state.addAsset(path, file.name);
+					});
+					if (!asset || useProjectStore.getState().projectId !== projectId) return;
+					await handleDropAsset(asset.id, placement, nextTime);
+					if (placement === "sequence" && kind !== "audio") nextTime += asset.durationSec ?? 60;
+				} catch (error) {
+					toast.error(te("mediaStage.couldNotAddAsset"), {
+						description: error instanceof Error ? error.message : String(error),
+					});
+				}
+			}
+		},
+		[enqueueTimelineWrite, handleDropAsset, tl, te],
 	);
 
 	// Ref so the 'ended' listener below always sees the latest clips without tearing
@@ -1544,9 +1615,9 @@ export function NewEditorShell() {
 				// timeline, since it sits below the handle.
 				const renderedTarget = Math.min(
 					MAX_TIMELINE_HEIGHT_PX,
-					Math.max(MIN_TIMELINE_HEIGHT_PX, startBase + extraAudioHeightPx - (ev.clientY - startY)),
+					Math.max(MIN_TIMELINE_HEIGHT_PX, startBase - (ev.clientY - startY)),
 				);
-				latestBase = Math.max(MIN_TIMELINE_HEIGHT_PX, renderedTarget - extraAudioHeightPx);
+				latestBase = Math.max(MIN_TIMELINE_HEIGHT_PX, renderedTarget);
 				setTimelineBaseHeightPx(latestBase);
 			};
 			const up = () => {
@@ -1557,7 +1628,7 @@ export function NewEditorShell() {
 			window.addEventListener("pointermove", move);
 			window.addEventListener("pointerup", up);
 		},
-		[timelineBaseHeightPx, extraAudioHeightPx],
+		[timelineBaseHeightPx],
 	);
 
 	const transcriptProps = {
@@ -1760,6 +1831,7 @@ export function NewEditorShell() {
 						setCurrentTime={handleSeek}
 						variant={mode === "media" ? "media" : "edit"}
 						onDropAsset={handleDropAsset}
+						onDropFiles={handleDropFiles}
 						videoSources={videoSources}
 						playing={playing}
 						onTogglePlay={togglePlay}
@@ -1800,7 +1872,7 @@ export function NewEditorShell() {
 						: null
 				}
 				videoSources={videoSources}
-				onApply={(sStart, sEnd, cropRegion) => {
+				onApply={(sStart, sEnd, cropRegion, mediaAnimation) => {
 					if (!editClipTarget) return;
 					const clipId = editClipTarget.id;
 					// One user action, one document, one save. This used to be two calls —
@@ -1809,7 +1881,9 @@ export function NewEditorShell() {
 					// first and one of the two edits vanished silently (#355). It goes on the
 					// shared write queue for the same reason every other timeline edit does:
 					// so it can't clobber, or be clobbered by, a save already in flight.
-					void enqueueTimelineWrite(() => tl.applyClipEdit(clipId, sStart, sEnd, cropRegion));
+					void enqueueTimelineWrite(() =>
+						tl.applyClipEdit(clipId, sStart, sEnd, cropRegion, mediaAnimation),
+					);
 					setEditClipTarget(null);
 				}}
 			/>

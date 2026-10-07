@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, createEvent, fireEvent, render, screen } from "@testing-library/react";
 import { Profiler, type ProfilerOnRenderCallback } from "react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
@@ -110,6 +110,7 @@ function renderTimeline(
 	assets: Array<Record<string, unknown>> = [NO_CAMERA_ASSET],
 	onRender?: ProfilerOnRenderCallback,
 	overrides: Record<string, unknown> = {},
+	onDropFiles?: (files: File[], placement: "sequence" | "overlay", time: number) => Promise<void>,
 ) {
 	const tl = {
 		clips,
@@ -155,6 +156,7 @@ function renderTimeline(
 				onTogglePlay={vi.fn()}
 				onEditClip={vi.fn()}
 				onAddVoiceover={vi.fn()}
+				onDropFiles={onDropFiles}
 			/>
 		</ShortcutsProvider>
 	);
@@ -1122,5 +1124,71 @@ describe("timeline Workspace controls and context actions", () => {
 		act(() => useWorkspace.getState().toggle("snapping"));
 		await act(async () => dragHandle(pill.lastElementChild!, 240));
 		expect(tl.updateAnnotationSpan).toHaveBeenLastCalledWith("ann1", 10_000, 491_000);
+	});
+});
+
+describe("external timeline drops", () => {
+	it("uses the main track for sequence insertion and upper lanes for overlays", () => {
+		const onDrop = vi.fn(async () => {
+			/* Only placement is asserted here. */
+		});
+		const { clipEls } = renderTimeline(undefined, undefined, undefined, undefined, {}, onDrop);
+		const file = new File(["video"], "reaction.mp4", { type: "video/mp4" });
+		const dataTransfer = { files: [file], types: ["Files"], getData: () => "" };
+		const mainDrop = createEvent.drop(clipEls[0], { dataTransfer });
+		Object.defineProperty(mainDrop, "clientX", { value: 450 });
+		fireEvent(clipEls[0], mainDrop);
+		expect(onDrop).toHaveBeenLastCalledWith([file], "sequence", 900);
+		const lane = document.querySelector<HTMLElement>("[class*=tlLane]");
+		expect(lane).not.toBeNull();
+		const overlayDrop = createEvent.drop(lane as HTMLElement, { dataTransfer });
+		Object.defineProperty(overlayDrop, "clientX", { value: 225 });
+		fireEvent(lane as HTMLElement, overlayDrop);
+		expect(onDrop).toHaveBeenLastCalledWith([file], "overlay", 450);
+	});
+});
+
+describe("playhead snapping", () => {
+	it("snaps the playhead to visual item starts and ends, with Shift bypass", () => {
+		const { setCurrentTime } = renderTimeline([clip(0, 20)], {
+			id: "ann",
+			startMs: 4000,
+			endMs: 6000,
+		});
+		const ruler = document.querySelector<HTMLElement>("[class*=tlRulerRow]")!;
+		fireEvent.pointerDown(ruler, { button: 0, clientX: 274 });
+		expect(setCurrentTime).toHaveBeenLastCalledWith(6);
+		expect(screen.getByTestId("timeline-snap-guide")).toBeInTheDocument();
+		fireEvent.pointerUp(window);
+		expect(screen.queryByTestId("timeline-snap-guide")).not.toBeInTheDocument();
+		fireEvent.pointerDown(ruler, { button: 0, clientX: 176 });
+		expect(setCurrentTime).toHaveBeenLastCalledWith(4);
+		fireEvent.pointerUp(window);
+		fireEvent.pointerDown(ruler, { button: 0, clientX: 274, shiftKey: true });
+		expect(setCurrentTime).toHaveBeenLastCalledWith((274 / 900) * 20);
+		fireEvent.pointerUp(window);
+	});
+	it("honours item, clip and master magnets without snapping to the playhead itself", () => {
+		const { setCurrentTime } = renderTimeline([clip(0, 10), clip(10, 20)], {
+			id: "ann",
+			startMs: 4000,
+			endMs: 6000,
+		});
+		const ruler = document.querySelector<HTMLElement>("[class*=tlRulerRow]")!;
+		fireEvent.pointerDown(ruler, { button: 0, clientX: 454 });
+		expect(setCurrentTime).toHaveBeenLastCalledWith(10);
+		fireEvent.pointerUp(window);
+		act(() => useWorkspace.getState().toggle("snapToClips"));
+		fireEvent.pointerDown(ruler, { button: 0, clientX: 454 });
+		expect(setCurrentTime).toHaveBeenLastCalledWith((454 / 900) * 20);
+		fireEvent.pointerUp(window);
+		act(() => useWorkspace.getState().toggle("snapToItems"));
+		fireEvent.pointerDown(ruler, { button: 0, clientX: 274 });
+		expect(setCurrentTime).toHaveBeenLastCalledWith((274 / 900) * 20);
+		fireEvent.pointerUp(window);
+		act(() => useWorkspace.getState().toggle("snapping"));
+		fireEvent.pointerDown(ruler, { button: 0, clientX: 898 });
+		expect(setCurrentTime).toHaveBeenLastCalledWith((898 / 900) * 20);
+		fireEvent.pointerUp(window);
 	});
 });

@@ -179,6 +179,7 @@ export const assetSchema = z.object({
 	kind: z.enum(["video", "audio"]).default("video"),
 	label: z.string().min(1),
 	originalPath: z.string().min(1),
+	stillImagePath: z.string().optional(),
 	// Suppress the embedded fallback mix once separate recording sources are imported.
 	sourceAudioMuted: z.boolean().optional(),
 	proxyPath: z.string().optional(),
@@ -226,6 +227,7 @@ export const clipSchema = z
 		// that as the identity region {x:0,y:0,width:1,height:1} rather than
 		// storing the identity explicitly, so untouched clips stay lean.
 		cropRegion: clipCropRegionSchema.optional(),
+		mediaAnimation: z.enum(["none", "fade", "rise", "pop", "slide-left", "pulse"]).optional(),
 	})
 	.refine((data) => data.timelineEndSec >= data.timelineStartSec, {
 		message: "timelineEndSec must be greater than or equal to timelineStartSec",
@@ -462,6 +464,11 @@ export const annotationRegionSchema = endGteStart(
 		content: z.string().default(""),
 		textContent: z.string().optional(),
 		imageContent: z.string().optional(),
+		mediaAssetId: z.string().optional(),
+		mediaLayerId: z.string().optional(),
+		// A surviving fragment can have its original head before timeline zero after a reorder.
+		mediaOffsetMs: z.number().finite().optional(),
+		mediaSourceStartSec: z.number().nonnegative().optional(),
 		// The box `position`, `size` and the text size are measured against. `"frame"`, the output
 		// frame: where text, images and arrows are placed, so padding and the footage's size never
 		// move them. Absent, the footage (screen rect): a privacy blur always, since it must stay on

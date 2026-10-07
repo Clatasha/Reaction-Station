@@ -451,5 +451,8 @@
 		"dark": "Koyu",
 		"light": "Açık",
 		"custom": "Özel"
+	},
+	"mediaAnimation": {
+		"title": "Animation"
 	}
 }

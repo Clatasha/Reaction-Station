@@ -93,6 +93,12 @@ if (process.env.REACTION_STATION_AUDIO_TESTS === "1") {
 		`set "PATH=${sdk};%PATH%"\r\n${cargoExeQuoted} test -p openscreen-compositor --lib --release audio::tests::`,
 	);
 }
+if (process.env.REACTION_STATION_MEDIA_TESTS === "1") {
+	const sdk = pinMatch ? path.join(CRATES_DIR, pinMatch[1], "bin") : "";
+	await runInVsEnv(
+		`set "PATH=${sdk};%PATH%"\r\n${cargoExeQuoted} test -p openscreen-compositor --lib --release media_image::tests::`,
+	);
+}
 
 const builtDll = path.join(CRATES_DIR, "target", "release", "compositor_view.dll");
 if (!fs.existsSync(builtDll)) {

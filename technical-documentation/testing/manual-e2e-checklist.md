@@ -865,3 +865,12 @@ On macOS 15.2+ it opens at launch, until it has been closed once, while one of i
 | feat/separate-recording-audio | Windows | Skipped desktop | Native computer APIs are disabled in the agent environment. Physical microphone/loopback capture, pause/resume listening, real hotkeys, click-through, save/reopen and audible capture-to-export were not run here. Automated PCM, WAV, project and packaged-editor tests cover their own scope only. |
 
 For the desktop pass: record both sources, begin with desktop silence, pause/resume, change live gain/mute, then stop. Confirm two simultaneous tracks. Mute each independently, change gain/fades, trim and change speed, save/reopen, and export. Confirm no duplicate mixed sound, matching audio/video timing, and working single-source/no-audio recordings. Cancel/restart should remove abandoned source files.
+
+
+### Reaction Station timeline media 0.5.0
+
+| Build / branch | Platform | Result | Scope / skipped checks |
+| --- | --- | --- | --- |
+| feat/timeline-media-drop | Windows / macOS / Linux | Skipped desktop | Native computer APIs and local Rust tooling are unavailable. Automated TypeScript tests cover fixed timeline height, drop placement, media persistence, layer duplication, offset continuity, image conversion and animation controls. Windows CI will compile the compositor and run focused media decoder/motion tests before packaging. Actual desktop file drops, scroll gutter alignment, GPU animation output, multiple-video performance, sound synchronization, save/reopen and audible preview/export have not been passed here. |
+
+Desktop scope: duplicate enough overlapping audio/image/video layers to exceed eight lanes, confirm player and timeline height stay fixed, scroll all layers and check ruler/playhead alignment. Drop each media kind into the main track and upper lanes, including multi-file drops and filenames with spaces. Apply each visual preset, move/trim an overlay across a main clip cut, duplicate it, undo/redo, save/reopen and compare MP4/GIF output to preview. Mix overlay sound on its independent lane; confirm no duplicate main recording mix. Check software/GPU rendering and simultaneous 1080p overlays on each supported platform.

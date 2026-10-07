@@ -112,5 +112,10 @@
 		"mute": "Mute audio",
 		"unmute": "Unmute audio",
 		"fit": "Fit timeline to window"
+	},
+	"media": {
+		"video": "Video overlay",
+		"image": "Image overlay",
+		"dropOverlay": "Drop video or images here as overlays"
 	}
 }

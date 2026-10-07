@@ -1047,7 +1047,12 @@ function SelectionPane({ tl, onClose }: { tl: TimelineApi; onClose: () => void }
 									}
 									const reader = new FileReader();
 									reader.onload = () => {
-										tl.updateAnnotationLive(region.id, { content: String(reader.result) });
+										tl.updateAnnotationLive(region.id, {
+											content: String(reader.result),
+											mediaAssetId: undefined,
+											mediaOffsetMs: undefined,
+											mediaSourceStartSec: undefined,
+										});
 										void tl.commitAnnotationChange();
 										toast.success(ts("annotation.imageUploadSuccess"));
 									};
@@ -1232,16 +1237,18 @@ function SelectionPane({ tl, onClose }: { tl: TimelineApi; onClose: () => void }
 								/>,
 							)
 						: null}
-					{region.type === "text"
+					{region.type === "text" || region.type === "image"
 						? paneStack(
-								ts("textAnimation.title"),
+								region.type === "image" ? ts("mediaAnimation.title") : ts("textAnimation.title"),
 								// Les sept animations existaient : nommées dans le schéma, traduites dans les
 								// treize langues, transportées jusqu'au compositeur — et injouables, faute de
 								// ce sélecteur. Trois par rangée : « Typewriter » et ses traductions tiennent.
 								<ChoiceRow<AnnotationTextAnimation>
 									label={ts("textAnimation.selectAnimation")}
 									columns={3}
-									options={TEXT_ANIMATION_VALUES.map((value) => ({
+									options={TEXT_ANIMATION_VALUES.filter(
+										(value) => region.type === "text" || value !== "typewriter",
+									).map((value) => ({
 										value,
 										label: ts(`textAnimation.${value === "slide-left" ? "slideLeft" : value}`),
 									}))}

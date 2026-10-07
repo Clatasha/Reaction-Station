@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AxcutAsset, AxcutDocument } from "../../src/lib/ai-edition/schema";
-import { axcutSchemaVersion } from "../../src/lib/ai-edition/schema";
+import { annotationRegionSchema, axcutSchemaVersion } from "../../src/lib/ai-edition/schema";
 import {
 	DEFAULT_EDITOR_SETTINGS,
 	getEditorSettings,
@@ -413,10 +413,16 @@ describe("DocumentService", () => {
 		it("rejects unsupported audio extensions", async () => {
 			const doc = await service.createProject("P");
 			await expect(
-				service.addAsset(doc.project.id, { path: "/tmp/clip.mp4", kind: "audio" }),
+				service.addAsset(doc.project.id, { path: "/tmp/not-audio.txt", kind: "audio" }),
 			).rejects.toBeInstanceOf(ProjectFileError);
 		});
 
+		it("accepts a video container as an independent overlay soundtrack", async () => {
+			const doc = await service.createProject("P");
+			const next = await service.addAsset(doc.project.id, { path: "/tmp/clip.mp4", kind: "audio" });
+			expect(next.assets.at(-1)).toMatchObject({ kind: "audio", originalPath: "/tmp/clip.mp4" });
+			expect(next.project.primaryAssetId).toBeUndefined();
+		});
 		it("accepts a recorded .webm take as audio", async () => {
 			// MediaRecorder writes a voiceover as webm/opus — the same extension a
 			// screen recording uses. The caller has already declared the kind here,
@@ -443,6 +449,30 @@ describe("DocumentService", () => {
 	});
 
 	describe("removeAsset", () => {
+		it("removes visual overlays that reference a deleted media asset", async () => {
+			const doc = await service.createProject("P");
+			const imported = await service.addAsset(doc.project.id, { path: "/tmp/overlay.mp4" });
+			const assetId = imported.assets[0].id;
+			await service.saveProject({
+				...imported,
+				annotations: [
+					annotationRegionSchema.parse({
+						id: "overlay",
+						type: "image",
+						content: "overlay",
+						mediaAssetId: assetId,
+						startMs: 0,
+						endMs: 1000,
+						position: { x: 25, y: 25 },
+						size: { width: 50, height: 50 },
+						style: {},
+						zIndex: 1,
+					}),
+				],
+			});
+			const removed = await service.removeAsset(doc.project.id, assetId);
+			expect(removed.annotations).toEqual([]);
+		});
 		it("removes the asset and cascades clips, trims, and clip modifiers", async () => {
 			const doc = await service.createProject("P");
 			const withAsset = await service.addAsset(doc.project.id, { path: "/tmp/a.mp4" });

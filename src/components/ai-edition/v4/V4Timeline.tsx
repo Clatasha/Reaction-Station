@@ -56,6 +56,7 @@ import type { useTimeline } from "@/lib/ai-edition/store/useTimeline";
 import { collectAutoZoomSuggestionsForLatestDocument } from "@/lib/ai-edition/timeline/apply-auto-zooms";
 import { hasAnyClipWithCamera } from "@/lib/ai-edition/timeline/camera";
 import { formatSec } from "@/lib/ai-edition/timeline/format";
+import type { MediaDropPlacement } from "@/lib/ai-edition/timeline/mediaDrop";
 import {
 	newRegionDurationSec,
 	setTimelineScale,
@@ -617,6 +618,7 @@ export function V4Timeline({
 	setCurrentTime,
 	variant = "edit",
 	onDropAsset,
+	onDropFiles,
 	videoSources = [],
 	playing,
 	onTogglePlay,
@@ -626,7 +628,12 @@ export function V4Timeline({
 	tl: TimelineApi;
 	setCurrentTime: (sec: number) => void;
 	variant?: "edit" | "media";
-	onDropAsset?: (assetId: string) => Promise<void>;
+	onDropAsset?: (
+		assetId: string,
+		placement?: MediaDropPlacement,
+		dropTime?: number,
+	) => Promise<void>;
+	onDropFiles?: (files: File[], placement: MediaDropPlacement, dropTime: number) => Promise<void>;
 	videoSources?: VideoSource[];
 	playing: boolean;
 	onTogglePlay: () => void;
@@ -760,9 +767,18 @@ export function V4Timeline({
 		kind: "annotation",
 		start: p.start,
 		end: p.end,
-		label: t("toolbar.newAnnotation"),
+		label:
+			p.member.type === "image"
+				? p.member.mediaAssetId
+					? (tl.assets.find((a) => a.id === p.member.mediaAssetId)?.label ?? t("media.video"))
+					: t("media.image")
+				: t("toolbar.newAnnotation"),
 		sourceIds: p.ids,
 	}));
+	const annotationRows = packAudioTrackRows(
+		annPills.map((p) => ({ id: p.id, startMs: p.start * 1000, endMs: p.end * 1000 })),
+	);
+
 	const speedPills: LanePill[] = coalesceRegionsForRuler(tl.speedRegions).map((p) => ({
 		id: p.ids[0],
 		kind: "speed",
@@ -807,12 +823,13 @@ export function V4Timeline({
 		sourceIds: g.ids,
 	}));
 
-	const collectSnapTargets = (excludeIds: string[] = []) => {
+	const collectSnapTargets = (excludeIds: string[] = [], includePlayhead = true) => {
 		const prefs = useWorkspace.getState();
 		const targets = [0, total];
 		if (prefs.snapToClips)
 			targets.push(...clips.flatMap((c) => [c.timelineStartSec, c.timelineEndSec]));
-		if (prefs.snapToPlayhead) targets.push(useProjectStore.getState().currentTimeSec);
+		if (includePlayhead && prefs.snapToPlayhead)
+			targets.push(useProjectStore.getState().currentTimeSec);
 		if (prefs.snapToItems) {
 			targets.push(
 				...[...annPills, ...speedPills, ...zoomPills, ...trimPills, ...cameraFullscreenPills]
@@ -827,6 +844,11 @@ export function V4Timeline({
 		}
 		return [...new Set(targets)];
 	};
+
+	// Pointer listeners use the latest item edges without restarting an active scrub.
+	const collectSnapTargetsRef = useRef(collectSnapTargets);
+	collectSnapTargetsRef.current = collectSnapTargets;
+	const pendingScrubGuideRef = useRef<number | null>(null);
 
 	// Ruler ticks are chosen from what is actually ON SCREEN, not from the clip
 	// length: the canvas is widened by 1/navSpan, so the same recording shows one
@@ -864,19 +886,32 @@ export function V4Timeline({
 
 	// Seek timeline position from a clientX pointer position.
 	const seekToClientX = useCallback(
-		(clientX: number, isImmediate = false) => {
+		(clientX: number, isImmediate = false, bypassSnapping = false) => {
 			// Measure the canvas (the zoomed timeline frame): (clientX - left)/width
 			// is the fraction along the FULL timeline under the cursor, so it stays
 			// correct under zoom/pan and is unaffected by padding or the scrollbar.
 			const el = canvasRef.current;
 			if (!el) return;
 			const r = el.getBoundingClientRect();
+			if (!(r.width > 0) || !(total > 0)) return;
 			const pct = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
-			const targetTime = pct * total;
+			const prefs = useWorkspace.getState();
+			const threshold = prefs.snapping && !bypassSnapping ? (PILL_SNAP_PX * total) / r.width : 0;
+			// A dragged playhead must never snap to its own previous position.
+			const snapped = snapTimelineEdge(
+				pct * total,
+				collectSnapTargetsRef.current([], false),
+				threshold,
+				0,
+				0,
+				total,
+			);
+			const targetTime = snapped.value;
+			pendingScrubGuideRef.current = snapped.guide === null ? null : (snapped.guide / total) * 100;
 
 			// Direct DOM playhead update (0ms latency, zero React re-render overhead)
 			if (playheadElRef.current) {
-				playheadElRef.current.style.left = `${pct * 100}%`;
+				playheadElRef.current.style.left = `${(targetTime / total) * 100}%`;
 			}
 
 			pendingSeekTimeRef.current = targetTime;
@@ -886,6 +921,7 @@ export function V4Timeline({
 					cancelAnimationFrame(rafSeekRef.current);
 					rafSeekRef.current = 0;
 				}
+				setSnapPct(pendingScrubGuideRef.current);
 				setScrubbingTimeSec(targetTime);
 				setCurrentTime(targetTime);
 				return;
@@ -896,6 +932,7 @@ export function V4Timeline({
 				rafSeekRef.current = requestAnimationFrame(() => {
 					rafSeekRef.current = 0;
 					if (pendingSeekTimeRef.current !== null) {
+						setSnapPct(pendingScrubGuideRef.current);
 						setScrubbingTimeSec(pendingSeekTimeRef.current);
 						setCurrentTime(pendingSeekTimeRef.current);
 					}
@@ -922,14 +959,20 @@ export function V4Timeline({
 			// tab's preview from a screen that shows no time at all.
 			if (!showLanes) return;
 			const target = e.target as HTMLElement;
+			if (target === tracksRef.current) {
+				const box = target.getBoundingClientRect();
+				if (e.clientX >= box.left + target.clientWidth) return;
+			}
 			if (target.closest("[data-clip-id]") || target.closest(`.${styles.lanePill}`)) return;
 			tl.clearSelection();
-			seekToClientX(e.clientX, true);
+			seekToClientX(e.clientX, true, e.shiftKey);
 			// Sonde de fluidité (diagnostic) : marque la fenêtre de drag pour que les
 			// intervalles rAF mesurés pendant le scrub soient comptés à part.
 			setUiProbeScrubbing(true);
-			const move = (ev: PointerEvent) => seekToClientX(ev.clientX);
+			const move = (ev: PointerEvent) => seekToClientX(ev.clientX, false, ev.shiftKey);
 			const up = () => {
+				setSnapPct(null);
+				pendingScrubGuideRef.current = null;
 				setUiProbeScrubbing(false);
 				window.removeEventListener("pointermove", move);
 				window.removeEventListener("pointerup", up);
@@ -1144,7 +1187,7 @@ export function V4Timeline({
 		for (const pill of music) rowOf.set(pill.id, base + (musicRows.rowOf.get(pill.id) ?? 0));
 		return {
 			rowOf,
-			rowCount: Math.max(1, base + (music.length > 0 ? musicRows.rowCount : 0)),
+			rowCount: Math.max(2, base + (music.length > 0 ? musicRows.rowCount : 0)),
 		};
 	}, [audioPills]);
 
@@ -1441,14 +1484,29 @@ export function V4Timeline({
 	}, [showLanes]);
 
 	// Track the tracks' content width for the ruler. .tlTracks and .tlRulerRow
-	// carry the same horizontal padding and the tracks' scrollbar is hidden, so
+	// carry the same horizontal padding, with the scrollbar width compensated, so
 	// this content box is exactly one unzoomed canvas wide.
 	useEffect(() => {
 		const el = tracksRef.current;
 		if (!el) return;
-		setViewportWidthPx(el.clientWidth);
+		panelRef.current?.style.setProperty(
+			"--tl-scrollbar-width",
+			`${Math.max(0, el.offsetWidth - el.clientWidth)}px`,
+		);
+		const padding = getComputedStyle(el);
+		setViewportWidthPx(
+			el.clientWidth -
+				(parseFloat(padding.paddingLeft) || 0) -
+				(parseFloat(padding.paddingRight) || 0),
+		);
 		const ro = new ResizeObserver((entries) => {
-			for (const entry of entries) setViewportWidthPx(entry.contentRect.width);
+			for (const entry of entries) {
+				setViewportWidthPx(entry.contentRect.width);
+				panelRef.current?.style.setProperty(
+					"--tl-scrollbar-width",
+					`${Math.max(0, el.offsetWidth - el.clientWidth)}px`,
+				);
+			}
 		});
 		ro.observe(el);
 		return () => ro.disconnect();
@@ -2236,7 +2294,46 @@ export function V4Timeline({
 					</div>
 				</div>
 
-				<div ref={tracksRef} className={styles.tlTracks} onPointerDown={startScrub}>
+				<div
+					ref={tracksRef}
+					className={`${styles.tlTracks}${dragOver ? ` ${styles.tlClipsDrag}` : ""}`}
+					onPointerDown={startScrub}
+					title={t("media.dropOverlay")}
+					onDragOver={(e) => {
+						if (
+							!e.dataTransfer.types.includes("Files") &&
+							!e.dataTransfer.types.includes(ASSET_MIME)
+						)
+							return;
+						e.preventDefault();
+						e.dataTransfer.dropEffect = "copy";
+						setDragOver(true);
+					}}
+					onDragLeave={(e) => {
+						if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragOver(false);
+					}}
+					onDrop={(e) => {
+						e.preventDefault();
+						e.stopPropagation();
+						setDragOver(false);
+						const placement: MediaDropPlacement = (e.target as HTMLElement).closest(
+							`.${styles.tlClips}`,
+						)
+							? "sequence"
+							: "overlay";
+						const rect = clipsRef.current?.getBoundingClientRect();
+						const time = rect?.width
+							? Math.max(0, Math.min(total, ((e.clientX - rect.left) / rect.width) * total))
+							: 0;
+						const files = Array.from(e.dataTransfer.files);
+						if (files.length && onDropFiles) {
+							void onDropFiles(files, placement, time);
+							return;
+						}
+						const id = e.dataTransfer.getData(ASSET_MIME);
+						if (id && onDropAsset) void onDropAsset(id, placement, time).catch(() => undefined);
+					}}
+				>
 					<div ref={canvasRef} className={styles.tlCanvas} style={canvasStyle}>
 						{workspace.showGuides ? (
 							<div className={styles.tlGuideGrid} aria-hidden>
@@ -2263,14 +2360,16 @@ export function V4Timeline({
 								    strings the pre-v4 timeline used, so the keys stay translated. The key
 								    is the live binding, formatted like the toolbar tooltip's chip, so a
 								    rebind in the shortcuts dialog moves the hint with it (#966). */}
-								<div className={styles.tlLane}>
-									{renderPills(
-										annPills,
-										t("hints.pressAnnotation", {
-											key: formatBinding(shortcuts.addAnnotation, isMac),
-										}),
-									)}
-								</div>
+								{Array.from({ length: Math.max(1, annotationRows.rowCount) }, (_, row) => (
+									<div key={row} className={styles.tlLane}>
+										{renderPills(
+											annPills.filter((p) => (annotationRows.rowOf.get(p.id) ?? 0) === row),
+											t("hints.pressAnnotation", {
+												key: formatBinding(shortcuts.addAnnotation, isMac),
+											}),
+										)}
+									</div>
+								))}
 								<div className={styles.tlLane}>
 									{renderPills(
 										speedPills,
@@ -2400,18 +2499,6 @@ export function V4Timeline({
 						<div
 							ref={clipsRef}
 							className={`${styles.tlClips}${dragOver ? ` ${styles.tlClipsDrag}` : ""}`}
-							onDragOver={(e) => {
-								e.preventDefault();
-								e.dataTransfer.dropEffect = "copy";
-								if (!dragOver) setDragOver(true);
-							}}
-							onDragLeave={() => setDragOver(false)}
-							onDrop={(e) => {
-								e.preventDefault();
-								setDragOver(false);
-								const id = e.dataTransfer.getData(ASSET_MIME);
-								if (id && onDropAsset) void onDropAsset(id).catch(() => undefined);
-							}}
 						>
 							{clips.map((c, i) => {
 								const dur = c.timelineEndSec - c.timelineStartSec;

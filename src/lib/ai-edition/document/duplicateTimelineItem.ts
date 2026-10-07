@@ -78,6 +78,24 @@ export function duplicateTimelineItem(
 		};
 	}
 
+	if (kind === "annotation") {
+		const group = coalesceRegionsForRuler(doc.annotations).find((p) => p.ids.includes(id));
+		if (group?.member.type === "image") {
+			const copy = {
+				...group.member,
+				id: createId("ann"),
+				mediaLayerId: createId("media"),
+				startMs: Math.round(group.start * 1000),
+				endMs: Math.round(group.end * 1000),
+				zIndex: Math.max(0, ...doc.annotations.map((a) => a.zIndex)) + 1,
+			};
+			const anchored = anchorRegionsWithDerivedMs([copy], doc.timeline.clips, () =>
+				createId("ann"),
+			);
+			return { ...doc, annotations: [...doc.annotations, ...anchored] };
+		}
+	}
+
 	type Span = { id: string; startMs: number; endMs: number };
 	const duplicateRanges = <T extends Span>(ranges: T[]): T[] | null => {
 		const groups = coalesceRegionsForRuler(ranges);

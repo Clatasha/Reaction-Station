@@ -1,5 +1,6 @@
 import { expect, it } from "vitest";
 import {
+	annotationRegionSchema,
 	assetSchema,
 	clipSchema,
 	createAudioTrack,
@@ -111,5 +112,38 @@ it("duplicates audio as an independent group with its mix and source window inta
 		fadeOutMs: 300,
 		recordingSource: "microphone",
 	});
+	expect(documentSchema.safeParse(copy).success).toBe(true);
+});
+
+it("duplicates a full-span visual layer without requiring a free horizontal gap", () => {
+	const doc = document();
+	doc.annotations = [
+		annotationRegionSchema.parse({
+			id: "image",
+			type: "image",
+			startMs: 0,
+			endMs: 20000,
+			content: "data:image/png;base64,AQID",
+			position: { x: 25, y: 25 },
+			size: { width: 50, height: 50 },
+			mediaAssetId: "overlay",
+			mediaLayerId: "original-layer",
+			mediaOffsetMs: 0,
+			mediaSourceStartSec: 0,
+			style: { textAnimation: "fade" },
+			zIndex: 1,
+		}),
+	];
+	const copy = duplicateTimelineItem(doc, "annotation", "image");
+	expect(copy.annotations).toHaveLength(2);
+	expect(copy.annotations[1]).toMatchObject({
+		startMs: 0,
+		endMs: 20000,
+		mediaAssetId: "overlay",
+		mediaOffsetMs: 0,
+		style: { textAnimation: "fade" },
+		zIndex: 2,
+	});
+	expect(copy.annotations[1].mediaLayerId).not.toBe("original-layer");
 	expect(documentSchema.safeParse(copy).success).toBe(true);
 });

@@ -28,6 +28,7 @@ import {
 } from "../../src/lib/ai-edition/stylePresets";
 import { ensureDocumentExtensions } from "../media/extensionClip";
 import { relinkProjectMedia } from "../media/projectMediaRelinker";
+import { ensureStillImageClip, STILL_IMAGE_DURATION_SEC } from "../media/stillImageClip";
 
 const PROJECT_FILE_EXTENSION = ".openscreen";
 // Older builds stored these same v3/v4 AxcutDocuments under `.axcut`. We read
@@ -103,6 +104,14 @@ const SUPPORTED_AUDIO_EXTENSIONS = new Set([
 	".oga",
 	".opus",
 	".webm",
+	".aiff",
+	".aif",
+	".mp4",
+	".mov",
+	".m4v",
+	".mkv",
+	".avi",
+	".wmv",
 ]);
 
 function isSupportedAudioPath(filePath: string): boolean {
@@ -373,6 +382,7 @@ export class DocumentService {
 			throw new ProjectFileError("Asset path is required.", projectId);
 		}
 		const kind = input.kind ?? "video";
+		const stillImage = kind === "video" && /\.(png|jpe?g|webp|gif)$/i.test(input.path);
 		if (kind === "audio") {
 			if (!isSupportedAudioPath(input.path)) {
 				throw new ProjectFileError(
@@ -380,13 +390,16 @@ export class DocumentService {
 					projectId,
 				);
 			}
-		} else if (!isSupportedVideoPath(input.path)) {
+		} else if (!stillImage && !isSupportedVideoPath(input.path)) {
 			throw new ProjectFileError(
 				`Unsupported video extension: ${path.extname(input.path)} (supported: ${[...SUPPORTED_VIDEO_EXTENSIONS].join(", ")})`,
 				projectId,
 			);
 		}
-		const absolutePath = path.isAbsolute(input.path) ? input.path : path.resolve(input.path);
+		const sourcePath = path.isAbsolute(input.path) ? input.path : path.resolve(input.path);
+		const absolutePath = stillImage
+			? await ensureStillImageClip(sourcePath, path.join(this.projectsRoot, "media"))
+			: sourcePath;
 		// P3.1 — capture the file size at import. Non-fatal: a stat failure
 		// (network drive, permissions) just leaves sizeBytes undefined.
 		let sizeBytes: number | undefined;
@@ -398,8 +411,15 @@ export class DocumentService {
 		const asset: AxcutAsset = {
 			id: createId("asset"),
 			kind,
-			label: input.label?.trim() || path.basename(absolutePath),
+			label: input.label?.trim() || path.basename(sourcePath),
 			originalPath: absolutePath,
+			...(stillImage
+				? {
+						stillImagePath: sourcePath,
+						durationSec: STILL_IMAGE_DURATION_SEC,
+						sourceAudioMuted: true,
+					}
+				: {}),
 			sizeBytes,
 			cameraTrack: null,
 		};
@@ -444,6 +464,7 @@ export class DocumentService {
 			// Drop imported audio tracks that referenced the removed asset — they
 			// would otherwise dangle, pointing at an asset the document no longer has.
 			audioTracks: withoutAssetClips.audioTracks.filter((t) => t.assetId !== assetId),
+			annotations: withoutAssetClips.annotations.filter((a) => a.mediaAssetId !== assetId),
 			timeline: {
 				...withoutAssetClips.timeline,
 				trimRanges: withoutAssetClips.timeline.trimRanges.filter((r) => r.assetId !== assetId),

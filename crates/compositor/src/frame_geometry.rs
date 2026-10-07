@@ -1849,6 +1849,7 @@ pub struct FrameGeometryInput<'a> {
 /// produit, 60 meurent avant le premier draw — ce sont ceux-là, et seulement ceux-là,
 /// qui traversent.
 pub struct FrameGeometry {
+    pub media_opacity: f32,
     pub scene_preset: Option<String>,
     pub mb_taps: f32,
     pub mb_amount: f32,
@@ -1997,6 +1998,12 @@ pub fn annotation_dst_in(anchor: [f32; 4], x: f32, y: f32, w: f32, h: f32) -> [f
 }
 
 impl FrameGeometry {
+    pub fn animated_screen_layer(&self, mut cb: LayerCB) -> LayerCB {
+        if cb.mode == 8.0 { cb.trail_mb[2] = 1.0 - self.media_opacity; }
+        else { cb.color[3] *= self.media_opacity; }
+        cb
+    }
+
     /// Le quad de l'écran incliné pour une boîte de `s_px` px, `None` quand l'écran est droit.
     /// LE point de passage de l'écran, de son ombre, du curseur et du masque de flou : tous
     /// doivent porter la même séparation base / dynamique, sinon ils se décollent.
@@ -3474,7 +3481,15 @@ pub fn plan_frame(input: &FrameGeometryInput) -> FrameGeometry {
                 },
             };
 
+    let motion = scene.and_then(|s| s.clips.get(s.active_clip_index)).and_then(|c| c.media_animation.as_ref());
+    let (s_dst, media_opacity) = if let Some(motion) = motion {
+        crate::media_image::animated_rect(s_dst, Some(&motion.name), source_t - motion.start_sec as f32, 1.0)
+    } else { (s_dst, 1.0) };
+    let s_dst_prev = if let Some(motion) = motion {
+        crate::media_image::animated_rect(s_dst_prev, Some(&motion.name), source_t - 1.0 / FPS - motion.start_sec as f32, 1.0).0
+    } else { s_dst_prev };
     FrameGeometry {
+        media_opacity,
         scene_preset,
         mb_taps,
         mb_amount,
@@ -7710,6 +7725,7 @@ mod tests {
             mb_amount: 0.0,
             source_t: 0.0,
             programme_t: 0.0,
+            media_opacity: 1.0,
             zoom_rotation: [0.0, 0.0, 0.0],
             zoom_rotation_dyn: [0.0, 0.0, 0.0],
             camera: None,

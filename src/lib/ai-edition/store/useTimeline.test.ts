@@ -702,6 +702,34 @@ describe("useTimeline.addAnnotation", () => {
 		vi.clearAllMocks();
 	});
 
+	it("adds and selects a persistent visual overlay, clamped to the main sequence", async () => {
+		const { result } = renderTimeline();
+		await act(async () => {
+			await result.current.addMediaOverlay({
+				content: "data:image/png;base64,AQID",
+				startSec: 8,
+				durationSec: 5,
+			});
+		});
+		const annotations = useProjectStore.getState().document?.annotations ?? [];
+		expect(annotations).toHaveLength(1);
+		expect(annotations[0]).toMatchObject({
+			type: "image",
+			startMs: 8000,
+			endMs: 10000,
+			mediaOffsetMs: 8000,
+			clipId: "clip_a",
+		});
+		expect(result.current.selection).toEqual({ kind: "annotation", id: annotations[0].id });
+	});
+	it("rejects an overlay outside the main sequence without saving it", async () => {
+		const { result } = renderTimeline();
+		await expect(
+			result.current.addMediaOverlay({ content: "image", startSec: 10, durationSec: 5 }),
+		).rejects.toThrow("within the main sequence");
+		expect(useProjectStore.getState().document?.annotations).toEqual([]);
+		expect(bridgeMocks.save).not.toHaveBeenCalled();
+	});
 	it("creates a text annotation carrying the localised default text", async () => {
 		const { result } = renderTimeline();
 		await act(async () => {

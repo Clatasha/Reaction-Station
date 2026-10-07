@@ -17,7 +17,8 @@ import type {
 	AxcutDocument,
 	AxcutZoomRegion,
 } from "@/lib/ai-edition/schema";
-import { axcutSchemaVersion } from "@/lib/ai-edition/schema";
+import { annotationRegionSchema, axcutSchemaVersion } from "@/lib/ai-edition/schema";
+import { anchorRegionsWithDerivedMs } from "@/lib/ai-edition/timeline/timelineMap";
 import { CURSOR_KIND_IDS, DEFAULT_CURSOR_THEME_ID } from "@/lib/cursor/cursorThemes";
 import { DEVICE_FRAMES } from "@/lib/projectDefaults";
 import { getFocusBoundsForScale } from "@/lib/zoomMath/focusUtils";
@@ -2872,5 +2873,97 @@ describe("buildSceneDescription.audioTracks", () => {
 	it("is empty for a project with no imported audio", () => {
 		const doc = makeDoc({ assets: [makeAsset({ id: "a", originalPath: "/a.mp4" })] });
 		expect(buildSceneDescription(doc).audioTracks).toEqual([]);
+	});
+});
+
+describe("media animation scene contract", () => {
+	it("keeps a clip entrance anchored to the original head through trim splits", () => {
+		const doc = makeDoc({
+			assets: [makeAsset({ id: "video", originalPath: "/video.mp4", durationSec: 10 })],
+			clips: [
+				makeClip({
+					id: "clip",
+					assetId: "video",
+					sourceStartSec: 0,
+					sourceEndSec: 10,
+					timelineStartSec: 0,
+					timelineEndSec: 10,
+					mediaAnimation: "fade",
+				}),
+			],
+			timeline: {
+				trimRanges: [
+					{
+						id: "cut",
+						assetId: "video",
+						clipId: "clip",
+						startSec: 2,
+						endSec: 4,
+						reason: "test",
+						origin: "user",
+					},
+				],
+			},
+		});
+		const scene = buildSceneDescription(doc);
+		expect(scene.clips).toHaveLength(2);
+		expect(scene.clips.map((c) => c.mediaAnimation)).toEqual([
+			{ name: "fade", startSec: 0 },
+			{ name: "fade", startSec: 0 },
+		]);
+	});
+	it("serializes video overlay paths and continuous animation/source clocks", () => {
+		const clips = [
+			makeClip({
+				id: "a",
+				assetId: "main",
+				sourceStartSec: 100,
+				sourceEndSec: 105,
+				timelineStartSec: 0,
+				timelineEndSec: 5,
+			}),
+			makeClip({
+				id: "b",
+				assetId: "main",
+				sourceStartSec: 200,
+				sourceEndSec: 205,
+				timelineStartSec: 5,
+				timelineEndSec: 10,
+			}),
+		];
+		const annotation = annotationRegionSchema.parse({
+			id: "overlay",
+			type: "image",
+			content: "reaction",
+			startMs: 3000,
+			endMs: 8000,
+			mediaOffsetMs: 3000,
+			mediaLayerId: "layer",
+			mediaAssetId: "reaction",
+			position: { x: 25, y: 25 },
+			size: { width: 50, height: 50 },
+			style: { textAnimation: "rise" },
+			zIndex: 1,
+		});
+		const doc = makeDoc({
+			clips,
+			assets: [
+				makeAsset({ id: "main", originalPath: "/main.mp4", durationSec: 205 }),
+				makeAsset({ id: "reaction", originalPath: "/reaction.mp4", durationSec: 5 }),
+			],
+			annotations: anchorRegionsWithDerivedMs([annotation], clips, () => "fragment"),
+		});
+		const scene = buildSceneDescription(doc);
+		expect(
+			scene.annotations.map((a) => [
+				a.videoPath,
+				a.videoSourceStartSec,
+				a.mediaAnimation,
+				a.mediaAnimationOffsetSec,
+			]),
+		).toEqual([
+			["/reaction.mp4", 0, "rise", 0],
+			["/reaction.mp4", 2, "rise", 2],
+		]);
 	});
 });

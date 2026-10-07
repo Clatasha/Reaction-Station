@@ -182,9 +182,14 @@ try {
 		.locator('[data-timeline-kind="audio"]')
 		.filter({ hasText: "Microphone" })
 		.first();
+	const tracks = editor.locator('[class*="tlTracks_"]').first();
+	const originalTracksHeight = await tracks.evaluate((el) => el.clientHeight);
 	await microphone.click({ button: "right" });
 	await editor.getByRole("menuitem", { name: "Duplicate", exact: true }).click();
 	await expect.poll(async () => (await getImportedDocument()).audioTracks.length).toBe(3);
+	await expect.poll(() => tracks.evaluate((el) => el.clientHeight)).toBe(originalTracksHeight);
+	await expect(tracks).toHaveCSS("overflow-y", "auto");
+	await expect(tracks).toHaveCSS("scrollbar-width", "auto");
 	const copied = (await getImportedDocument()).audioTracks.find(
 		(track) => !document.audioTracks.some((original) => original.id === track.id),
 	);

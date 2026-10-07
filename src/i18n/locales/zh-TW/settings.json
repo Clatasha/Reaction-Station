@@ -451,5 +451,8 @@
 		"dark": "深色",
 		"light": "淺色",
 		"custom": "自訂"
+	},
+	"mediaAnimation": {
+		"title": "Animation"
 	}
 }

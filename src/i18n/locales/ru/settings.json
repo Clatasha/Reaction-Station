@@ -451,5 +451,8 @@
 		"dark": "Тёмная",
 		"light": "Светлая",
 		"custom": "Своя"
+	},
+	"mediaAnimation": {
+		"title": "Animation"
 	}
 }

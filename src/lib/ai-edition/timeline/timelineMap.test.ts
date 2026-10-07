@@ -4,8 +4,9 @@
 // bug this module exists to kill. See technical-documentation/architecture/timeline-model.md.
 
 import { describe, expect, it } from "vitest";
-import { resolvePlaybackSegments } from "../document/timeline";
+import { rederiveRegionMs, resolvePlaybackSegments } from "../document/timeline";
 import type { AxcutClip, AxcutTrimRange } from "../schema";
+import { annotationRegionSchema, createEmptyDocument, documentSchema } from "../schema";
 import {
 	anchorRawRegionsToClips,
 	anchorRegionsWithDerivedMs,
@@ -1062,4 +1063,94 @@ describe("legacy groupId must never affect identity (regression: test 1)", () =>
 		);
 		expect(out[0]).not.toHaveProperty("groupId");
 	});
+});
+
+describe("visual overlay source timing", () => {
+	const clips = [
+		clip({
+			id: "first",
+			assetId: "a",
+			sourceStartSec: 100,
+			sourceEndSec: 105,
+			timelineStartSec: 0,
+			timelineEndSec: 5,
+		}),
+		clip({
+			id: "second",
+			assetId: "b",
+			sourceStartSec: 200,
+			sourceEndSec: 205,
+			timelineStartSec: 5,
+			timelineEndSec: 10,
+		}),
+	];
+	const overlay = {
+		id: "media",
+		type: "image",
+		mediaLayerId: "layer",
+		mediaAssetId: "overlay-video",
+		startMs: 3000,
+		endMs: 8000,
+		mediaOffsetMs: 3000,
+		mediaSourceStartSec: 0,
+	};
+	it("continues playing across main clips with different source clocks", () => {
+		const anchored = anchorRegionsWithDerivedMs([overlay], clips, () => "fragment");
+		const projected = projectRegionsToSource(anchored, clips, clips, () => "projected");
+		expect(projected.map((p) => [p.startMs, p.mediaSourceStartSec])).toEqual([
+			[103000, 0],
+			[200000, 2],
+		]);
+	});
+	it("moves the layer without seeking its video and allows overlaps", () => {
+		const anchored = anchorRegionsWithDerivedMs([overlay], clips, () => "fragment");
+		const moved = replacePillSpan(anchored, "media", 4000, 9000, clips, () => "moved");
+		const projected = projectRegionsToSource(moved, clips, clips, () => "projected");
+		expect(projected.map((p) => p.mediaSourceStartSec)).toEqual([0, 1]);
+		expect(moved[0].mediaOffsetMs).toBe(4000);
+	});
+	it("trimming the left edge advances the video source", () => {
+		const anchored = anchorRegionsWithDerivedMs([overlay], clips, () => "fragment");
+		const resized = replacePillSpan(anchored, "media", 4000, 8000, clips, () => "resized");
+		const projected = projectRegionsToSource(resized, clips, clips, () => "projected");
+		expect(projected.map((p) => p.mediaSourceStartSec)).toEqual([1, 2]);
+	});
+});
+
+it("keeps a surviving video fragment's source offset when its main clip moves earlier", () => {
+	const oldClip = clip({
+		id: "second",
+		assetId: "a",
+		sourceStartSec: 200,
+		sourceEndSec: 205,
+		timelineStartSec: 5,
+		timelineEndSec: 10,
+	});
+	const moved = { ...oldClip, timelineStartSec: 0, timelineEndSec: 5 };
+	const doc = createEmptyDocument({ projectId: "timing", title: "Timing" });
+	doc.timeline.clips = [oldClip];
+	doc.annotations = [
+		annotationRegionSchema.parse({
+			id: "fragment",
+			type: "image",
+			content: "video",
+			startMs: 5000,
+			endMs: 8000,
+			clipId: "second",
+			sourceStartSec: 200,
+			sourceEndSec: 203,
+			mediaOffsetMs: 3000,
+			mediaAssetId: "overlay",
+			mediaSourceStartSec: 0,
+			position: { x: 25, y: 25 },
+			size: { width: 50, height: 50 },
+			style: {},
+			zIndex: 1,
+		}),
+	];
+	const next = rederiveRegionMs(doc, [moved]);
+	expect(next.annotations[0].mediaOffsetMs).toBe(-2000);
+	expect(documentSchema.safeParse(next).success).toBe(true);
+	const projected = projectRegionsToSource(next.annotations, [moved], [moved], () => "projected");
+	expect(projected[0].mediaSourceStartSec).toBe(2);
 });

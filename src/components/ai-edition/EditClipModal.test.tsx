@@ -235,3 +235,21 @@ describe("EditClipModal crop from the keyboard", () => {
 		);
 	});
 });
+
+it("applies a visual animation with the clip edit and omits text-only typewriter", () => {
+	const onApply = vi.fn();
+	renderWithI18n(
+		<EditClipModal
+			open
+			onClose={vi.fn()}
+			clip={CLIP}
+			assetMeta={ASSET}
+			videoSources={[]}
+			onApply={onApply}
+		/>,
+	);
+	fireEvent.click(screen.getByRole("button", { name: "Fade" }));
+	expect(screen.queryByRole("button", { name: "Typewriter" })).not.toBeInTheDocument();
+	fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+	expect(onApply).toHaveBeenCalledWith(20, 105, undefined, "fade");
+});

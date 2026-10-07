@@ -10,6 +10,8 @@ use serde::Deserialize;
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SceneClip {
+    #[serde(default)]
+    pub media_animation: Option<SceneMediaAnimation>,
     pub screen_path: String,
     pub webcam_path: String,
     pub source_start_sec: f64,
@@ -20,6 +22,10 @@ pub struct SceneClip {
     #[serde(default)]
     pub has_audio: bool,
 }
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SceneMediaAnimation { pub name: String, pub start_sec: f64 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -383,12 +389,26 @@ pub struct SceneAnnotation {
     #[serde(default)]
     pub image_path: Option<String>,
     #[serde(default)]
+    pub video_path: Option<String>,
+    #[serde(default)]
+    pub video_source_start_sec: f64,
+    #[serde(default)]
+    pub media_animation_offset_sec: f32,
+    #[serde(default)]
+    pub media_animation: Option<String>,
+    #[serde(default)]
     pub figure: Option<SceneAnnotationFigure>,
     #[serde(default)]
     pub blur: Option<SceneAnnotationBlur>,
 }
 
 impl SceneAnnotation {
+    pub fn frame_source(&self, t: f32) -> Option<String> {
+        if let Some(path) = &self.video_path {
+            Some(crate::media_image::video_source(path, self.video_source_start_sec + t as f64 - self.start_sec))
+        } else { self.image_path.clone().filter(|s| !s.is_empty()) }
+    }
+
     /// La boîte que `x`/`y`/`w`/`h` — **et** `text.font_size_rel` — mesurent, en fractions de
     /// sortie. Le cadre de sortie est la cible de rendu, donc `[0, 0, 1, 1]` par construction.
     ///

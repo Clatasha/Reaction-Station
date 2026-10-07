@@ -505,6 +505,60 @@ export function useTimeline() {
 		[document, saveDocument, ts],
 	);
 
+	const addMediaOverlay = useCallback(
+		async (input: { content: string; assetId?: string; startSec: number; durationSec: number }) => {
+			const state = useProjectStore.getState();
+			const doc = state.document;
+			if (!doc?.timeline.clips.length)
+				throw new Error("Add a main-track clip before adding an overlay");
+			const totalMs = Math.max(...doc.timeline.clips.map((clip) => clip.timelineEndSec)) * 1000;
+			const startMs = finiteMs(input.startSec * 1000);
+			if (startMs >= totalMs || !Number.isFinite(input.durationSec) || input.durationSec <= 0)
+				throw new Error("Drop the overlay within the main sequence");
+			const region: AxcutDocument["annotations"][number] = {
+				id: createId("ann"),
+				startMs,
+				endMs: Math.min(totalMs, startMs + Math.round(input.durationSec * 1000)),
+				type: "image",
+				mediaOffsetMs: startMs,
+				mediaLayerId: createId("media"),
+				content: input.content,
+				space: "frame",
+				position: { x: 25, y: 25 },
+				size: { width: 50, height: 50 },
+				style: {
+					color: "#ffffff",
+					backgroundColor: "transparent",
+					fontSize: 32,
+					fontFamily: "Inter",
+					fontWeight: "normal",
+					fontStyle: "normal",
+					textDecoration: "none",
+					textAlign: "center",
+					textAnimation: "none",
+				},
+				zIndex: doc.annotations.length + 1,
+				...(input.assetId
+					? { mediaAssetId: input.assetId, mediaOffsetMs: startMs, mediaSourceStartSec: 0 }
+					: {}),
+			};
+			const created = anchorRegionsWithDerivedMs([region], doc.timeline.clips, () =>
+				createId("ann"),
+			);
+			if (!created.length) throw new Error("Drop the overlay within the main sequence");
+			if (
+				!(await state.saveDocument(
+					{ ...doc, annotations: [...doc.annotations, ...created] },
+					{ history: true },
+				))
+			)
+				throw new Error("Could not save the media overlay");
+			setMultiSelection([{ kind: "annotation", id: created[0].id }]);
+			setSelection({ kind: "annotation", id: created[0].id });
+		},
+		[],
+	);
+
 	const addSpeed = useCallback(
 		async (durationSec = DEFAULT_NEW_REGION_SEC) => {
 			if (!document) return;
@@ -1223,6 +1277,7 @@ export function useTimeline() {
 			sourceStartSec: number,
 			sourceEndSec: number,
 			cropRegion?: AxcutClipCropRegion | null,
+			mediaAnimation?: AxcutDocument["timeline"]["clips"][number]["mediaAnimation"],
 		) => {
 			const doc = useProjectStore.getState().document;
 			if (!doc) return;
@@ -1239,7 +1294,19 @@ export function useTimeline() {
 								),
 							},
 						};
-			await saveDocument(next, { history: true });
+			const animated =
+				mediaAnimation === undefined
+					? next
+					: {
+							...next,
+							timeline: {
+								...next.timeline,
+								clips: next.timeline.clips.map((c) =>
+									c.id === clipId ? { ...c, mediaAnimation } : c,
+								),
+							},
+						};
+			await saveDocument(animated, { history: true });
 		},
 		[saveDocument],
 	);
@@ -1668,6 +1735,7 @@ export function useTimeline() {
 		addZoomsBulk,
 		addTrim,
 		addAnnotation,
+		addMediaOverlay,
 		addSpeed,
 		addCameraFullscreen,
 		removeRegion,

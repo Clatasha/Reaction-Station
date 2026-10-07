@@ -92,8 +92,8 @@ use mac_frames as cpu_frames;
 mod linux_frames;
 #[cfg(target_os = "linux")]
 use linux_frames as cpu_frames;
-#[cfg(target_os = "linux")]
 mod linux_decode;
+mod media_image;
 
 // Moteur de composition + rastériseur de texte + pipeline : un fichier par plateforme.
 // Le pipeline est gardé séparé (pas de fusion comme live) parce que la ffmpeg-side

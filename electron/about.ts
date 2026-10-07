@@ -8,7 +8,7 @@
 
 import type { InstallChannel } from "./install-channel";
 
-export const WEBSITE_URL = "https://github.com/Clatasha/openscreen";
+export const WEBSITE_URL = "https://github.com/Clatasha/Reaction-Station";
 /** The app name used by native menus and the About dialog. */
 export const PRODUCT_NAME = "Reaction Station";
 /** The collective form, and deliberately NOT the whole of LICENSE. LICENSE carries two holders:

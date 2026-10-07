@@ -451,5 +451,8 @@
 		"dark": "Oscura",
 		"light": "Clara",
 		"custom": "Personalizada"
+	},
+	"mediaAnimation": {
+		"title": "Animation"
 	}
 }

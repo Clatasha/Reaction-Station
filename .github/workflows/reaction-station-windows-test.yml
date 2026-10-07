@@ -1,5 +1,5 @@
 name: Reaction Station Windows test installer
-run-name: Reaction Station 0.4 workspace test (${{ github.ref_name }})
+run-name: Reaction Station 0.5 timeline media test (${{ github.ref_name }})
 
 on:
   workflow_dispatch:
@@ -9,6 +9,7 @@ on:
       - feat/reaction-recorder
       - feat/separate-recording-audio
       - feat/creator-workspace-build
+      - feat/timeline-media-drop
     paths:
       - .github/workflows/reaction-station-windows-test.yml
 
@@ -27,6 +28,7 @@ jobs:
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: "false"
       REACTION_STATION_AUDIO_TESTS: "1"
+      REACTION_STATION_MEDIA_TESTS: "1"
     steps:
       - name: Checkout Reaction Station
         uses: actions/checkout@v7
@@ -108,8 +110,8 @@ jobs:
             if (!(Get-ChildItem $native -Filter $pattern)) { throw "Missing packaged native library: $pattern" }
           }
           $feed = Get-Content (Join-Path $resources "app-update.yml") -Raw
-          if ($feed -notmatch '(?m)^owner:\s*Clatasha\s*$' -or $feed -notmatch '(?m)^repo:\s*openscreen\s*$') {
-            throw "Installer update source must point to Clatasha/openscreen"
+          if ($feed -notmatch '(?m)^owner:\s*Clatasha\s*$' -or $feed -notmatch '(?m)^repo:\s*Reaction-Station\s*$') {
+            throw "Installer update source must point to Clatasha/Reaction-Station"
           }
           $env:REACTION_STATION_ASAR = Join-Path $resources "app.asar"
           node --input-type=module -e "import { extractFile, listPackage } from '@electron/asar'; import assert from 'node:assert/strict'; import fs from 'node:fs'; import path from 'node:path'; const archive = process.env.REACTION_STATION_ASAR; const pkg = JSON.parse(extractFile(archive, 'package.json').toString()); const source = JSON.parse(fs.readFileSync('package.json', 'utf8')); assert.equal(pkg.name, 'reaction-station'); assert.equal(pkg.version, source.version); const paths = listPackage(archive); assert(paths.some(p => path.basename(p) === 'openscreen.png')); console.log('Packaged app identity, version, license and icon verified');"

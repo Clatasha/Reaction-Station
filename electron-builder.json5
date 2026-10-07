@@ -39,7 +39,7 @@
     {
       "provider": "github",
       "owner": "Clatasha",
-      "repo": "openscreen"
+      "repo": "Reaction-Station"
     }
   ],
   // Fails the build when compositor_view.node is older than the crates/ Rust sources. Plain

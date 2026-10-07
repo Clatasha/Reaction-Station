@@ -451,5 +451,8 @@
 		"dark": "Dunkel",
 		"light": "Hell",
 		"custom": "Eigene"
+	},
+	"mediaAnimation": {
+		"title": "Animation"
 	}
 }

@@ -226,7 +226,7 @@
 	max-height: 220px;
 	overflow-y: auto;
 	padding-left: 25px;
-	scrollbar-width: thin;
+	scrollbar-width: auto;
 }
 .appMenuSub .appMenuRow[aria-checked="true"] {
 	color: var(--accent);
@@ -709,7 +709,7 @@
 	display: grid;
 	gap: 14px;
 	padding-bottom: 14px;
-	scrollbar-width: thin;
+	scrollbar-width: auto;
 	scrollbar-color: var(--border-hi) transparent;
 }
 .mediaCard {
@@ -814,7 +814,7 @@
 	border: 1px solid var(--border);
 	border-radius: 16px;
 	overflow-y: auto;
-	scrollbar-width: thin;
+	scrollbar-width: auto;
 	scrollbar-color: var(--border-hi) transparent;
 }
 
@@ -934,7 +934,7 @@
 	border: 1px solid var(--border);
 	border-radius: 16px;
 	overflow-y: auto;
-	scrollbar-width: thin;
+	scrollbar-width: auto;
 	scrollbar-color: var(--border-hi) transparent;
 }
 @media (max-width: 760px) {
@@ -1193,7 +1193,7 @@
 	display: grid;
 	grid-template-columns: 1fr 1fr;
 	gap: 14px;
-	scrollbar-width: thin;
+	scrollbar-width: auto;
 	scrollbar-color: var(--border-hi) transparent;
 }
 .sourceModalEmpty {
@@ -1415,8 +1415,8 @@
 /* Fixed ruler header — the ruler ticks sit here, pinned right under the toolbar
    so they move with the header (not with the scrolling tracks) when the panel is
    resized. overflow:hidden clips the zoom-transformed canvas horizontally. Its
-   canvas is exactly as wide as .tlTracks' because the tracks scrollbar is hidden
-   (takes no width), so ticks stay aligned with the clips + playhead.
+   canvas compensates for the measured track scrollbar width so ticks stay
+   aligned with the clips and playhead.
    The top padding is the playhead head's clearance, not decoration: the head
    hangs off the top of the line, so this gap is what the ruler content needs to
    start below it. .tlPlayheadLayer is offset to match, so both content boxes
@@ -1424,7 +1424,7 @@
 .tlRulerRow {
 	position: relative;
 	flex-shrink: 0;
-	padding: var(--playhead-head-clear) 20px 0;
+	padding: var(--playhead-head-clear) calc(20px + var(--tl-scrollbar-width, 10px)) 0 20px;
 	overflow: hidden;
 	cursor: text;
 }
@@ -1438,12 +1438,10 @@
 	   y scrolls when the panel is too short to show every lane + the main track. */
 	overflow-x: hidden;
 	overflow-y: auto;
-	/* Hide the scrollbar so it NEVER consumes layout width. A space-taking
-	   scrollbar narrowed the content box only while visible, shifting the clips
-	   (and ruler/playhead) horizontally when it appeared and desyncing clicks from
-	   times. With it hidden, all three canvases stay full width and identical;
-	   scrolling still works via the wheel (see the wheel handler). */
-	scrollbar-width: none;
+	/* Reserve the scroll gutter and match it on the fixed ruler and playhead. */
+	scrollbar-width: auto;
+	scrollbar-gutter: stable;
+	scrollbar-color: var(--border-hi) transparent;
 	/* Bottom-anchor via column-reverse (the single child is .tlCanvas, so its
 	   internal lane→clip order is untouched): the main clip track sits at the
 	   bottom edge and stays visible as the panel shrinks, while the edit lanes
@@ -1454,9 +1452,8 @@
 	flex-direction: column-reverse;
 	cursor: text;
 }
-.tlTracks::-webkit-scrollbar {
-	display: none;
-}
+.tlTracks::-webkit-scrollbar { width: 10px; }
+.tlTracks::-webkit-scrollbar-thumb { background: var(--border-hi); border-radius: 8px; }
 .tlCanvas {
 	position: relative;
 	min-width: 100%;
@@ -1467,7 +1464,7 @@
 }
 /* Playhead overlay: absolutely covers the ruler + tracks, fixed vertically (a
    cursor, so it doesn't scroll with the lanes). Same horizontal padding as the
-   canvases (and the tracks scrollbar is hidden, so equal width) → its transformed
+   canvases, including compensation for the scroll gutter → its transformed
    line/head aligns exactly with ticks/clips. pointer-events pass through (except
    the head) so scrubbing still works.
    It is deliberately LARGER than .tlBody at both ends. Up top by the head's
@@ -1483,7 +1480,7 @@
 	right: 0;
 	bottom: calc(-1 * var(--tl-nav-band));
 	left: 0;
-	padding: var(--playhead-head-h) 20px 0;
+	padding: var(--playhead-head-h) calc(20px + var(--tl-scrollbar-width, 10px)) 0 20px;
 	overflow: hidden;
 	pointer-events: none;
 	z-index: 6;

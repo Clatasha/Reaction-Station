@@ -451,5 +451,8 @@
 		"dark": "Tối",
 		"light": "Sáng",
 		"custom": "Tùy chỉnh"
+	},
+	"mediaAnimation": {
+		"title": "Animation"
 	}
 }

@@ -344,6 +344,7 @@ export function invertIntervals(intervals: Interval[], durationSec: number): Int
  *  the source of truth, `startMs`/`endMs` a derived cache. Anchor fields are optional
  *  because a not-yet-migrated region (see `anchorRegionsWithDerivedMs`) has none. */
 type StoredRegion = {
+	mediaOffsetMs?: number;
 	id: string;
 	startMs: number;
 	endMs: number;
@@ -477,6 +478,15 @@ function rederiveAnchoredRegion<
 	return [
 		{
 			...cutTakeHead(region, sourceStartSec - region.sourceStartSec),
+			...(region.mediaOffsetMs === undefined
+				? {}
+				: {
+						mediaOffsetMs:
+							region.mediaOffsetMs +
+							Math.round(span.startSec * 1000) -
+							region.startMs -
+							(sourceStartSec - region.sourceStartSec) * 1000,
+					}),
 			sourceStartSec,
 			sourceEndSec,
 			startMs: Math.round(span.startSec * 1000),
