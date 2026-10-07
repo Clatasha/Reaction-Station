@@ -1,5 +1,5 @@
 name: Reaction Station Windows test installer
-run-name: Reaction Station recorder test (${{ github.ref_name }})
+run-name: Reaction Station 0.4 workspace test (${{ github.ref_name }})
 
 on:
   workflow_dispatch:
@@ -8,6 +8,7 @@ on:
       - ci/windows-test-installer
       - feat/reaction-recorder
       - feat/separate-recording-audio
+      - feat/creator-workspace-build
     paths:
       - .github/workflows/reaction-station-windows-test.yml
 
