@@ -97,6 +97,7 @@ public:
     bool start();
     void beginTimeline();
     void setPaused(bool paused);
+    void setGains(double microphone, double system);
     void stop();
     void pushSystem(const BYTE* data, DWORD byteCount);
     void pushMicrophone(const BYTE* data, DWORD byteCount);
@@ -120,6 +121,7 @@ private:
     bool includeSystem_ = false;
     bool includeMicrophone_ = false;
     double microphoneGain_ = 1.0;
+    double systemGain_ = 1.0;
     OutputCallback output_;
     std::mutex mutex_;
     std::condition_variable cv_;

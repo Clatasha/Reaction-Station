@@ -33,6 +33,7 @@ import {
 	type NativeMacRecordingRequest,
 } from "../../src/lib/nativeMacRecording";
 import type { NativeWindowsRecordingRequest } from "../../src/lib/nativeWindowsRecording";
+import { validLiveAudioMix } from "../../src/lib/recorderControls";
 import {
 	type CursorCaptureMode,
 	normalizeCursorCaptureMode,
@@ -2848,6 +2849,7 @@ export function registerIpcHandlers(
 					displayH: helperBounds.height,
 					hasDisplayBounds: true,
 					captureSystemAudio: request.audio.system.enabled,
+					systemAudioGain: request.audio.system.gain ?? 1,
 					captureMic: request.audio.microphone.enabled,
 					microphoneDeviceId: request.audio.microphone.deviceId ?? null,
 					microphoneDeviceName: request.audio.microphone.deviceName ?? null,
@@ -3281,6 +3283,21 @@ export function registerIpcHandlers(
 		}
 	});
 
+	ipcMain.handle("set-live-audio-mix", async (_, mix: unknown) => {
+		if (!validLiveAudioMix(mix)) return { success: false, error: "Invalid audio levels." };
+		const proc = nativeWindowsCaptureProcess;
+		if (!proc?.stdin.writable) return { success: false, error: "Capture is not running." };
+		try {
+			await new Promise<void>((resolve, reject) => {
+				proc.stdin.write(`audio ${mix.microphone} ${mix.system}\n`, (error) =>
+					error ? reject(error) : resolve(),
+				);
+			});
+			return { success: true };
+		} catch (error) {
+			return { success: false, error: String(error) };
+		}
+	});
 	ipcMain.handle("pause-native-windows-recording", async () => {
 		const proc = nativeWindowsCaptureProcess;
 		if (!proc) {

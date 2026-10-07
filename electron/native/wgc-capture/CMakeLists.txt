@@ -212,3 +212,6 @@ target_link_libraries(mf_encoder_color_test PRIVATE
   ole32
   propsys
 )
+
+add_executable(live_audio_command_test src/live_audio_command_test.cpp)
+target_compile_options(live_audio_command_test PRIVATE /EHsc /W4 /utf-8)

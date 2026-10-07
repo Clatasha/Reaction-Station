@@ -88,6 +88,11 @@ const AUDIO_BITRATE_VOICE = 128_000;
 const AUDIO_BITRATE_SYSTEM = 192_000;
 
 type UseScreenRecorderReturn = {
+	audioLevels: { microphone: number; system: number };
+	audioMuted: { microphone: boolean; system: boolean };
+	liveAudioAvailable: boolean;
+	setAudioLevel: (channel: "microphone" | "system", value: number) => void;
+	toggleAudioMute: (channel: "microphone" | "system") => void;
 	recording: boolean;
 	paused: boolean;
 	saving: boolean;
@@ -352,6 +357,58 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 	const microphoneStream = useRef<MediaStream | null>(null);
 	const webcamStream = useRef<MediaStream | null>(null);
 	const mixingContext = useRef<AudioContext | null>(null);
+	const browserAudioLevels = useRef<((microphone: number, system: number) => void) | undefined>(
+		undefined,
+	);
+	const [audioLevels, setAudioLevels] = useState({ microphone: 100, system: 100 });
+	const [audioMuted, setAudioMuted] = useState({ microphone: false, system: false });
+	const [liveAudioFailed, setLiveAudioFailed] = useState(false);
+	const liveAudioAvailable =
+		!liveAudioFailed &&
+		((window.electronAPI?.getPlatform?.() === "win32" && !recording) ||
+			Boolean(
+				(nativeWindowsRecording.current && window.electronAPI?.setLiveAudioMix) ||
+					mixingContext.current,
+			));
+	const applyAudioLevels = useCallback(
+		async (levels: typeof audioLevels, muted: typeof audioMuted) => {
+			const microphone = muted.microphone ? 0 : levels.microphone / 100;
+			const system = muted.system ? 0 : levels.system / 100;
+			if (nativeWindowsRecording.current && !nativeWindowsRecording.current.finalizing) {
+				const result = await window.electronAPI.setLiveAudioMix?.({
+					microphone: microphone * nativeMicrophoneGain(systemAudioEnabled),
+					system,
+				});
+				if (!result?.success) throw new Error(result?.error ?? "Live audio is unavailable.");
+			} else browserAudioLevels.current?.(microphone, system);
+		},
+		[systemAudioEnabled],
+	);
+	useEffect(() => {
+		if (!recording) {
+			setLiveAudioFailed(false);
+			return;
+		}
+		if (!liveAudioAvailable) return;
+		let cancelled = false;
+		void applyAudioLevels(audioLevels, audioMuted).catch((error) => {
+			if (cancelled) return;
+			setLiveAudioFailed(true);
+			console.warn("Unable to change recording audio:", error);
+			toast.error(String(error));
+		});
+		return () => {
+			cancelled = true;
+		};
+	}, [recording, liveAudioAvailable, audioLevels, audioMuted, applyAudioLevels]);
+	const setAudioLevel = (channel: "microphone" | "system", value: number) => {
+		if (!Number.isFinite(value) || !liveAudioAvailable || saving) return;
+		setAudioLevels((levels) => ({ ...levels, [channel]: Math.max(0, Math.min(100, value)) }));
+	};
+	const toggleAudioMute = (channel: "microphone" | "system") => {
+		if (!liveAudioAvailable || saving) return;
+		setAudioMuted((muted) => ({ ...muted, [channel]: !muted[channel] }));
+	};
 	const recordingId = useRef<number>(0);
 	const accumulatedDurationMs = useRef(0);
 	const segmentStartedAt = useRef<number | null>(null);
@@ -441,6 +498,7 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 				// Ignore close errors during recorder teardown.
 			});
 			mixingContext.current = null;
+			browserAudioLevels.current = undefined;
 		}
 	}, []);
 
@@ -1245,13 +1303,16 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 				audio: {
 					system: {
 						enabled: systemAudioEnabled,
+						gain: audioMuted.system ? 0 : audioLevels.system / 100,
 					},
 					microphone: {
 						enabled: recordMicrophone,
 						deviceId: microphoneDeviceId,
 						deviceName: microphoneDeviceName,
 						// Boosted only when the mic has to sit over system audio.
-						gain: nativeMicrophoneGain(systemAudioEnabled),
+						gain: audioMuted.microphone
+							? 0
+							: (audioLevels.microphone / 100) * nativeMicrophoneGain(systemAudioEnabled),
 					},
 				},
 				webcam: {
@@ -1985,10 +2046,20 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 			const systemAudioTrack = screenMediaStream.getAudioTracks()[0];
 			const micAudioTrack = microphoneStream.current?.getAudioTracks()[0];
 
-			const { context: mixingCtx, track: mixedTrack } = mixAudioTracks({
+			const {
+				context: mixingCtx,
+				track: mixedTrack,
+				setLevels,
+			} = mixAudioTracks({
+				controllable: true,
 				systemAudioTrack,
 				micAudioTrack,
 			});
+			browserAudioLevels.current = setLevels;
+			setLevels?.(
+				audioMuted.microphone ? 0 : audioLevels.microphone / 100,
+				audioMuted.system ? 0 : audioLevels.system / 100,
+			);
 			if (mixingCtx) {
 				mixingContext.current = mixingCtx;
 			}
@@ -2429,6 +2500,11 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 	};
 
 	return {
+		audioLevels,
+		audioMuted,
+		setAudioLevel,
+		toggleAudioMute,
+		liveAudioAvailable,
 		recording,
 		paused,
 		saving,

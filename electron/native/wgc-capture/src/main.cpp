@@ -1,4 +1,5 @@
 #include "audio_sample_utils.h"
+#include "live_audio_command.h"
 #include "desktop_icon_cover.h"
 #include "dpi_awareness.h"
 #include "frame_slot_clock.h"
@@ -53,6 +54,7 @@ struct CaptureConfig {
     std::string microphoneDeviceId;
     std::string microphoneDeviceName;
     double microphoneGain = 1.0;
+    double systemAudioGain = 1.0;
     std::string webcamDeviceId;
     std::string webcamDeviceName;
     std::string webcamDirectShowClsid;
@@ -583,6 +585,7 @@ bool parseConfig(const std::string& json, CaptureConfig& config) {
     config.microphoneDeviceId = findString(json, "microphoneDeviceId");
     config.microphoneDeviceName = findString(json, "microphoneDeviceName");
     config.microphoneGain = findDouble(json, "microphoneGain", 1.0);
+    config.systemAudioGain = std::clamp(findDouble(json, "systemAudioGain", 1.0), 0.0, 2.0);
     config.webcamDeviceId = findString(json, "webcamDeviceId");
     config.webcamDeviceName = findString(json, "webcamDeviceName");
     config.webcamDirectShowClsid = findString(json, "webcamDirectShowClsid");
@@ -593,7 +596,7 @@ bool parseConfig(const std::string& json, CaptureConfig& config) {
     return true;
 }
 
-void readCaptureCommands(CaptureControl& control, const std::function<void(bool)>& onPauseChanged) {
+void readCaptureCommands(CaptureControl& control, const std::function<void(bool)>& onPauseChanged, const std::function<void(double, double)>& onAudioChanged) {
     std::string line;
     while (std::getline(std::cin, line)) {
         // The comparisons below are exact, so a stray carriage return would
@@ -610,6 +613,11 @@ void readCaptureCommands(CaptureControl& control, const std::function<void(bool)
             std::cerr << "[stop-timing] step=command-received elapsed_ms=0" << std::endl;
             control.requestStop();
             return;
+        }
+        double microphone = 0, system = 0;
+        if (parseLiveAudioCommand(line, microphone, system)) {
+            onAudioChanged(microphone, system);
+            continue;
         }
         if (line == "pause") {
             control.setPaused(true);
@@ -1522,10 +1530,14 @@ int wmain(int argc, wchar_t* argv[]) {
         return 1;
     }
 
+    if (audioMixer) audioMixer->setGains(config.microphoneGain, config.systemAudioGain);
+
     std::thread stdinThread(readCaptureCommands, std::ref(control), [&](bool isPaused) {
         if (audioMixer) {
             audioMixer->setPaused(isPaused);
         }
+    }, [&](double microphone, double system) {
+        if (audioMixer) audioMixer->setGains(microphone, system);
     });
 
     // writeVideoFrames is the only caller of session.tryGetNextFrame() now

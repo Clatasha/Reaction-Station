@@ -96,6 +96,8 @@ console.log(`Copied ${distributablePath}`);
 console.log(`Built ${cursorSamplerOutputPath}`);
 console.log(`Copied ${cursorSamplerDistributablePath}`);
 
+await run(path.join(BUILD_DIR, "live_audio_command_test.exe"), [], { cwd: BUILD_DIR });
+
 const audioUtilsTestPath = path.join(BUILD_DIR, "audio_sample_utils_test.exe");
 if (!fs.existsSync(audioUtilsTestPath)) {
 	throw new Error(`WGC helper build completed but ${audioUtilsTestPath} was not found.`);

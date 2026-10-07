@@ -580,6 +580,13 @@ void AudioMixer::setPaused(bool paused) {
     cv_.notify_all();
 }
 
+void AudioMixer::setGains(double microphone, double system) {
+    if (!std::isfinite(microphone) || !std::isfinite(system)) return;
+    std::scoped_lock lock(mutex_);
+    microphoneGain_ = std::clamp(microphone, 0.0, 2.0);
+    systemGain_ = std::clamp(system, 0.0, 2.0);
+}
+
 void AudioMixer::stop() {
     stopRequested_ = true;
     cv_.notify_all();
@@ -736,7 +743,7 @@ void AudioMixer::mixLoop() {
                 mixedChunk.assign(chunkBytes, 0);
                 if (includeSystem_) {
                     pop(systemQueue_, systemStarved_, sourceChunk, chunkBytes);
-                    mixAudioInPlace(mixedChunk, sourceChunk.data(), static_cast<DWORD>(sourceChunk.size()), format_);
+                    mixAudioInPlace(mixedChunk, sourceChunk.data(), static_cast<DWORD>(sourceChunk.size()), format_, systemGain_);
                 }
                 if (includeMicrophone_) {
                     pop(microphoneQueue_, microphoneStarved_, sourceChunk, chunkBytes);

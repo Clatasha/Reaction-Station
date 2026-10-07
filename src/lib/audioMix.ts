@@ -25,6 +25,7 @@ export function nativeMicrophoneGain(systemAudioEnabled: boolean): number {
 export const MIC_FADE_IN_S = 0.02;
 
 export type MixAudioTracksInput = {
+	controllable?: boolean;
 	systemAudioTrack?: MediaStreamTrack | null | undefined;
 	micAudioTrack?: MediaStreamTrack | null | undefined;
 };
@@ -32,6 +33,7 @@ export type MixAudioTracksInput = {
 export type MixAudioTracksResult = {
 	/** AudioContext created to mix the two tracks. `null` when no mixing was needed. */
 	context: AudioContext | null;
+	setLevels?: (microphone: number, system: number) => void;
 	/** The track to add to the recorder's MediaStream, or `null` when neither input was given. */
 	track: MediaStreamTrack | null;
 };
@@ -52,23 +54,44 @@ export type MixAudioTracksResult = {
 export function mixAudioTracks({
 	systemAudioTrack,
 	micAudioTrack,
+	controllable = false,
 }: MixAudioTracksInput): MixAudioTracksResult {
-	if (!micAudioTrack) {
+	if (!micAudioTrack && (!controllable || !systemAudioTrack)) {
 		return { context: null, track: systemAudioTrack ?? null };
 	}
 
 	const context = new AudioContext();
 	const destination = context.createMediaStreamDestination();
+	let systemGain: GainNode | undefined;
+	let micGain: GainNode | undefined;
 	if (systemAudioTrack) {
 		const systemSource = context.createMediaStreamSource(new MediaStream([systemAudioTrack]));
-		systemSource.connect(destination);
+		if (controllable) {
+			systemGain = context.createGain();
+			systemSource.connect(systemGain).connect(destination);
+		} else systemSource.connect(destination);
 	}
 	// Unity when the mic is on its own; boosted only when competing with system audio.
 	const micTargetGain = nativeMicrophoneGain(Boolean(systemAudioTrack));
-	const micSource = context.createMediaStreamSource(new MediaStream([micAudioTrack]));
-	const micGain = context.createGain();
-	micGain.gain.setValueAtTime(0, context.currentTime);
-	micGain.gain.linearRampToValueAtTime(micTargetGain, context.currentTime + MIC_FADE_IN_S);
-	micSource.connect(micGain).connect(destination);
-	return { context, track: destination.stream.getAudioTracks()[0] };
+	if (micAudioTrack) {
+		const micSource = context.createMediaStreamSource(new MediaStream([micAudioTrack]));
+		micGain = context.createGain();
+		micGain.gain.setValueAtTime(0, context.currentTime);
+		micGain.gain.linearRampToValueAtTime(micTargetGain, context.currentTime + MIC_FADE_IN_S);
+		micSource.connect(micGain).connect(destination);
+	}
+	return {
+		context,
+		track: destination.stream.getAudioTracks()[0],
+		setLevels: (microphone, system) => {
+			for (const [node, level] of [
+				[micGain, microphone * micTargetGain],
+				[systemGain, system],
+			] as const) {
+				if (!node) continue;
+				node.gain.cancelScheduledValues(context.currentTime);
+				node.gain.setTargetAtTime(level, context.currentTime, 0.015);
+			}
+		},
+	};
 }

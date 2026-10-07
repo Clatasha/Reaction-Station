@@ -67,6 +67,11 @@ import {
 	showPermissionsWindowIfNeeded,
 } from "./permissions";
 import { setDisplaySleepBlocked } from "./recording/displaySleepBlocker";
+import {
+	initializeRecordingShortcuts,
+	loadRecordingShortcuts,
+	saveRecordingShortcuts,
+} from "./recordingShortcuts";
 import { offersStarPrompt, REPO_URL, storeReviewUrl } from "./star-prompt";
 import { registerSttIpc, shutdownStt } from "./stt";
 import { checkLatestRelease } from "./update-checker";
@@ -1247,6 +1252,8 @@ appReady?.then(async () => {
 		updateTrayMenu();
 	});
 
+	ipcMain.handle("get-recording-shortcuts", () => loadRecordingShortcuts());
+	ipcMain.handle("save-recording-shortcuts", (_, config) => saveRecordingShortcuts(config));
 	ipcMain.handle("update-global-shortcut", (_, binding: ShortcutBinding) => {
 		const success = registerOpenAppShortcut(binding, showMainWindow);
 		return { success };
@@ -1402,6 +1409,11 @@ appReady?.then(async () => {
 	registerSttIpc(ipcMain);
 
 	await loadAndRegisterGlobalShortcut(showMainWindow);
+	await initializeRecordingShortcuts((action) => {
+		if (mainWindow && !mainWindow.isDestroyed() && !isEditorWindow(mainWindow)) {
+			mainWindow.webContents.send("recording-shortcut", action);
+		}
+	});
 
 	// --bench=<query>: run the export bench instead of the app. Opens the real
 	// editor window (same webPreferences, same preload) pointed at the bench

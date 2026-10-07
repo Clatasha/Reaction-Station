@@ -23,7 +23,7 @@ const KEY_TO_ACCELERATOR: Record<string, string> = {
 	tab: "Tab",
 };
 
-function bindingToAccelerator(binding: ShortcutBinding): string {
+export function bindingToAccelerator(binding: ShortcutBinding): string {
 	const parts: string[] = [];
 	if (binding.ctrl) parts.push("CommandOrControl");
 	if (binding.shift) parts.push("Shift");
