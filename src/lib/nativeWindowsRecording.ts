@@ -17,6 +17,7 @@ export type NativeWindowsRecordingRequest = {
 	audio: {
 		system: {
 			enabled: boolean;
+			gain?: number;
 		};
 		microphone: {
 			enabled: boolean;

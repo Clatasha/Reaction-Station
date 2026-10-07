@@ -178,6 +178,16 @@ interface Window {
 			 */
 			webcamDropped?: boolean;
 		}>;
+		setLiveAudioMix?: (
+			mix: import("../src/lib/recorderControls").LiveAudioMix,
+		) => Promise<{ success: boolean; error?: string }>;
+		getRecordingShortcuts?: () => Promise<import("../src/lib/recorderControls").RecordingShortcuts>;
+		saveRecordingShortcuts?: (
+			config: import("../src/lib/recorderControls").RecordingShortcuts,
+		) => Promise<{ success: boolean; error?: string }>;
+		onRecordingShortcut?: (
+			callback: (action: import("../src/lib/recorderControls").RecordingAction) => void,
+		) => () => void;
 		pauseNativeWindowsRecording: () => Promise<{
 			success: boolean;
 			error?: string;

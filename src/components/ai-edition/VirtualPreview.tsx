@@ -53,6 +53,7 @@ import {
 import styles from "./VirtualPreview.module.css";
 
 export interface VideoSource {
+	sourceAudioMuted?: boolean;
 	id: string;
 	src: string;
 	/** Original filesystem path, used by the main process to expose the second audio track. */
@@ -616,7 +617,7 @@ export function VirtualPreview({
 	const voicePathsKey = [
 		activeSource?.filePath,
 		...audioTracks
-			.filter((track) => track.kind === "voiceover")
+			.filter((track) => track.kind === "voiceover" && !track.recordingSource)
 			.map((track) => audioSources.find((source) => source.id === track.assetId)?.filePath),
 	]
 		.filter((path): path is string => Boolean(path))
@@ -652,9 +653,11 @@ export function VirtualPreview({
 			);
 		}
 	}, [voicePathsKey, retryToken, activeVoicePath]);
-	const voiceGainDb = activeSource?.filePath
-		? (loudnessGainDbByPath.get(activeSource.filePath) ?? 0)
-		: 0;
+	const voiceGainDb = activeSource?.sourceAudioMuted
+		? Number.NEGATIVE_INFINITY
+		: activeSource?.filePath
+			? (loudnessGainDbByPath.get(activeSource.filePath) ?? 0)
+			: 0;
 	const voiceGainDbRef = useRef(voiceGainDb);
 	voiceGainDbRef.current = voiceGainDb;
 
@@ -1086,17 +1089,18 @@ export function VirtualPreview({
 				// sums it into the programme at 1× — speed regions stretch clip PCM only,
 				// never the imported track — so following `v.playbackRate` would pitch a
 				// voiceover up under a 2× region and finish it early, diverging from export.
-				if (el.playbackRate !== 1) el.playbackRate = 1;
+				const trackRate = track.recordingSource ? v.playbackRate : 1;
+				if (el.playbackRate !== trackRate) el.playbackRate = trackRate;
 				// A voiceover is voice: levelled like the recording, its own gain trimming from
 				// there — the sum `mix_external_tracks` applies. A music bed is not levelled; it
 				// ducks under the voice instead.
 				let trackGainDb = track.gainDb;
-				if (track.kind === "voiceover") {
+				if (track.kind === "voiceover" && !track.recordingSource) {
 					const path = audioSourcesRef.current.find(
 						(source) => source.id === track.assetId,
 					)?.filePath;
 					trackGainDb += path ? (loudnessGainDbByPathRef.current.get(path) ?? 0) : 0;
-				} else {
+				} else if (track.kind === "music") {
 					trackGainDb += duck.db;
 				}
 				const trackGainNode = audioTrackGainNodesRef.current.get(track.id);

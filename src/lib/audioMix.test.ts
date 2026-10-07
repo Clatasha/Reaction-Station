@@ -3,6 +3,10 @@ import { MIC_FADE_IN_S, MIC_GAIN_BOOST, mixAudioTracks, nativeMicrophoneGain } f
 
 class FakeAudioParam {
 	value = 1;
+	cancelScheduledValues = vi.fn();
+	setTargetAtTime = vi.fn((v: number) => {
+		this.value = v;
+	});
 	setValueAtTime = vi.fn((v: number) => {
 		this.value = v;
 	});
@@ -165,4 +169,50 @@ describe("mixAudioTracks", () => {
 		expect(gain.gain.linearRampToValueAtTime).toHaveBeenCalledWith(MIC_GAIN_BOOST, MIC_FADE_IN_S);
 		expect(result.context).toBe(fakeCtx);
 	});
+});
+
+describe("live browser mix", () => {
+	afterEach(() => vi.unstubAllGlobals());
+	it("routes system-only audio through a gain so it can mute and restore without stopping capture", () => {
+		stubMediaStream();
+		const context = stubAudioContext();
+		const result = mixAudioTracks({ systemAudioTrack: track("system"), controllable: true });
+		const gain = context.createGain.mock.results[0].value;
+		expect(result.track).not.toBeNull();
+		result.setLevels?.(1, 0);
+		expect(gain.gain.setTargetAtTime).toHaveBeenLastCalledWith(0, 0.5, 0.015);
+		result.setLevels?.(1, 0.6);
+		expect(gain.gain.setTargetAtTime).toHaveBeenLastCalledWith(0.6, 0.5, 0.015);
+	});
+	it("independently changes the voice and video channels and preserves voice gain staging", () => {
+		stubMediaStream();
+		const context = stubAudioContext();
+		const result = mixAudioTracks({
+			systemAudioTrack: track("system"),
+			micAudioTrack: track("mic"),
+			controllable: true,
+		});
+		const [system, mic] = context.createGain.mock.results.map((r) => r.value);
+		result.setLevels?.(0.5, 0.2);
+		expect(mic.gain.setTargetAtTime).toHaveBeenLastCalledWith(0.7, 0.5, 0.015);
+		expect(system.gain.setTargetAtTime).toHaveBeenLastCalledWith(0.2, 0.5, 0.015);
+		result.setLevels?.(0, 0.2);
+		expect(mic.gain.setTargetAtTime).toHaveBeenLastCalledWith(0, 0.5, 0.015);
+		expect(system.gain.setTargetAtTime).toHaveBeenLastCalledWith(0.2, 0.5, 0.015);
+	});
+});
+
+it("creates pre-muted browser channels at zero gain before connecting the recorder", () => {
+	stubMediaStream();
+	const context = stubAudioContext();
+	mixAudioTracks({
+		systemAudioTrack: track("system"),
+		micAudioTrack: track("mic"),
+		controllable: true,
+		initialLevels: { microphone: 0, system: 0 },
+	});
+	const [system, mic] = context.createGain.mock.results.map((r) => r.value);
+	expect(system.gain.setValueAtTime).toHaveBeenCalledWith(0, 0.5);
+	expect(mic.gain.linearRampToValueAtTime).toHaveBeenCalledWith(0, 0.5 + MIC_FADE_IN_S);
+	vi.unstubAllGlobals();
 });

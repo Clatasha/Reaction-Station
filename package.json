@@ -1,7 +1,7 @@
 {
 	"name": "reaction-station",
 	"private": true,
-	"version": "0.1.0",
+	"version": "0.3.0",
 	"description": "Reaction Station by Clatasha: screen recording and video editing",
 	"homepage": "https://github.com/Clatasha/openscreen",
 	"license": "MIT",

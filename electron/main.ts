@@ -67,6 +67,13 @@ import {
 	showPermissionsWindowIfNeeded,
 } from "./permissions";
 import { setDisplaySleepBlocked } from "./recording/displaySleepBlocker";
+import {
+	activateRecordingShortcuts,
+	deactivateRecordingShortcuts,
+	initializeRecordingShortcuts,
+	loadRecordingShortcuts,
+	saveRecordingShortcuts,
+} from "./recordingShortcuts";
 import { offersStarPrompt, REPO_URL, storeReviewUrl } from "./star-prompt";
 import { registerSttIpc, shutdownStt } from "./stt";
 import { checkLatestRelease } from "./update-checker";
@@ -165,6 +172,7 @@ function createWindow() {
 	}
 
 	mainWindow = createHudOverlayWindow();
+	activateRecordingShortcuts();
 }
 
 function showMainWindow() {
@@ -1011,6 +1019,7 @@ function createEditorWindowWrapper() {
 		isForceClosing = false;
 		mainWindow = null;
 	}
+	deactivateRecordingShortcuts();
 	mainWindow = createEditorWindow();
 	editorHasUnsavedChanges = false;
 
@@ -1247,6 +1256,8 @@ appReady?.then(async () => {
 		updateTrayMenu();
 	});
 
+	ipcMain.handle("get-recording-shortcuts", () => loadRecordingShortcuts());
+	ipcMain.handle("save-recording-shortcuts", (_, config) => saveRecordingShortcuts(config));
 	ipcMain.handle("update-global-shortcut", (_, binding: ShortcutBinding) => {
 		const success = registerOpenAppShortcut(binding, showMainWindow);
 		return { success };
@@ -1402,6 +1413,11 @@ appReady?.then(async () => {
 	registerSttIpc(ipcMain);
 
 	await loadAndRegisterGlobalShortcut(showMainWindow);
+	await initializeRecordingShortcuts((action) => {
+		if (mainWindow && !mainWindow.isDestroyed() && !isEditorWindow(mainWindow)) {
+			mainWindow.webContents.send("recording-shortcut", action);
+		}
+	});
 
 	// --bench=<query>: run the export bench instead of the app. Opens the real
 	// editor window (same webPreferences, same preload) pointed at the bench
@@ -1413,6 +1429,7 @@ appReady?.then(async () => {
 			setTimeout(() => app.exit(0), 100);
 		});
 		const query = Object.fromEntries(new URLSearchParams(benchArg.slice("--bench=".length)));
+		deactivateRecordingShortcuts();
 		mainWindow = createEditorWindow({ ...query, windowType: "bench" });
 		return;
 	}

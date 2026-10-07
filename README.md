@@ -14,6 +14,8 @@ Capture what you are watching alongside your webcam and voice, then edit the rec
 
 - **Capture the content** — record a browser window, another app or your entire screen.
 - **Add your reaction** — record your microphone and system audio, with a webcam overlay for your face.
+- **Control your take** — configurable global recording hotkeys and live audio volume/mute controls.
+- **Mix your reaction** — Windows native recordings open with separate microphone and desktop audio tracks for independent editing.
 - **Frame your camera** — adjust the webcam position, shape, roundness and mirroring.
 - **Edit the recording** — trim sections, crop the picture and change the speed of individual segments.
 - **Add context** — use captions, text, arrows, images and zooms to support your commentary.
@@ -29,7 +31,7 @@ Ideas for improving that workflow are welcome through [pull requests](https://gi
 
 ## Downloads
 
-A Reaction Station installer has not been released yet. Builds will be posted on [this repository's Releases page](https://github.com/Clatasha/openscreen/releases) when they are ready.
+Windows test installers are available from the [Reaction Station Windows test workflow](https://github.com/Clatasha/openscreen/actions/workflows/reaction-station-windows-test.yml). Open a successful run and download the `reaction-station-windows-test` artifact. Stable releases will be posted on [this repository's Releases page](https://github.com/Clatasha/openscreen/releases) when ready.
 
 ## Development
 

@@ -1,10 +1,13 @@
 name: Reaction Station Windows test installer
+run-name: Reaction Station recorder test (${{ github.ref_name }})
 
 on:
   workflow_dispatch:
   push:
     branches:
       - ci/windows-test-installer
+      - feat/reaction-recorder
+      - feat/separate-recording-audio
     paths:
       - .github/workflows/reaction-station-windows-test.yml
 
@@ -22,6 +25,7 @@ jobs:
     timeout-minutes: 90
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      REACTION_STATION_AUDIO_TESTS: "1"
     steps:
       - name: Checkout Reaction Station
         uses: actions/checkout@v7
@@ -124,6 +128,21 @@ jobs:
             "",
             "Download the reaction-station-windows-test artifact below. This is an unsigned test installer; real desktop recording and export testing are still required."
           ) | Add-Content $env:GITHUB_STEP_SUMMARY
+
+      - name: Smoke test the packaged recorder interface
+        run: |
+          $package = Get-ChildItem release -Directory -Recurse | Where-Object Name -eq "win-unpacked"
+          node scripts/test-reaction-recorder-ui.mjs (Join-Path $package.FullName "Reaction Station.exe")
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload recorder interface previews
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: reaction-station-recorder-preview
+          path: release/recorder-preview/*.png
+          if-no-files-found: warn
+          retention-days: 30
 
       - name: Upload Windows test installer
         uses: actions/upload-artifact@v7

@@ -88,6 +88,16 @@ describe("resolveAudioTrackPlayback", () => {
 });
 
 describe("applyPreviewAudioSettings", () => {
+	it("silences only the embedded fallback mix when separate sources are active", () => {
+		const graph = fakeGraph();
+		const element = { volume: 1 } as HTMLAudioElement;
+		applyPreviewAudioSettings(graph, [], 0, Number.NEGATIVE_INFINITY);
+		expect(graph.voice.gain.value).toBe(0);
+		expect(graph.gain.gain.value).toBe(1);
+		applyPreviewAudioSettings(null, [element], 0, Number.NEGATIVE_INFINITY);
+		expect(element.volume).toBe(0);
+	});
+
 	// This is the PR's parity claim, on the preview side. `finish_audio` applies
 	// `10f32.powf(gain_db / 20.0)` per sample natively and has its own test pinning that
 	// identity; if these two ever disagree, the editor stops meaning what it plays.

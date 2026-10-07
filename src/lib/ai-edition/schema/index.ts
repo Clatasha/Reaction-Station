@@ -179,6 +179,8 @@ export const assetSchema = z.object({
 	kind: z.enum(["video", "audio"]).default("video"),
 	label: z.string().min(1),
 	originalPath: z.string().min(1),
+	// Suppress the embedded fallback mix once separate recording sources are imported.
+	sourceAudioMuted: z.boolean().optional(),
 	proxyPath: z.string().optional(),
 	waveformPath: z.string().optional(),
 	durationSec: z.number().nonnegative().optional(),
@@ -579,6 +581,8 @@ export const audioTrackSchema = endGteStart(
 		...clipAnchorShape,
 		assetId: z.string().min(1),
 		kind: z.enum(["voiceover", "music"]).default("music"),
+		// Recorded sources follow video speed and retain their capture levels.
+		recordingSource: z.enum(["microphone", "desktop"]).optional(),
 		// Full source duration of the underlying file, cached here so the timeline
 		// can lay out the pill before the asset is re-probed on load.
 		durationSec: z.number().nonnegative().default(0),

@@ -153,5 +153,35 @@
 			"screenRequired": "A gravação de tela é necessária para gravar.",
 			"ready": "Tudo pronto."
 		}
+	},
+	"reaction": {
+		"creatorStudio": "Creator studio",
+		"ready": "Ready to record",
+		"live": "Recording",
+		"paused": "Paused",
+		"controls": "Controls",
+		"sessionControls": "Session controls",
+		"mixer": "Audio mixer",
+		"hotkeys": "Hotkeys",
+		"mute": "Mute",
+		"muted": "Muted",
+		"unmute": "Unmute",
+		"volume": "volume",
+		"enableBefore": "Enable this source before starting your take.",
+		"mixHint": "Balance your voice and the video before recording.",
+		"liveMixHint": "Adjust the recorded sound without interrupting your take.",
+		"unsupported": "Live mixing is currently available on Windows and browser capture.",
+		"hotkeyHint": "These shortcuts work outside the app while the recorder is open. Change them between takes.",
+		"modifiers": "modifiers",
+		"key": "key",
+		"saveShortcuts": "Save shortcuts",
+		"shortcutsSaved": "Recording shortcuts saved",
+		"shortcutsFailed": "Could not save shortcuts. Check for conflicting combinations.",
+		"actions": {
+			"record": "Start / stop recording",
+			"pause": "Pause / resume recording",
+			"muteMicrophone": "Mute / unmute microphone",
+			"muteSystem": "Mute / unmute video audio"
+		}
 	}
 }

@@ -3616,16 +3616,18 @@ export function AudioTrackPane({ tl, onClose }: { tl: TimelineApi; onClose?: () 
 					onChange={(v) => void tl.updateAudioTrack(track.id, { muted: v })}
 				/>
 			</div>
-			<div className={styles.paneRow}>
-				<span className={styles.label}>{ts("audioTrack.loop")}</span>
-				<Toggle
-					checked={track.loop}
-					ariaLabel={ts("audioTrack.loop")}
-					// Fills the rest of the programme on the way on — see
-					// setAudioTrackLoop for why the toggle moves the edge for you.
-					onChange={(v) => void tl.setAudioTrackLoop(track.id, v)}
-				/>
-			</div>
+			{!track.recordingSource && (
+				<div className={styles.paneRow}>
+					<span className={styles.label}>{ts("audioTrack.loop")}</span>
+					<Toggle
+						checked={track.loop}
+						ariaLabel={ts("audioTrack.loop")}
+						// Fills the rest of the programme on the way on — see
+						// setAudioTrackLoop for why the toggle moves the edge for you.
+						onChange={(v) => void tl.setAudioTrackLoop(track.id, v)}
+					/>
+				</div>
+			)}
 			<button
 				type="button"
 				className={styles.secondaryBtn}
