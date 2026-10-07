@@ -631,6 +631,10 @@ pub struct SceneAudio {
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SceneAudioTrack {
+    #[serde(default)]
+    pub recorded_source: bool,
+    #[serde(default)]
+    pub output_duration_sec: Option<f64>,
     pub path: String,
     #[serde(default)]
     pub start_sec: f64,

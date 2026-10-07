@@ -137,6 +137,13 @@ const DECLARED: WritePath[] = [
 		"save",
 		"gesture",
 	),
+	// Independent sources attached automatically as part of a new recording import.
+	w(
+		"src/components/ai-edition/recordingAudioImport.ts",
+		"importRecordingAudioSources",
+		"save",
+		"automatic",
+	),
 	// Renaming the project from the title field.
 	w("src/components/ai-edition/NewEditorShell.tsx", "handleRenameProject", "save", "gesture"),
 	// Ctrl+S / File > Save.

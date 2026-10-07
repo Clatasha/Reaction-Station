@@ -85,6 +85,14 @@ if (pinMatch) {
 
 const cargoExeQuoted = `"%USERPROFILE%\\.cargo\\bin\\cargo.exe"`;
 await runInVsEnv(`${cargoExeQuoted} build -p compositor-view-napi --release`);
+if (process.env.REACTION_STATION_AUDIO_TESTS === "1") {
+	// Reuse the release dependencies from the addon build. This validates the
+	// actual decoder/mixer/stretch path before the one combined installer ships.
+	const sdk = pinMatch ? path.join(CRATES_DIR, pinMatch[1], "bin") : "";
+	await runInVsEnv(
+		`set "PATH=${sdk};%PATH%"\r\n${cargoExeQuoted} test -p openscreen-compositor --lib --release audio::tests::`,
+	);
+}
 
 const builtDll = path.join(CRATES_DIR, "target", "release", "compositor_view.dll");
 if (!fs.existsSync(builtDll)) {

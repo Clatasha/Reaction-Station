@@ -29,6 +29,7 @@ import {
 	collectAutoZoomSuggestionsForLatestDocument,
 } from "@/lib/ai-edition/timeline/apply-auto-zooms";
 import { nativeBridgeClient } from "@/native/client";
+import { importRecordingAudioSources } from "./recordingAudioImport";
 
 // Fresh recordings used to get cursor-dwell zooms on load (legacy editor
 // `autoZoomEnabled`, default on). The ai-edition import only seeded a clip, so
@@ -357,7 +358,7 @@ export async function importPendingRecording(
 	// Consumed: the recording now lives in a project. Cleared here rather than
 	// after the timeline seed below so a failure down there can't hand the same
 	// recording to the next editor window.
-	await api.setCurrentRecordingSession(null);
+	// The slot is consumed after independent audio has been attached below.
 
 	// ponytail: MediaRecorder WebMs ship with duration = NaN until
 	// fix-webm-duration patches the EBML header; until that flows through the
@@ -377,6 +378,15 @@ export async function importPendingRecording(
 				history: false,
 			});
 	}
+	if (result.success && result.session?.audioSources?.length) {
+		try {
+			await importRecordingAudioSources(screenPath, result.session.audioSources);
+		} catch (error) {
+			console.warn("[recording] Separate audio import failed; keeping embedded mix", error);
+			onWarning?.("Separate audio could not be loaded. The original recording mix was kept.");
+		}
+	}
+	await api.setCurrentRecordingSession(null);
 	const latest = useProjectStore.getState().document;
 	if (latest) {
 		await maybeSaveFreshRecordingAutoZooms(latest);

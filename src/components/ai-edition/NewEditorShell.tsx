@@ -485,6 +485,7 @@ export function NewEditorShell() {
 		// catches up on the next save.
 		return document.assets.map((asset) => ({
 			id: asset.id,
+			sourceAudioMuted: asset.sourceAudioMuted,
 			filePath: /^(https?|blob|data):/.test(asset.originalPath) ? undefined : asset.originalPath,
 			// Real Electron assets are filesystem paths and go through toFileUrl.
 			// In the browser preview an asset can already point at an http(s)/

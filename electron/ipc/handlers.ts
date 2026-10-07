@@ -786,6 +786,8 @@ async function removeNativeWindowsCaptureOutputs(
 	const targets = [
 		screenVideoPath,
 		webcamVideoPath,
+		screenVideoPath ? `${screenVideoPath}.desktop.wav` : null,
+		screenVideoPath ? `${screenVideoPath}.microphone.wav` : null,
 		screenVideoPath ? `${screenVideoPath}.cursor.json` : null,
 	];
 
@@ -1801,6 +1803,20 @@ async function loadRecordedSessionForVideoPath(
 			}
 		}
 
+		if (session.audioSources?.length) {
+			const sources = session.audioSources;
+			const complete = await Promise.all(
+				sources.map(async (source) => {
+					const expected = `${session.screenVideoPath}.${source.source}.wav`;
+					if (source.path !== expected) return false;
+					const stat = await fs.stat(expected).catch(() => null);
+					if (!stat || stat.size <= 80) return false;
+					approveFilePath(expected);
+					return true;
+				}),
+			);
+			if (complete.some((ok) => !ok)) session.audioSources = undefined;
+		}
 		approveFilePath(session.screenVideoPath);
 		if (session.webcamVideoPath) {
 			approveFilePath(session.webcamVideoPath);
@@ -2836,6 +2852,10 @@ export function registerIpcHandlers(
 					recordingId,
 					preferSoftwareEncoder,
 					outputPath,
+					desktopAudioPath: request.audio.system.enabled ? `${outputPath}.desktop.wav` : "",
+					microphoneAudioPath: request.audio.microphone.enabled
+						? `${outputPath}.microphone.wav`
+						: "",
 					sourceType: request.source.type,
 					sourceId: request.source.sourceId,
 					displayId: Number.isFinite(displayId) ? displayId : 0,
@@ -3500,9 +3520,19 @@ export function registerIpcHandlers(
 					webcamVideoPath = undefined;
 				}
 			}
+			const audioSources: NonNullable<RecordingSession["audioSources"]> = [];
+			for (const source of ["microphone", "desktop"] as const) {
+				const audioPath = `${screenVideoPath}.${source}.wav`;
+				const stat = await fs.stat(audioPath).catch(() => null);
+				if (stat && stat.size > 80) {
+					approveFilePath(audioPath);
+					audioSources.push({ path: audioPath, source });
+				}
+			}
 			const session: RecordingSession = webcamVideoPath
 				? { screenVideoPath, webcamVideoPath, createdAt: recordingId, cursorCaptureMode }
 				: { screenVideoPath, createdAt: recordingId, cursorCaptureMode };
+			if (audioSources.length) session.audioSources = audioSources;
 			setCurrentRecordingSessionState(session);
 			currentProjectPath = null;
 

@@ -531,6 +531,8 @@ export interface SceneDescription {
 		 *  start and end, so it fades once rather than at every cut or repeat. */
 		fadeInSec: number;
 		fadeOutSec: number;
+		recordedSource?: boolean;
+		outputDurationSec?: number;
 		/** A voiceover is voice: the export levels it like the recording's own audio. */
 		kind: AxcutAudioTrack["kind"];
 	}>;
@@ -852,6 +854,7 @@ export function buildSceneDescription(
 			fadeInSec: track.fadeInMs / 1000,
 			fadeOutSec: track.fadeOutMs / 1000,
 			kind: track.kind,
+			...(track.recordingSource ? { recordedSource: true } : {}),
 		};
 		// The window the file has left after the offset. Without a probed duration
 		// there is nothing to loop over and nothing to cap the tail with, so the
@@ -879,6 +882,50 @@ export function buildSceneDescription(
 			// file the take covers, which is the honest fallback once the cuts are taken out.
 			const voWindowSec =
 				sourceDurationSec > 0 ? Math.max(0, sourceDurationSec - offsetSec) : rawSpanSec;
+			if (track.recordingSource) {
+				const entries = takeProgramme(pill, removed)
+					.filter((piece) => piece.kind === "play")
+					.flatMap((piece) => {
+						const boundaries = new Set([piece.rawStartSec, piece.rawEndSec]);
+						for (const speed of rawSpeedRegions) {
+							for (const time of [speed.startMs / 1000, speed.endMs / 1000]) {
+								if (time > piece.rawStartSec && time < piece.rawEndSec) boundaries.add(time);
+							}
+						}
+						const times = [...boundaries].sort((a, b) => a - b);
+						return times.slice(0, -1).flatMap((rawStart, index) => {
+							const sourceStart = piece.sourceStartSec + rawStart - piece.rawStartSec;
+							const rawEnd = Math.min(
+								times[index + 1],
+								rawStart + voWindowSec + offsetSec - sourceStart,
+							);
+							if (rawEnd <= rawStart) return [];
+							const project = (time: number) =>
+								projectRawTimelineSecToPlayback(
+									projectedClips,
+									document.timeline.trimRanges,
+									time,
+									rawSpeedRegions,
+								);
+							const outputDurationSec = project(rawEnd) - project(rawStart);
+							if (outputDurationSec <= 0) return [];
+							return [
+								{
+									...base,
+									startSec: project(rawStart),
+									trimStartSec: sourceStart,
+									trimEndSec: sourceStart + rawEnd - rawStart,
+									outputDurationSec,
+								},
+							];
+						});
+					});
+				return entries.map((entry, index) => ({
+					...entry,
+					fadeInSec: index === 0 ? base.fadeInSec : 0,
+					fadeOutSec: index === entries.length - 1 ? base.fadeOutSec : 0,
+				}));
+			}
 			const kept = takeProgramme(pill, removed)
 				.filter((piece) => piece.kind === "play")
 				.map((piece) => ({
@@ -949,7 +996,7 @@ export function buildSceneDescription(
 				sourceStartSec: clip.sourceStartSec,
 				sourceEndSec: resolveClipSourceEndSec(clip, asset),
 				webcamOffsetSec: camera.offsetSec,
-				hasAudio: true,
+				hasAudio: !asset.sourceAudioMuted,
 				// A held segment has an empty source window and exists only for the frames it
 				// holds; every other clip holds nothing.
 			},

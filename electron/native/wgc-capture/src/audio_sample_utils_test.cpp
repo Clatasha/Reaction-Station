@@ -1485,11 +1485,20 @@ int main() {
         const AudioInputFormat f32 = makeFormat(MFAudioFormat_Float, 48000, 2, 32);
         std::mutex guard;
         std::vector<BYTE> collected;
+        std::vector<BYTE> desktop;
+        std::vector<BYTE> microphone;
         AudioMixer mixer(target48k, f32, f32, true, true, 1.4,
             [&](const BYTE* data, DWORD bytes, int64_t, int64_t) {
                 std::scoped_lock lock(guard);
                 collected.insert(collected.end(), data, data + bytes);
                 return true;
+            });
+        mixer.setSeparateOutput(
+            [&](const BYTE* data, DWORD bytes, int64_t, int64_t) {
+                std::scoped_lock lock(guard); desktop.insert(desktop.end(), data, data + bytes); return true;
+            },
+            [&](const BYTE* data, DWORD bytes, int64_t, int64_t) {
+                std::scoped_lock lock(guard); microphone.insert(microphone.end(), data, data + bytes); return true;
             });
         expect("live-mixer-start", mixer.start(), "");
         mixer.beginTimeline();
@@ -1500,12 +1509,16 @@ int main() {
             mixer.setGains(mic, system);
             std::this_thread::sleep_for(std::chrono::milliseconds(180));
             std::scoped_lock lock(guard);
+            const auto last = [](const std::vector<BYTE>& data) { return reinterpret_cast<const int16_t*>(data.data())[data.size() / 2 - 1]; };
+            expect("separate-source-mic", microphone.size() >= 4 && std::abs(last(microphone) - std::round(6553.0 * mic)) <= 2, "");
+            expect("separate-source-desktop", desktop.size() >= 4 && std::abs(last(desktop) - std::round(6553.0 * system)) <= 2, "");
             expect(name, collected.size() >= 4 && std::abs(reinterpret_cast<const int16_t*>(collected.data())[collected.size() / 2 - 1] - expected) <= 2, "");
         };
         check(0, 0.5, 3277, "live-mute-microphone-reduce-system");
         check(0, 0, 0, "live-mute-both");
         check(1, 0, 6553, "live-restore-microphone-system-stays-muted");
         mixer.stop();
+        expect("separate-source-clock", collected.size() == desktop.size() && desktop.size() == microphone.size(), "");
     }
 
     // --- Capture jitter: the mixer's cushion (getopenscreen/openscreen#911) ---

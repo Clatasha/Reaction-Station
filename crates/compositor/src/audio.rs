@@ -1698,16 +1698,19 @@ fn overlay_external_track(programme: &mut PlanarPcm, track: &SceneAudioTrack, du
     // decoding it only wastes time and memory — a three-hour track placed at
     // second 9 of a ten-second export must not buffer three hours of PCM.
     let remaining_sec = (programme_len - offset) as f64 / AUDIO_OUTPUT_SAMPLE_RATE as f64;
-    let trim_end = trim_end_full.min(trim_start + remaining_sec);
+    let source_duration = (trim_end_full - trim_start).max(0.0);
+    let output_duration = track.output_duration_sec.filter(|d| d.is_finite() && *d > 0.0);
+    let source_rate = output_duration.map_or(1.0, |d| source_duration / d);
+    let trim_end = trim_end_full.min(trim_start + remaining_sec * source_rate);
     // The track's own length, before that cap. The fades belong to the track, not to
     // whatever the programme had room for — capping first and measuring after is what
     // made a fade-out ramp down at the truncation point instead of at the real end.
     let full_len =
-        ((trim_end_full - trim_start).max(0.0) * AUDIO_OUTPUT_SAMPLE_RATE as f64) as usize;
+        (output_duration.unwrap_or(source_duration) * AUDIO_OUTPUT_SAMPLE_RATE as f64) as usize;
     if trim_end <= trim_start {
         return;
     }
-    let decoded = match decode_clip_audio(&track.path, trim_start, trim_end) {
+    let mut decoded = match decode_clip_audio(&track.path, trim_start, trim_end) {
         Ok(Some(pcm)) => pcm,
         _ => return,
     };
@@ -1715,8 +1718,13 @@ fn overlay_external_track(programme: &mut PlanarPcm, track: &SceneAudioTrack, du
     // -12 here floored every quiet bed at a tenth of the attenuation asked for.
     // A voiceover is voice, levelled like the recording (see `loudness_gain_db`); its
     // own gain then trims from there, exactly as the preview applies it.
+    if output_duration.is_some() {
+        let samples = (((trim_end - trim_start) / source_rate) * AUDIO_OUTPUT_SAMPLE_RATE as f64).round().max(0.0) as usize;
+        decoded = stretch_pcm_to_length(&decoded, samples);
+    }
     let normalisation = match track.kind {
-        SceneAudioTrackKind::Voiceover => loudness_gain_db(&track.path),
+        SceneAudioTrackKind::Voiceover if !track.recorded_source => loudness_gain_db(&track.path),
+        SceneAudioTrackKind::Voiceover => 0.0,
         SceneAudioTrackKind::Music => 0.0,
     };
     let gain = 10.0f32.powf((track.gain_db.clamp(-60.0, 12.0) + normalisation) / 20.0);
@@ -2266,6 +2274,47 @@ mod tests {
         let mut programme = planar(&[0.3, 0.3]);
         overlay_track_pcm(&mut programme, &planar(&[1.0]), 5, 1.0, 0.0, 0.0, 0, &[]);
         assert_eq!(programme[0], vec![0.3, 0.3]);
+    }
+
+    #[test]
+    fn recorded_source_retains_gain_and_follows_output_duration() {
+        use std::io::Write;
+        let stamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
+        let path = std::env::temp_dir().join(format!("reaction-audio-{}-{stamp}.wav", std::process::id()));
+        let frames = 48_000_u32;
+        let mut file = std::fs::File::create(&path).unwrap();
+        file.write_all(b"RIFF").unwrap();
+        file.write_all(&(frames * 4 + 36).to_le_bytes()).unwrap();
+        file.write_all(b"WAVEfmt ").unwrap();
+        file.write_all(&16_u32.to_le_bytes()).unwrap();
+        file.write_all(&1_u16.to_le_bytes()).unwrap();
+        file.write_all(&2_u16.to_le_bytes()).unwrap();
+        file.write_all(&48_000_u32.to_le_bytes()).unwrap();
+        file.write_all(&192_000_u32.to_le_bytes()).unwrap();
+        file.write_all(&4_u16.to_le_bytes()).unwrap();
+        file.write_all(&16_u16.to_le_bytes()).unwrap();
+        file.write_all(b"data").unwrap();
+        file.write_all(&(frames * 4).to_le_bytes()).unwrap();
+        for frame in 0..frames {
+            let sample = ((frame as f64 * 440.0 * 2.0 * std::f64::consts::PI / 48_000.0).sin() * 3276.0) as i16;
+            for _ in 0..2 { file.write_all(&sample.to_le_bytes()).unwrap(); }
+        }
+        drop(file);
+        let track = SceneAudioTrack {
+            path: path.to_string_lossy().into_owned(),
+            trim_end_sec: Some(1.0),
+            output_duration_sec: Some(0.5),
+            recorded_source: true,
+            kind: SceneAudioTrackKind::Voiceover,
+            gain_db: -6.0,
+            ..Default::default()
+        };
+        let out = mix_external_tracks(vec![vec![0.0; 24_000]; 2], &[track]);
+        let peak = out[0].iter().fold(0.0_f32, |peak, sample| peak.max(sample.abs()));
+        assert_eq!(out[0].len(), 24_000);
+        assert!(peak > 0.035 && peak < 0.075, "recorded level retained: {peak}");
+        assert!(out[0][12_000..].iter().any(|sample| sample.abs() > 0.025), "speed change kept the source tail");
+        std::fs::remove_file(path).unwrap();
     }
 
     #[test]

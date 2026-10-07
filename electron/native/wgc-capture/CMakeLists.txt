@@ -215,3 +215,6 @@ target_link_libraries(mf_encoder_color_test PRIVATE
 
 add_executable(live_audio_command_test src/live_audio_command_test.cpp)
 target_compile_options(live_audio_command_test PRIVATE /EHsc /W4 /utf-8)
+
+add_executable(recording_wave_writer_test src/recording_wave_writer_test.cpp)
+target_compile_options(recording_wave_writer_test PRIVATE /EHsc /W4 /utf-8)

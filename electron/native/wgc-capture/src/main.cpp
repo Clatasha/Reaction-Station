@@ -1,5 +1,6 @@
 #include "audio_sample_utils.h"
 #include "live_audio_command.h"
+#include "recording_wave_writer.h"
 #include "desktop_icon_cover.h"
 #include "dpi_awareness.h"
 #include "frame_slot_clock.h"
@@ -40,6 +41,8 @@ struct CaptureConfig {
     std::string windowHandle;
     std::string outputPath;
     std::string webcamOutputPath;
+    std::string desktopAudioPath;
+    std::string microphoneAudioPath;
     int fps = 60;
     int width = 0;
     int height = 0;
@@ -549,6 +552,8 @@ HWND parseWindowHandle(const std::string& value) {
 
 bool parseConfig(const std::string& json, CaptureConfig& config) {
     config.schemaVersion = findInt(json, "schemaVersion", 1);
+    config.desktopAudioPath = findString(json, "desktopAudioPath");
+    config.microphoneAudioPath = findString(json, "microphoneAudioPath");
     config.outputPath = findString(json, "screenPath");
     if (config.outputPath.empty()) {
         config.outputPath = findString(json, "outputPath");
@@ -1400,6 +1405,8 @@ int wmain(int argc, wchar_t* argv[]) {
         videoWriterThread = std::thread(writeVideoFrames);
     };
 
+    RecordingWaveWriter desktopAudioWriter;
+    RecordingWaveWriter microphoneAudioWriter;
     std::unique_ptr<AudioMixer> audioMixer;
     auto startAudioCaptures = [&]() -> bool {
         if (!audioFormat) {
@@ -1422,6 +1429,27 @@ int wmain(int argc, wchar_t* argv[]) {
                 return true;
             });
 
+        const auto openSeparate = [&](RecordingWaveWriter& writer, const std::string& path) {
+            return writer.open(std::filesystem::path(utf8ToWide(path)), encoderAudioFormat.sampleRate,
+                               static_cast<uint16_t>(encoderAudioFormat.channels));
+        };
+        AudioMixer::OutputCallback desktopOutput;
+        AudioMixer::OutputCallback microphoneOutput;
+        if (config.captureSystemAudio && !config.desktopAudioPath.empty()) {
+            if (!openSeparate(desktopAudioWriter, config.desktopAudioPath)) return false;
+            desktopOutput = [&](const BYTE* data, DWORD size, int64_t, int64_t) {
+                if (desktopAudioWriter.write(data, size)) return true;
+                encodeFailed = true; control.requestStop(); return false;
+            };
+        }
+        if (config.captureMic && !config.microphoneAudioPath.empty()) {
+            if (!openSeparate(microphoneAudioWriter, config.microphoneAudioPath)) return false;
+            microphoneOutput = [&](const BYTE* data, DWORD size, int64_t, int64_t) {
+                if (microphoneAudioWriter.write(data, size)) return true;
+                encodeFailed = true; control.requestStop(); return false;
+            };
+        }
+        audioMixer->setSeparateOutput(std::move(desktopOutput), std::move(microphoneOutput));
         if (!audioMixer->start()) {
             std::cerr << "ERROR: Failed to start native audio mixer" << std::endl;
             return false;
@@ -1736,6 +1764,11 @@ int wmain(int argc, wchar_t* argv[]) {
         audioMixer->stop();
     }
     logStopStep("audio-mixer");
+    // Durable headers before recording-stopped is emitted; no driver cleanup needed.
+    if (!desktopAudioWriter.finalize() || !microphoneAudioWriter.finalize()) {
+        encodeFailed = true;
+        std::cerr << "ERROR: Failed to finalize separate audio tracks" << std::endl;
+    }
     beginStopStep("video-writer-join", stepBudgetMs);
     if (wgcDrained) {
         stopVideoWriter();

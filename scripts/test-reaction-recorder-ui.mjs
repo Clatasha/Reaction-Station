@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { expect } from "@playwright/test";
@@ -51,9 +52,110 @@ try {
 	await expect.poll(async () => (await dock.boundingBox())?.width ?? 1000).toBeLessThan(100);
 	await dock.screenshot({ path: path.join(output, "vertical-dock.png") });
 	if (errors.length) throw new Error(errors.join("\n"));
+	const recordings = await application.evaluate(
+		({ app }) => `${app.getPath("userData")}/recordings`,
+	);
+	await fs.mkdir(recordings, { recursive: true });
+	const fixture = path.join(recordings, `reaction-audio-smoke-${Date.now()}.webm`);
+	const ffmpeg = path.resolve("electron/native/bin/win32-x64/ffmpeg.exe");
+	execFileSync(
+		ffmpeg,
+		[
+			"-y",
+			"-f",
+			"lavfi",
+			"-i",
+			"color=c=0x242035:s=160x90:r=15",
+			"-f",
+			"lavfi",
+			"-i",
+			"sine=frequency=440:sample_rate=48000",
+			"-t",
+			"2",
+			"-c:v",
+			"libvpx-vp9",
+			"-deadline",
+			"realtime",
+			"-c:a",
+			"libopus",
+			fixture,
+		],
+		{ stdio: "pipe" },
+	);
+	const audioSources = [];
+	for (const [source, frequency] of [
+		["microphone", 440],
+		["desktop", 880],
+	]) {
+		const target = `${fixture}.${source}.wav`;
+		execFileSync(
+			ffmpeg,
+			[
+				"-y",
+				"-f",
+				"lavfi",
+				"-i",
+				`sine=frequency=${frequency}:sample_rate=48000`,
+				"-t",
+				"2",
+				"-ac",
+				"2",
+				"-c:a",
+				"pcm_s16le",
+				target,
+			],
+			{ stdio: "pipe" },
+		);
+		audioSources.push({ path: target, source });
+	}
+	await page.evaluate(
+		async ({ fixture, audioSources }) => {
+			await window.electronAPI.setCurrentRecordingSession({
+				screenVideoPath: fixture,
+				audioSources,
+				createdAt: Date.now(),
+				cursorCaptureMode: "system",
+			});
+		},
+		{ fixture, audioSources },
+	);
 	const editorWindow = application.waitForEvent("window");
 	await page.getByTestId("launch-open-studio-button").click();
-	await editorWindow;
+	const editor = await editorWindow;
+	await editor.getByText("Microphone", { exact: true }).last().waitFor({ timeout: 60_000 });
+	await editor.getByText("Desktop audio", { exact: true }).last().waitFor({ timeout: 60_000 });
+	const getImportedDocument = () =>
+		editor.evaluate(async () => {
+			const list = await window.electronAPI.invokeNativeBridge({
+				domain: "aiEdition",
+				action: "document.listProjects",
+				requestId: crypto.randomUUID(),
+			});
+			if (!list.ok || !list.data?.length) return null;
+			const result = await window.electronAPI.invokeNativeBridge({
+				domain: "aiEdition",
+				action: "document.get",
+				payload: { projectId: list.data[0].id },
+				requestId: crypto.randomUUID(),
+			});
+			return result.ok ? result.data?.document : null;
+		});
+	await expect.poll(async () => (await getImportedDocument())?.audioTracks?.length ?? 0).toBe(2);
+	const document = await getImportedDocument();
+	if (!document.assets.find((asset) => asset.kind === "video")?.sourceAudioMuted)
+		throw new Error("Embedded recording mix was not suppressed");
+	if (
+		!document.audioTracks.every(
+			(track) => track.startMs === 0 && track.endMs === 2000 && track.gainDb === 0,
+		)
+	)
+		throw new Error("Separate recording sources did not share the capture clock");
+	await editor.getByText("Microphone", { exact: true }).last().click();
+	await editor.getByRole("slider").first().waitFor();
+	await editor.screenshot({ path: path.join(output, "separate-audio-editor.png") });
+	console.log(
+		"Packaged editor imported and persisted both synchronized audio sources with the fallback mix suppressed.",
+	);
 	await expect
 		.poll(() =>
 			application.evaluate(({ globalShortcut }) =>

@@ -1,4 +1,11 @@
+export interface RecordedAudioSource {
+	path: string;
+	source: "microphone" | "desktop";
+}
+
 export interface ProjectMedia {
+	/** Synchronized, independent recorded sources. The video retains a fallback mix. */
+	audioSources?: RecordedAudioSource[];
 	screenVideoPath: string;
 	webcamVideoPath?: string;
 	/**
@@ -53,6 +60,20 @@ function normalizePath(value: unknown): string | undefined {
 	return trimmed ? trimmed : undefined;
 }
 
+export function normalizeRecordedAudioSources(value: unknown): RecordedAudioSource[] {
+	if (!Array.isArray(value)) return [];
+	const sources: RecordedAudioSource[] = [];
+	for (const entry of value) {
+		if (!entry || typeof entry !== "object") continue;
+		const path = normalizePath(entry.path);
+		const source = entry.source;
+		if (!path || (source !== "microphone" && source !== "desktop")) continue;
+		if (sources.some((item) => item.source === source || item.path === path)) continue;
+		sources.push({ path, source });
+	}
+	return sources;
+}
+
 export function normalizeProjectMedia(candidate: unknown): ProjectMedia | null {
 	if (!candidate || typeof candidate !== "object") {
 		return null;
@@ -65,6 +86,7 @@ export function normalizeProjectMedia(candidate: unknown): ProjectMedia | null {
 		return null;
 	}
 
+	const audioSources = normalizeRecordedAudioSources(raw.audioSources);
 	const webcamVideoPath = normalizePath(raw.webcamVideoPath);
 	const cursorCaptureMode = normalizeCursorCaptureMode(raw.cursorCaptureMode);
 	const webcamOffsetMs =
@@ -74,6 +96,7 @@ export function normalizeProjectMedia(candidate: unknown): ProjectMedia | null {
 
 	return {
 		screenVideoPath,
+		...(audioSources.length ? { audioSources } : {}),
 		...(webcamVideoPath ? { webcamVideoPath } : {}),
 		...(webcamOffsetMs !== undefined ? { webcamOffsetMs } : {}),
 		...(cursorCaptureMode ? { cursorCaptureMode } : {}),

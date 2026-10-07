@@ -7,6 +7,7 @@ on:
     branches:
       - ci/windows-test-installer
       - feat/reaction-recorder
+      - feat/separate-recording-audio
     paths:
       - .github/workflows/reaction-station-windows-test.yml
 
@@ -24,6 +25,7 @@ jobs:
     timeout-minutes: 90
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      REACTION_STATION_AUDIO_TESTS: "1"
     steps:
       - name: Checkout Reaction Station
         uses: actions/checkout@v7
