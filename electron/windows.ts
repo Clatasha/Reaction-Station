@@ -518,7 +518,7 @@ export function createEditorWindow(query: Record<string, string> = {}): BrowserW
 		resizable: true,
 		alwaysOnTop: false,
 		skipTaskbar: false,
-		title: "OpenScreen",
+		title: "Reaction Station",
 		backgroundColor: "#09090b",
 		show: false, // shown via ready-to-show to avoid white flash on first load
 		webPreferences: {
@@ -702,7 +702,7 @@ export function createPermissionsWindow(): BrowserWindow {
 		minimizable: false,
 		maximizable: false,
 		fullscreenable: false,
-		title: "OpenScreen",
+		title: "Reaction Station",
 		backgroundColor: "#0b0c0f",
 		show: false,
 		webPreferences: {
@@ -739,7 +739,7 @@ export function createNotesWindow(): BrowserWindow {
 		minHeight: 400,
 		maxWidth: 640,
 		maxHeight: 720,
-		title: "OpenScreen - Notes",
+		title: "Reaction Station - Notes",
 		backgroundColor: "#09090b",
 		resizable: true,
 		alwaysOnTop: true,

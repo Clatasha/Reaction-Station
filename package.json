@@ -1,9 +1,9 @@
 {
-	"name": "openscreen",
+	"name": "reaction-station",
 	"private": true,
-	"version": "2.0.0",
-	"description": "Record your screen and polish the demo",
-	"homepage": "https://getopenscreen.com/",
+	"version": "0.1.0",
+	"description": "Reaction Station by Clatasha: screen recording and video editing",
+	"homepage": "https://github.com/Clatasha/openscreen",
 	"license": "MIT",
 	"type": "module",
 	"packageManager": "npm@10.9.4",
@@ -12,23 +12,27 @@
 		"npm": "10.9.4"
 	},
 	"author": {
-		"name": "Etienne Lescot",
-		"url": "https://github.com/EtienneLescot"
+		"name": "Clatasha",
+		"url": "https://github.com/Clatasha"
 	},
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/getopenscreen/openscreen.git"
+		"url": "git+https://github.com/Clatasha/openscreen.git"
 	},
 	"contributors": [
 		{
 			"name": "Siddharth Vaddem",
 			"url": "https://github.com/siddharthvaddem"
+		},
+		{
+			"name": "Etienne Lescot",
+			"url": "https://github.com/EtienneLescot"
 		}
 	],
 	"maintainers": [
 		{
-			"name": "Etienne Lescot",
-			"url": "https://github.com/EtienneLescot"
+			"name": "Clatasha",
+			"url": "https://github.com/Clatasha"
 		}
 	],
 	"scripts": {

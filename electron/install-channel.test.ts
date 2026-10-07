@@ -13,7 +13,7 @@ function probe(overrides: Partial<InstallProbe> = {}): InstallProbe {
 	return {
 		platform: "linux",
 		isPackaged: true,
-		execPath: "/opt/Openscreen/openscreen",
+		execPath: "/opt/Reaction Station/openscreen",
 		windowsStore: false,
 		env: {},
 		hasFlatpakInfo: false,
@@ -32,9 +32,9 @@ describe("classifyInstall", () => {
 	it("classifies the installers we build and own", () => {
 		expect(classifyInstall(probe({ platform: "win32" }))).toBe("nsis");
 		expect(classifyInstall(probe({ platform: "darwin" }))).toBe("dmg");
-		expect(classifyInstall(probe({ env: { APPIMAGE: "/home/u/Apps/Openscreen.AppImage" } }))).toBe(
-			"appimage",
-		);
+		expect(
+			classifyInstall(probe({ env: { APPIMAGE: "/home/u/Apps/Reaction Station.AppImage" } })),
+		).toBe("appimage");
 		for (const packageType of ["deb", "rpm", "pacman"] as const) {
 			expect(classifyInstall(probe({ packageType }))).toBe(packageType);
 		}
@@ -42,9 +42,9 @@ describe("classifyInstall", () => {
 
 	it("classifies the channels a package manager owns", () => {
 		expect(classifyInstall(probe({ platform: "win32", windowsStore: true }))).toBe("store");
-		expect(classifyInstall(probe({ env: { FLATPAK_ID: "com.getopenscreen.OpenScreen" } }))).toBe(
-			"flatpak",
-		);
+		expect(
+			classifyInstall(probe({ env: { FLATPAK_ID: "com.getopenscreen.Reaction Station" } })),
+		).toBe("flatpak");
 		expect(classifyInstall(probe({ hasFlatpakInfo: true }))).toBe("flatpak");
 		expect(
 			classifyInstall(probe({ env: { SNAP: "/snap/openscreen/42", SNAP_REVISION: "42" } })),

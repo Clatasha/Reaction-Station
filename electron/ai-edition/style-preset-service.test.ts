@@ -47,7 +47,7 @@ let service: StylePresetService;
 beforeEach(async () => {
 	root = await fs.mkdtemp(path.join(os.tmpdir(), "style-presets-"));
 	// Not created up front: the service creates the folder lazily.
-	dir = path.join(root, "OpenScreen Presets");
+	dir = path.join(root, "Reaction Station Presets");
 	service = new StylePresetService(dir);
 });
 
