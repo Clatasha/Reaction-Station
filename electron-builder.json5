@@ -1,9 +1,9 @@
 // @see - https://www.electron.build/configuration/configuration
 {
   "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
-  "appId": "com.etiennelescot.openscreen",
+  "appId": "com.clatasha.reactionstation",
   "asar": true,
-  "productName": "Openscreen",
+  "productName": "Reaction Station",
   // There is deliberately no `electronVersion` here. electron-builder needs an EXACT
   // version because it downloads the binaries for one release, and it takes that from
   // package.json's `electron` devDependency, which is pinned without a caret for this
@@ -38,7 +38,7 @@
   "publish": [
     {
       "provider": "github",
-      "owner": "getopenscreen",
+      "owner": "Clatasha",
       "repo": "openscreen"
     }
   ],
@@ -198,10 +198,10 @@
       }
     ],
     "extendInfo": {
-      "NSAudioCaptureUsageDescription": "OpenScreen needs audio capture permission to record system audio.",
-      "NSMicrophoneUsageDescription": "OpenScreen needs microphone access to record voice audio.",
-      "NSCameraUsageDescription": "OpenScreen needs camera access to record webcam video.",
-      "NSScreenCaptureUsageDescription": "OpenScreen needs screen recording permission to detect and capture windows.",
+      "NSAudioCaptureUsageDescription": "Reaction Station needs audio capture permission to record system audio.",
+      "NSMicrophoneUsageDescription": "Reaction Station needs microphone access to record voice audio.",
+      "NSCameraUsageDescription": "Reaction Station needs camera access to record webcam video.",
+      "NSScreenCaptureUsageDescription": "Reaction Station needs screen recording permission to detect and capture windows.",
       "NSCameraUseContinuityCameraDeviceType": true
     }
   },
@@ -219,7 +219,7 @@
     ],
     "icon": "icons/icons/png",
     "artifactName": "${productName}-Linux-${version}.${ext}",
-    "maintainer": "Etienne Lescot <etiennelescot@gmail.com>",
+    "maintainer": "Clatasha",
     "category": "AudioVideo",
     "extraResources": [
       {
@@ -429,39 +429,5 @@
   "nsis": {
     "oneClick": false,
     "allowToChangeInstallationDirectory": true
-  },
-  // Microsoft Store packaging identity, from Partner Center's "Product identity" page
-  // (Applications et jeux > OpenScreen > Product identity).
-  "appx": {
-    "identityName": "EtienneLescot.OpenScreen",
-    "publisher": "CN=03B0FC8C-2067-45D9-BE82-9F15CE264B4A",
-    "publisherDisplayName": "Etienne Lescot",
-    "applicationId": "Openscreen",
-    "displayName": "OpenScreen",
-    "backgroundColor": "transparent",
-    "capabilities": ["runFullTrust", "microphone", "webcam"],
-    // Mirrors SUPPORTED_LOCALES in src/i18n/config.ts. This list is what the Store
-    // shows as "supported languages" on the product page and what lets the listing
-    // surface in each language's Store search — declaring only en-US/fr-FR advertised
-    // 2 of the 15 languages the app actually ships. Bare tags (ar, es, ...) match every
-    // region of that language, which is what the renderer's locale resolution does too.
-    "languages": [
-      "en-US",
-      "fr-FR",
-      "ar",
-      "cs",
-      "de",
-      "es",
-      "it",
-      "ja-JP",
-      "ko-KR",
-      "pt-BR",
-      "ru",
-      "tr",
-      "vi",
-      "zh-CN",
-      "zh-TW"
-    ],
-    "showNameOnTiles": true
   }
 }

@@ -620,7 +620,7 @@ describe("caption translations", () => {
 // WORD (see document/transcribe.ts). Translating and laying out per segment
 // therefore translated word by word and put one word on screen at a time.
 function wordPerSegmentTranscript(): AxcutTranscript {
-	const tokens = ["Bienvenue", "dans", "OpenScreen", "le", "logiciel", "de", "capture"];
+	const tokens = ["Bienvenue", "dans", "Reaction Station", "le", "logiciel", "de", "capture"];
 	const segments: AxcutTranscript["segments"] = [];
 	const words: AxcutTranscript["words"] = [];
 	let t = 0;
@@ -649,7 +649,7 @@ describe("captionTranslationUnits", () => {
 	it("joins a word-per-segment transcript into phrase-sized units", () => {
 		const units = captionTranslationUnits(wordPerSegmentTranscript());
 		expect(units).toHaveLength(1);
-		expect(units[0].text).toBe("Bienvenue dans OpenScreen le logiciel de capture");
+		expect(units[0].text).toBe("Bienvenue dans Reaction Station le logiciel de capture");
 		expect(units[0].segmentIds).toHaveLength(7);
 	});
 
@@ -681,7 +681,7 @@ describe("translated caption layout", () => {
 	});
 
 	it("groups translated words into lines instead of one word per line", () => {
-		const translations = withTranslation("Welcome to OpenScreen the screen capture app");
+		const translations = withTranslation("Welcome to Reaction Station the screen capture app");
 		const cues = deriveCaptionCues(
 			wordPerSegmentDoc(),
 			{ ...ON, language: "fr2", minWordsPerLine: 2, maxWordsPerLine: 4 },
@@ -693,7 +693,9 @@ describe("translated caption layout", () => {
 			expect(cue.text.split(" ").length).toBeGreaterThan(1);
 			expect(cue.text.split(" ").length).toBeLessThanOrEqual(4);
 		}
-		expect(cues.map((c) => c.text).join(" ")).toBe("Welcome to OpenScreen the screen capture app");
+		expect(cues.map((c) => c.text).join(" ")).toBe(
+			"Welcome to Reaction Station the screen capture app",
+		);
 	});
 
 	it("lays the original out the same way, so switching language only swaps text", () => {
@@ -705,7 +707,7 @@ describe("translated caption layout", () => {
 		const translated = deriveCaptionCues(
 			wordPerSegmentDoc(),
 			{ ...settings, language: "fr2" },
-			withTranslation("Welcome to OpenScreen the screen capture app"),
+			withTranslation("Welcome to Reaction Station the screen capture app"),
 		);
 		// Same word count in, same number of lines out.
 		expect(translated).toHaveLength(original.length);
@@ -715,7 +717,7 @@ describe("translated caption layout", () => {
 		const cues = deriveCaptionCues(
 			wordPerSegmentDoc(),
 			{ ...ON, language: "fr2" },
-			withTranslation("Welcome to OpenScreen the screen capture app"),
+			withTranslation("Welcome to Reaction Station the screen capture app"),
 		);
 		const unit = captionTranslationUnits(wordPerSegmentTranscript())[0];
 		expect(cues[0].startMs).toBeGreaterThanOrEqual(Math.round(unit.startSec * 1000));
@@ -725,7 +727,7 @@ describe("translated caption layout", () => {
 	it("falls back to the original words for a unit with no translation", () => {
 		const cues = deriveCaptionCues(wordPerSegmentDoc(), { ...ON, language: "nope" }, {});
 		expect(cues.map((c) => c.text).join(" ")).toBe(
-			"Bienvenue dans OpenScreen le logiciel de capture",
+			"Bienvenue dans Reaction Station le logiciel de capture",
 		);
 	});
 });

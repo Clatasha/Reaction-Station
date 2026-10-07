@@ -1,3 +1,19 @@
+# Reaction Station
+
+Reaction Station is a screen recorder and video editor by Clatasha, based on [OpenScreen](https://github.com/getopenscreen/openscreen). This fork adds its own branding and will develop features for reaction content creators.
+
+## Development status
+
+The initial rebrand is in development. No Reaction Station installer has been released yet. Build metadata and update checks point to [this repository](https://github.com/Clatasha/openscreen). Microsoft Store packaging requires a new Clatasha Store identity and is not configured in this fork.
+
+## License and credits
+
+MIT licensed. Original copyrights are retained in [LICENSE](LICENSE). Bundled dependencies have separate terms in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). Created originally by Siddharth Vaddem and continued by the OpenScreen contributors.
+
+The upstream documentation below describes the inherited features and build process; upstream badges, links and screenshots refer to OpenScreen.
+
+---
+
 <p align="center">
   <img src="public/openscreen.png" alt="OpenScreen Logo" width="64" />
 </p>

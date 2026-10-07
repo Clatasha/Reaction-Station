@@ -50,7 +50,7 @@
 		"microphoneDefaulted": "تعذّر تحديد الميكروفون المحدَّد؛ يجري التسجيل من الإدخال الافتراضي.",
 		"microphoneUnavailable": "لا يمكن لهذا الإصدار من macOS تسجيل الميكروفون. يجري التسجيل بدون ميكروفون.",
 		"permissionDenied": "تم رفض إذن التسجيل. يرجى السماح بتسجيل الشاشة.",
-		"accessibilityAllowAndRetry": "اسمح بوصول تسهيلات الاستخدام لـ OpenScreen، ثم اضغط على التسجيل مرة أخرى لبدء العد التنازلي.",
+		"accessibilityAllowAndRetry": "اسمح بوصول تسهيلات الاستخدام لـ Reaction Station، ثم اضغط على التسجيل مرة أخرى لبدء العد التنازلي.",
 		"cursorAccessibilityUnavailable": "إمكانية الوصول غير مفعّلة. سيستمر التسجيل، لكن تأثيرات المؤشر قد تكون محدودة. فعّلها من إعدادات النظام لاستخدام تأثيرات المؤشر كاملة.",
 		"selectSource": "يرجى تحديد مصدر للتسجيل"
 	},
@@ -172,7 +172,7 @@
 		"detectedLanguage": "اللغة المكتشفة: {{language}}",
 		"noAudioTrack": "لا يوجد مسار صوتي",
 		"noAudioTrackHint": "لا يحتوي هذا الملف على مسار صوتي — لا يوجد ما يمكن نسخه.",
-		"mediaUnreadableHint": "تعذّرت قراءة صوت هذا الملف. تأكد من أن OpenScreen يمكنه الوصول إلى المجلد الذي يوجد فيه، ثم أعد الإنشاء.",
+		"mediaUnreadableHint": "تعذّرت قراءة صوت هذا الملف. تأكد من أن Reaction Station يمكنه الوصول إلى المجلد الذي يوجد فيه، ثم أعد الإنشاء.",
 		"noSpeechDetected": "لم يتم اكتشاف كلام"
 	},
 	"exportDialog": {
@@ -202,7 +202,7 @@
 		"exportedGif": "تم تصدير GIF",
 		"exportedVideo": "تم تصدير الفيديو",
 		"showInFolder": "إظهار في المجلد",
-		"starPrompt": "OpenScreen مجاني ومرخّص بموجب MIT. نجمة على GitHub تساعد الآخرين على العثور عليه.",
+		"starPrompt": "Reaction Station مجاني ومرخّص بموجب MIT. نجمة على GitHub تساعد الآخرين على العثور عليه.",
 		"starPromptNoThanks": "لا، شكرًا",
 		"rateOnStore": "قيّم التطبيق في متجر Microsoft",
 		"exportFailed": "فشل التصدير",
@@ -273,7 +273,7 @@
 			"disclaimer": "سيُرسَل نصّ فيديوك إلى المزوّد الذي تختاره. لا يُشارَك شيء قبل أن تربط مزوّداً."
 		},
 		"authorUser": "أنت",
-		"authorAssistant": "OpenScreen",
+		"authorAssistant": "Reaction Station",
 		"rewindToMessage": "إعادة الضبط إلى هذه الرسالة",
 		"rewindTip": "إعادة الضبط إلى هذه الرسالة. يتم التراجع عن التغييرات اللاحقة.",
 		"copyMessage": "نسخ الرسالة",
@@ -405,7 +405,7 @@
 	},
 	"mcpServer": {
 		"title": "خادم MCP",
-		"description": "اسمح لعملاء MCP الذين تشغّلهم بنفسك، مثل Claude Code أو Codex، باستخدام أدوات التحرير بالذكاء الاصطناعي على المشروع المفتوح في المحرر. يسجّلون الدخول بحساباتهم الخاصة، ولا يطّلع OpenScreen عليها أبدًا.",
+		"description": "اسمح لعملاء MCP الذين تشغّلهم بنفسك، مثل Claude Code أو Codex، باستخدام أدوات التحرير بالذكاء الاصطناعي على المشروع المفتوح في المحرر. يسجّلون الدخول بحساباتهم الخاصة، ولا يطّلع Reaction Station عليها أبدًا.",
 		"enableLabel": "الخادم",
 		"enable": "تفعيل خادم MCP",
 		"editsLabel": "تعديلات المشروع",

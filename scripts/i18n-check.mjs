@@ -104,7 +104,7 @@ function readBuilderLanguages() {
 		.filter(Boolean);
 
 	const appxBlock = objectBody(stripped, "appx");
-	if (!appxBlock) throw new Error("Could not find appx block in electron-builder.json5");
+	if (!appxBlock) return { electronLanguages, appxLanguages: null };
 	const appxLanguagesMatch = appxBlock.match(/"languages"\s*:\s*\[([\s\S]*?)\]/);
 	if (!appxLanguagesMatch)
 		throw new Error("Could not find appx.languages in electron-builder.json5");
@@ -177,7 +177,7 @@ function assertListsMatch(actual, expected, label) {
 
 // 2. Check appx.languages matches SUPPORTED_LOCALES
 const expectedAppxLanguages = supportedLocales.map((l) => getPackagingTags(l).appx);
-assertListsMatch(appxLanguages, expectedAppxLanguages, "appx.languages");
+if (appxLanguages) assertListsMatch(appxLanguages, expectedAppxLanguages, "appx.languages");
 
 // 3. Check electronLanguages matches SUPPORTED_LOCALES
 const expectedElectronLanguages = supportedLocales.flatMap((l) => getPackagingTags(l).electron);
@@ -257,6 +257,6 @@ if (hasErrors) {
 	process.exit(1);
 } else {
 	console.log(
-		`i18n check PASSED — all ${compareLocales.length} locales match ${BASE_LOCALE} across ${namespaces.length} namespaces, all ${checkedKeyCount} literal keys in src/ resolve in ${BASE_LOCALE}, and all ${supportedLocales.length} SUPPORTED_LOCALES align with appx.languages and electronLanguages.`,
+		`i18n check PASSED — all ${compareLocales.length} locales match ${BASE_LOCALE} across ${namespaces.length} namespaces, all ${checkedKeyCount} literal keys in src/ resolve in ${BASE_LOCALE}, and all ${supportedLocales.length} SUPPORTED_LOCALES align with configured packaging languages.`,
 	);
 }
