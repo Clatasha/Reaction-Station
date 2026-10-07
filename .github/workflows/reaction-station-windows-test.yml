@@ -1,0 +1,138 @@
+name: Reaction Station Windows test installer
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - ci/windows-test-installer
+    paths:
+      - .github/workflows/reaction-station-windows-test.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: reaction-station-windows-test-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  windows-test:
+    name: Build and inspect Windows test installer
+    runs-on: windows-latest
+    timeout-minutes: 90
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    steps:
+      - name: Checkout Reaction Station
+        uses: actions/checkout@v7
+
+      - name: Set up pinned Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22.22.1"
+          cache: npm
+
+      - name: Set up pinned npm
+        run: npm install --global npm@10.9.4
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check app and test types
+        run: |
+          npx tsc --noEmit
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npx tsc -p tsconfig.test.json --noEmit
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run i18n:check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      # Build our own speech helper; forks do not inherit upstream Actions artifacts.
+      - name: Install Vulkan SDK for speech-to-text
+        uses: jakoch/install-vulkan-sdk-action@v1
+        with:
+          vulkan_version: 1.4.304.1
+          install_runtime: false
+          cache: true
+
+      - name: Configure Vulkan tools and SPIRV headers
+        shell: bash
+        run: |
+          set -euo pipefail
+          for candidate in "${VULKAN_SDK}/Bin" "${VULKAN_SDK}/bin"; do
+            if [[ -d "$candidate" ]]; then echo "$candidate" >> "$GITHUB_PATH"; fi
+          done
+          VCPKG_ROOT_DIR="$(dirname "$(command -v vcpkg)")"
+          "${VCPKG_ROOT_DIR}/vcpkg" install spirv-headers:x64-windows
+          echo "CMAKE_PREFIX_PATH=${VCPKG_ROOT_DIR}/installed/x64-windows" >> "$GITHUB_ENV"
+
+      - name: Build speech-to-text helper and runtime libraries
+        shell: bash
+        run: bash scripts/build-whisper-stt.sh
+
+      - name: Build Windows capture, compositor and installer
+        run: npm run build:win -- --publish never
+
+      - name: Inspect packaged identity, updates and required components
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $packages = @(Get-ChildItem release -Directory -Recurse | Where-Object Name -eq "win-unpacked")
+          if ($packages.Count -ne 1) { throw "Expected one win-unpacked directory" }
+          $package = $packages[0].FullName
+          $resources = Join-Path $package "resources"
+          $native = Join-Path $resources "electron/native/bin/win32-x64"
+          $required = @(
+            "Reaction Station.exe",
+            "resources/app.asar",
+            "resources/app-update.yml",
+            "resources/THIRD-PARTY-NOTICES.md",
+            "resources/LICENSE",
+            "resources/electron/native/bin/win32-x64/wgc-capture.exe",
+            "resources/electron/native/bin/win32-x64/compositor_view.node",
+            "resources/electron/native/bin/win32-x64/whisper-stt-server.exe",
+            "resources/electron/native/bin/win32-x64/onnxruntime.dll",
+            "resources/electron/native/bin/win32-x64/vcomp140.dll",
+            "resources/electron/native/bin/win32-x64/msvcp140.dll",
+            "resources/electron/native/bin/win32-x64/vcruntime140.dll"
+          )
+          foreach ($relative in $required) {
+            if (!(Test-Path (Join-Path $package $relative))) { throw "Missing packaged file: $relative" }
+          }
+          foreach ($pattern in @("avcodec-*.dll", "avformat-*.dll", "avutil-*.dll", "swresample-*.dll", "swscale-*.dll", "*ggml*.dll")) {
+            if (!(Get-ChildItem $native -Filter $pattern)) { throw "Missing packaged native library: $pattern" }
+          }
+          $feed = Get-Content (Join-Path $resources "app-update.yml") -Raw
+          if ($feed -notmatch '(?m)^owner:\s*Clatasha\s*$' -or $feed -notmatch '(?m)^repo:\s*openscreen\s*$') {
+            throw "Installer update source must point to Clatasha/openscreen"
+          }
+          $env:REACTION_STATION_ASAR = Join-Path $resources "app.asar"
+          node --input-type=module -e "import { extractFile, listPackage } from '@electron/asar'; import assert from 'node:assert/strict'; import fs from 'node:fs'; const archive = process.env.REACTION_STATION_ASAR; const pkg = JSON.parse(extractFile(archive, 'package.json').toString()); const source = JSON.parse(fs.readFileSync('package.json', 'utf8')); assert.equal(pkg.name, 'reaction-station'); assert.equal(pkg.version, source.version); const paths = listPackage(archive); assert(paths.some(p => p.endsWith('/openscreen.png'))); console.log('Packaged app identity, version, license and icon verified');"
+          if ($LASTEXITCODE -ne 0) { throw "Packaged app metadata verification failed" }
+          $files = @(Get-ChildItem release -Recurse -File -Filter "Reaction Station.Setup.*.exe")
+          if ($files.Count -ne 1) { throw "Expected one Reaction Station installer" }
+          if (!(Test-Path ($files[0].FullName + ".blockmap"))) { throw "Missing installer blockmap" }
+          if (!(Get-ChildItem release -Recurse -File -Filter "latest.yml")) { throw "Missing update feed" }
+          $hash = Get-FileHash $files[0].FullName -Algorithm SHA256
+          "$($hash.Hash.ToLower())  $($files[0].Name)" | Set-Content -Encoding ascii (Join-Path $files[0].DirectoryName "SHA256SUMS.txt")
+          @(
+            "# Reaction Station Windows test installer",
+            "",
+            "Commit: ${{ github.sha }}",
+            "",
+            "Packaged identity, update destination, native capture, compositor, speech helper, runtime libraries, icon and license files checked.",
+            "",
+            "Download the reaction-station-windows-test artifact below. This is an unsigned test installer; real desktop recording and export testing are still required."
+          ) | Add-Content $env:GITHUB_STEP_SUMMARY
+
+      - name: Upload Windows test installer
+        uses: actions/upload-artifact@v7
+        with:
+          name: reaction-station-windows-test
+          path: |
+            release/**/Reaction Station.Setup.*.exe
+            release/**/Reaction Station.Setup.*.exe.blockmap
+            release/**/latest.yml
+            release/**/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
