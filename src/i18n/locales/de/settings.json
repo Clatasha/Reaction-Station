@@ -320,7 +320,9 @@
 		"webcamBackground": "Kamera-Hintergrund",
 		"helpNoWebcam": "Dieses Projekt hat keine Kamera, deshalb sind die Layout-Regler aus und die Vorgabe zeigt „Keine Webcam“. Dein gespeichertes Layout bleibt erhalten, falls später eine Kamera dazukommt.",
 		"title": "Kamera-Layout",
-		"noWebcam": "Keine Webcam"
+		"noWebcam": "Keine Webcam",
+		"selectedClipScope": "Layout for selected clip only",
+		"projectScope": "Default layout for the project"
 	},
 	"textAnimation": {
 		"slideLeft": "Nach links schieben",

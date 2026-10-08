@@ -320,7 +320,9 @@
 		"webcamBackground": "摄像头背景",
 		"helpNoWebcam": "此项目没有摄像头，因此布局控件已禁用，预设显示为“无摄像头”。你保存的布局会保留，以便添加摄像头后使用。",
 		"title": "摄像头布局",
-		"noWebcam": "无摄像头"
+		"noWebcam": "无摄像头",
+		"selectedClipScope": "Layout for selected clip only",
+		"projectScope": "Default layout for the project"
 	},
 	"textAnimation": {
 		"slideLeft": "向左滑动",

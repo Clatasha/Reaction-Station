@@ -1,5 +1,5 @@
 name: Reaction Station Windows test installer
-run-name: Reaction Station 0.5 timeline menu fix test (${{ github.ref_name }})
+run-name: Reaction Station 0.6 creator editing test (${{ github.ref_name }})
 
 on:
   workflow_dispatch:
@@ -10,6 +10,7 @@ on:
       - feat/separate-recording-audio
       - feat/creator-workspace-build
       - feat/timeline-media-drop
+      - fix/creator-editing-playback
     paths:
       - .github/workflows/reaction-station-windows-test.yml
 
@@ -29,6 +30,7 @@ jobs:
       CSC_IDENTITY_AUTO_DISCOVERY: "false"
       REACTION_STATION_AUDIO_TESTS: "1"
       REACTION_STATION_MEDIA_TESTS: "1"
+      REACTION_STATION_SCENE_TESTS: "1"
     steps:
       - name: Checkout Reaction Station
         uses: actions/checkout@v7
@@ -98,6 +100,7 @@ jobs:
             "resources/electron/native/bin/win32-x64/wgc-capture.exe",
             "resources/electron/native/bin/win32-x64/compositor_view.node",
             "resources/electron/native/bin/win32-x64/whisper-stt-server.exe",
+            "resources/electron/native/bin/win32-x64/cpu/whisper-stt-server.exe",
             "resources/electron/native/bin/win32-x64/onnxruntime.dll",
             "resources/electron/native/bin/win32-x64/vcomp140.dll",
             "resources/electron/native/bin/win32-x64/msvcp140.dll",
@@ -109,6 +112,9 @@ jobs:
           foreach ($pattern in @("avcodec-*.dll", "avformat-*.dll", "avutil-*.dll", "swresample-*.dll", "swscale-*.dll", "*ggml*.dll")) {
             if (!(Get-ChildItem $native -Filter $pattern)) { throw "Missing packaged native library: $pattern" }
           }
+          $cpuSpeech = Join-Path $native "cpu/whisper-stt-server.exe"
+          & $cpuSpeech --self-test
+          if ($LASTEXITCODE -ne 0) { throw "Packaged CPU speech runtime failed to load" }
           $feed = Get-Content (Join-Path $resources "app-update.yml") -Raw
           if ($feed -notmatch '(?m)^owner:\s*Clatasha\s*$' -or $feed -notmatch '(?m)^repo:\s*Reaction-Station\s*$') {
             throw "Installer update source must point to Clatasha/Reaction-Station"

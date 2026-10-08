@@ -331,7 +331,11 @@
 		"reset": "Сбросить",
 		"apply": "Применить",
 		"pickClipTitle": "Выберите клип для редактирования",
-		"clipLabel": "Клип {{index}}"
+		"clipLabel": "Клип {{index}}",
+		"setStart": "Set start here",
+		"setEnd": "Set end here",
+		"scrubPreview": "Scrub clip preview",
+		"previewFailed": "This video could not be played in the clip preview."
 	},
 	"insertSourceDialog": {
 		"title": "Вставить источник",

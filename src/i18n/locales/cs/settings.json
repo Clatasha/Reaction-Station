@@ -320,7 +320,9 @@
 		"webcamBackground": "Pozadí kamery",
 		"helpNoWebcam": "Tento projekt nemá kameru, takže ovládání rozvržení je vypnuto a předvolba zobrazuje „Bez webkamery”. Vaše uložené rozvržení je zachováno pro případ přidání kamery.",
 		"title": "Rozvržení kamery",
-		"noWebcam": "Bez webkamery"
+		"noWebcam": "Bez webkamery",
+		"selectedClipScope": "Layout for selected clip only",
+		"projectScope": "Default layout for the project"
 	},
 	"textAnimation": {
 		"slideLeft": "Posun doleva",

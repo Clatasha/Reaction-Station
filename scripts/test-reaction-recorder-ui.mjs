@@ -42,6 +42,17 @@ try {
 			close.y + close.height > surface.y + surface.height + 1
 		)
 			throw new Error("Recorder Close is outside the dock");
+		const language = await dock.getByRole("button").filter({ hasText: /^EN$/ }).boundingBox();
+		if (
+			!surface ||
+			!language ||
+			language.x < surface.x ||
+			language.y < surface.y ||
+			language.x + language.width > surface.x + surface.width + 1 ||
+			language.y + language.height > surface.y + surface.height + 1
+		) {
+			throw new Error("Recorder language control is outside the dock");
+		}
 	};
 	await checkCloseInsideDock();
 	await page.getByTestId("launch-system-audio-button").click();

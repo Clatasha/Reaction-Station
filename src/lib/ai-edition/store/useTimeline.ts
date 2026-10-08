@@ -1,3 +1,4 @@
+import { splitClipAtPlayhead } from "../document/splitClip";
 // Hook: region mutations for the new editor shell. Wraps the project store
 // with typed add/remove/select operations for zoom, trim, annotation, and
 // speed regions. Each add creates a 2-second region at the current playhead
@@ -1712,6 +1713,16 @@ export function useTimeline() {
 		[saveDocument, ts],
 	);
 
+	const splitClip = useCallback(
+		async (clipId?: string) => {
+			const state = useProjectStore.getState();
+			if (!state.document) return;
+			const next = splitClipAtPlayhead(state.document, state.currentTimeSec, clipId);
+			if (next !== state.document) await saveDocument(next, { history: true });
+		},
+		[saveDocument],
+	);
+
 	return {
 		zoomRegions: document?.zoomRanges ?? [],
 		trimRanges: document?.timeline.trimRanges ?? [],
@@ -1757,6 +1768,7 @@ export function useTimeline() {
 		insertClipAt,
 		moveClip,
 		duplicateClip,
+		splitClip,
 		duplicateItem,
 		removeClip,
 		selectClip,

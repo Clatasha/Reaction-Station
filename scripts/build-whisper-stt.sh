@@ -143,6 +143,9 @@ relocate_macos_rpaths() {
 
 build_variant() {
   local variant_name="$1"
+  # Keep CPU DLLs isolated from the GPU build: Windows resolves DLLs beside the executable.
+  local stage_dir="${OUT_DIR}"
+  if [[ "${variant_name}" == cpu ]]; then stage_dir="${OUT_DIR}/cpu"; fi
   shift
   local extra_cmake_flags=("$@")
 
@@ -150,7 +153,7 @@ build_variant() {
   if [[ "${CLEAN}" -eq 1 ]]; then
     rm -rf "${build_dir}"
   fi
-  mkdir -p "${build_dir}" "${OUT_DIR}"
+  mkdir -p "${build_dir}" "${stage_dir}"
 
   echo "[whisper-stt] configuring ${variant_name} in ${build_dir}"
   # ponytail: macOS's default /bin/bash is 3.2 (last GPLv2 release Apple ships),
@@ -193,7 +196,7 @@ build_variant() {
     echo "FATAL: could not find whisper-stt-server binary in ${build_dir}" >&2
     exit 1
   fi
-  cp "${built_exe}" "${OUT_DIR}/${bin_name}"
+  cp "${built_exe}" "${stage_dir}/${bin_name}"
 
   # Stage any shared libraries / backend sidecars that CMake produced.
   # Copy everything that looks like a ggml/whisper shared library, plus any
@@ -232,8 +235,8 @@ libparakeet*.so|libparakeet*.so.*|\
               # cp can recreate this build's symlink farm without following an old
               # regular-file/symlink mix. -P preserves links without -a's macOS
               # chflags pass, which can itself report ELOOP while replacing a link.
-              rm -f "${OUT_DIR}/${f##*/}"
-              cp -P "${f}" "${OUT_DIR}/"
+              rm -f "${stage_dir}/${f##*/}"
+              cp -P "${f}" "${stage_dir}/"
               found_libs=1
               ;;
           esac
@@ -254,7 +257,7 @@ libparakeet*.so|libparakeet*.so.*|\
   fi
 
   if [[ "${OS_ARCH}" == darwin-* ]]; then
-    relocate_macos_rpaths "${OUT_DIR}"
+    relocate_macos_rpaths "${stage_dir}"
   fi
 
   # Linux: stage GCC's OpenMP runtime beside what links it.
@@ -284,7 +287,7 @@ libparakeet*.so|libparakeet*.so.*|\
   # patchelf is needed: these binaries already carry RUNPATH=$ORIGIN.
   if [[ "${OS_ARCH}" == linux-* ]]; then
     local gomp
-    gomp="$(ldd "${OUT_DIR}/${bin_name}" 2>/dev/null | awk '/libgomp\.so\.1/ {print $3; exit}')"
+    gomp="$(ldd "${stage_dir}/${bin_name}" 2>/dev/null | awk '/libgomp\.so\.1/ {print $3; exit}')"
     if [[ -z "${gomp}" || ! -f "${gomp}" ]]; then
       echo "FATAL: libgomp.so.1 is not resolvable for ${bin_name}." >&2
       echo "       Install it (libgomp1 on Debian/Ubuntu, libgomp on Fedora/Arch)." >&2
@@ -293,13 +296,13 @@ libparakeet*.so|libparakeet*.so.*|\
       exit 1
     fi
     # Already ours: ldd resolved it through $ORIGIN on a re-run of this script.
-    if [[ "$(cd "$(dirname "${gomp}")" && pwd)" != "$(cd "${OUT_DIR}" && pwd)" ]]; then
-      cp -v "${gomp}" "${OUT_DIR}/libgomp.so.1"
+    if [[ "$(cd "$(dirname "${gomp}")" && pwd)" != "$(cd "${stage_dir}" && pwd)" ]]; then
+      cp -v "${gomp}" "${stage_dir}/libgomp.so.1"
     fi
   fi
 
-  echo "[whisper-stt] built ${variant_name} -> ${OUT_DIR}/${bin_name}"
-  ls -la "${OUT_DIR}"
+  echo "[whisper-stt] built ${variant_name} -> ${stage_dir}/${bin_name}"
+  ls -la "${stage_dir}"
 }
 
 # ---------------------------------------------------------------------------
@@ -328,5 +331,11 @@ fi
 # See the comment in build_variant() re: bash 3.2 + `set -u` + empty arrays
 # (macOS x64/CPU has no DEFAULT_FLAG, so BUILD_FLAGS is genuinely empty here).
 build_variant "default" ${BUILD_FLAGS[@]+"${BUILD_FLAGS[@]}"}
+
+# A Vulkan DLL can fail in the Windows loader before --cpu is read.
+# Ship a separate CPU executable and runtime as the fallback for that case.
+if [[ "${OS_ARCH}" == win32-x64 ]]; then
+  build_variant "cpu" -DOSC_ENABLE_VULKAN=OFF -DOSC_ENABLE_METAL=OFF -DOSC_ENABLE_CUDA=OFF
+fi
 
 echo "[whisper-stt] done. Binaries under: ${OUT_DIR}"

@@ -372,6 +372,7 @@ export interface SceneLayout {
  * pixels, per-clip or not.
  */
 export interface ResolvedClipLayout {
+	preset?: string;
 	screenRect: SceneRect;
 	webcamRect: SceneRect | null;
 	screenRadiusFrac: number | null;
@@ -1011,7 +1012,7 @@ export function buildSceneDescription(
 							},
 						}
 					: {}),
-				webcamPath: camera.path,
+				webcamPath: clip.webcamLayoutPreset === "no-webcam" ? "" : camera.path,
 				sourceStartSec: clip.sourceStartSec,
 				sourceEndSec: resolveClipSourceEndSec(clip, asset),
 				webcamOffsetSec: camera.offsetSec,
@@ -1197,8 +1198,12 @@ export function buildSceneDescription(
 		screenSize: { width: number; height: number },
 		hasCamera: boolean,
 		camSize: { width: number; height: number },
+		presetOverride?: AxcutClip["webcamLayoutPreset"],
 	) => {
-		const preset = resolveWebcamLayoutPreset(settings.webcamLayoutPreset, hasCamera);
+		const preset = resolveWebcamLayoutPreset(
+			presetOverride ?? settings.webcamLayoutPreset,
+			hasCamera,
+		);
 		return computeCompositeLayout({
 			canvasSize: outputDims,
 			maxContentSize,
@@ -1241,11 +1246,25 @@ export function buildSceneDescription(
 	// One resolved layout per visible clip, index-aligned with `clips` / `cropByClip`.
 	// `for_clip_window` (Rust) selects the entry for the clip being composed, so the
 	// draw path keeps reading a single `layout` and needs no per-clip branch of its own.
-	const layoutByClip = visibleClips.map((clip, index) =>
-		resolvedLayoutOf(
-			layoutForClip(screenSourceSizeOf(clip, index), clipHasCamera(clip), webcamSourceSizeOf(clip)),
-		),
-	);
+	const layoutByClip = visibleClips.map((clip, index) => {
+		const layout = resolvedLayoutOf(
+			layoutForClip(
+				screenSourceSizeOf(clip, index),
+				clipHasCamera(clip),
+				webcamSourceSizeOf(clip),
+				clip.webcamLayoutPreset,
+			),
+		);
+		return layout
+			? {
+					...layout,
+					preset: resolveWebcamLayoutPreset(
+						clip.webcamLayoutPreset ?? settings.webcamLayoutPreset,
+						clipHasCamera(clip),
+					),
+				}
+			: null;
+	});
 	// Scalar fields stay the FIRST clip's layout: they are the fallback for a payload
 	// without `layoutByClip`, and the value native starts from before any clip is active.
 	const computedLayout = visibleClips[0]
@@ -1253,6 +1272,7 @@ export function buildSceneDescription(
 				screenSourceSizeOf(visibleClips[0], 0),
 				clipHasCamera(visibleClips[0]),
 				webcamSourceSizeOf(visibleClips[0]),
+				visibleClips[0].webcamLayoutPreset,
 			)
 		: null;
 	const webcamRect = computedLayout?.webcamRect

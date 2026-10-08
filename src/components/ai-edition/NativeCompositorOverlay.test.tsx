@@ -148,6 +148,29 @@ describe("NativeCompositorOverlay while playing", () => {
 		expect(native.setNativePlaying).not.toHaveBeenCalled();
 	});
 
+	it("re-anchors the same recording when an import changes its scene index", async () => {
+		await mountAtFirstClip();
+		publishNativePosition({ clipIndex: 0, sourceTimeSec: 4.9 }, now);
+		const doc = makeDocument();
+		act(() =>
+			useProjectStore.setState({
+				document: {
+					...doc,
+					timeline: {
+						...doc.timeline,
+						clips: [
+							{ ...FIRST, id: "imported", timelineEndSec: 2, sourceEndSec: 2 },
+							{ ...FIRST, timelineStartSec: 2, timelineEndSec: 7 },
+							{ ...SECOND, timelineStartSec: 7, timelineEndSec: 12 },
+						],
+					},
+				},
+				currentTimeSec: 6.9,
+			}),
+		);
+		expect(native.setActiveClip).toHaveBeenCalledWith(7, "/take.mp4", "", 0, 1, 4.9);
+	});
+
 	it("follows a jump to another clip at once, without pausing the view", async () => {
 		await mountAtFirstClip();
 		publishNativePosition({ clipIndex: 0, sourceTimeSec: 4.9 }, now);

@@ -320,7 +320,9 @@
 		"webcamBackground": "Fondo de la cámara",
 		"helpNoWebcam": "Este proyecto no tiene cámara, así que los controles de diseño están desactivados y el preajuste muestra «Sin cámara». Tu diseño guardado se conserva para cuando añadas una cámara.",
 		"title": "Disposición de cámara",
-		"noWebcam": "Sin cámara"
+		"noWebcam": "Sin cámara",
+		"selectedClipScope": "Layout for selected clip only",
+		"projectScope": "Default layout for the project"
 	},
 	"textAnimation": {
 		"slideLeft": "Deslizar izquierda",

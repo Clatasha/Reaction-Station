@@ -475,6 +475,8 @@ function checkWinNativePayload() {
 		emptyDirFix: `${FIX}\n\nThe STT helper and the capture helper are separate builds — see\ntechnical-documentation/engineering/build-and-packaging.md.`,
 	});
 	checkWinNoRedistDependency(dir);
+	const cpuDir = path.join(dir, "cpu");
+	if (fs.existsSync(cpuDir)) checkWinNoRedistDependency(cpuDir);
 }
 
 function checkMacNativePayload(context) {

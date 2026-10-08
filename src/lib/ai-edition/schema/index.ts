@@ -228,6 +228,10 @@ export const clipSchema = z
 		// storing the identity explicitly, so untouched clips stay lean.
 		cropRegion: clipCropRegionSchema.optional(),
 		mediaAnimation: z.enum(["none", "fade", "rise", "pop", "slide-left", "pulse"]).optional(),
+		keepSeparate: z.boolean().optional(),
+		webcamLayoutPreset: z
+			.enum(["picture-in-picture", "vertical-stack", "dual-frame", "no-webcam"])
+			.optional(),
 	})
 	.refine((data) => data.timelineEndSec >= data.timelineStartSec, {
 		message: "timelineEndSec must be greater than or equal to timelineStartSec",
@@ -477,8 +481,8 @@ export const annotationRegionSchema = endGteStart(
 		space: z.literal("frame").optional(),
 		// At least 0 too, except for an arrow: see the refine below.
 		position: z.object({
-			x: z.number().max(100),
-			y: z.number().max(100),
+			x: z.number().finite(),
+			y: z.number().finite(),
 		}),
 		size: z.object({
 			width: z.number().positive(),
@@ -496,7 +500,11 @@ export const annotationRegionSchema = endGteStart(
 	// The compositor draws an arrow in the middle of its square box, so an arrow drawn against the
 	// frame's left or top edge has a box that starts before the frame (`annotations/arrowBounds.ts`).
 	// Its strokes stay inside. Every other box starts inside the frame.
-	(region) => region.type === "figure" || (region.position.x >= 0 && region.position.y >= 0),
+	(region) =>
+		region.type === "image" ||
+		(region.position.x <= 100 &&
+			region.position.y <= 100 &&
+			(region.type === "figure" || (region.position.x >= 0 && region.position.y >= 0))),
 	{ message: "position must be at least 0", path: ["position"] },
 );
 

@@ -2967,3 +2967,39 @@ describe("media animation scene contract", () => {
 		]);
 	});
 });
+
+describe("independent layouts on split recording clips", () => {
+	it("sends each preset to preview/export and omits the disabled webcam", () => {
+		const asset = makeAsset({
+			id: "take",
+			originalPath: "/take.webm",
+			video: { codec: "h264", width: 1920, height: 1080, fps: 30 },
+			cameraTrack: { sourcePath: "/cam.webm", startMs: 0, offsetMs: 0, visible: true },
+		});
+		const clips = [
+			makeClip({
+				id: "left",
+				assetId: "take",
+				sourceStartSec: 0,
+				sourceEndSec: 5,
+				timelineStartSec: 0,
+				timelineEndSec: 5,
+				webcamLayoutPreset: "dual-frame",
+			}),
+			makeClip({
+				id: "right",
+				assetId: "take",
+				sourceStartSec: 5,
+				sourceEndSec: 10,
+				timelineStartSec: 5,
+				timelineEndSec: 10,
+				webcamLayoutPreset: "no-webcam",
+			}),
+		];
+		const scene = buildSceneDescription(makeDoc({ assets: [asset], clips }));
+		expect(scene.layout.layoutByClip?.map((l) => l?.preset)).toEqual(["dual-frame", "no-webcam"]);
+		expect(scene.clips.map((c) => c.webcamPath)).toEqual(["/cam.webm", ""]);
+		expect(scene.layout.layoutByClip?.[0]?.webcamRect).not.toBeNull();
+		expect(scene.layout.layoutByClip?.[1]?.webcamRect).toBeNull();
+	});
+});

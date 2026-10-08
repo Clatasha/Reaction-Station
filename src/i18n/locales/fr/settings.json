@@ -320,7 +320,9 @@
 		"webcamBackground": "Arrière-plan de la caméra",
 		"helpNoWebcam": "Ce projet n’a pas de caméra : les réglages de disposition sont désactivés et le préréglage affiche « Sans webcam ». Votre disposition enregistrée est conservée pour le jour où une caméra sera ajoutée.",
 		"title": "Disposition caméra",
-		"noWebcam": "Sans webcam"
+		"noWebcam": "Sans webcam",
+		"selectedClipScope": "Layout for selected clip only",
+		"projectScope": "Default layout for the project"
 	},
 	"textAnimation": {
 		"slideLeft": "Glisser à gauche",

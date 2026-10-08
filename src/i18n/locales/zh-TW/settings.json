@@ -320,7 +320,9 @@
 		"webcamBackground": "攝影機背景",
 		"helpNoWebcam": "此專案沒有攝影機，因此版面配置控制項已停用，預設顯示為「無網路攝影機」。你儲存的版面配置會保留，以便新增攝影機後使用。",
 		"title": "攝影機版面",
-		"noWebcam": "無網路攝影機"
+		"noWebcam": "無網路攝影機",
+		"selectedClipScope": "Layout for selected clip only",
+		"projectScope": "Default layout for the project"
 	},
 	"textAnimation": {
 		"slideLeft": "向左滑動",

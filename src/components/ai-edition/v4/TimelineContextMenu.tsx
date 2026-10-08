@@ -1,4 +1,4 @@
-import { Copy, Maximize2, Pencil, Trash2, VolumeX } from "lucide-react";
+import { Copy, Maximize2, Pencil, Scissors, Trash2, VolumeX } from "lucide-react";
 import { useRef } from "react";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { useScopedT } from "@/contexts/I18nContext";
@@ -13,7 +13,7 @@ export interface TimelineContextTarget {
 	element?: HTMLElement;
 	muted?: boolean;
 }
-export type TimelineMenuAction = "duplicate" | "delete" | "edit" | "mute" | "fit";
+export type TimelineMenuAction = "duplicate" | "delete" | "edit" | "mute" | "fit" | "split";
 export function TimelineContextMenu({
 	target,
 	onClose,
@@ -77,6 +77,9 @@ export function TimelineContextMenu({
 				{target?.kind !== "empty" ? (
 					<>
 						{item("duplicate", <Copy size={14} />, t("context.duplicate"))}
+						{target?.kind === "clip"
+							? item("split", <Scissors size={14} />, t("context.split"))
+							: null}
 						{target?.kind === "clip"
 							? item("edit", <Pencil size={14} />, t("context.editClip"))
 							: null}

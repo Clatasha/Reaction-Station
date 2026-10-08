@@ -331,7 +331,11 @@
 		"reset": "재설정",
 		"apply": "적용",
 		"pickClipTitle": "편집할 클립 선택",
-		"clipLabel": "클립 {{index}}"
+		"clipLabel": "클립 {{index}}",
+		"setStart": "Set start here",
+		"setEnd": "Set end here",
+		"scrubPreview": "Scrub clip preview",
+		"previewFailed": "This video could not be played in the clip preview."
 	},
 	"insertSourceDialog": {
 		"title": "소스 삽입",

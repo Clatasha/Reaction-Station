@@ -93,6 +93,13 @@ if (process.env.REACTION_STATION_AUDIO_TESTS === "1") {
 		`set "PATH=${sdk};%PATH%"\r\n${cargoExeQuoted} test -p openscreen-compositor --lib --release audio::tests::`,
 	);
 }
+if (process.env.REACTION_STATION_SCENE_TESTS === "1") {
+	const sdk = pinMatch ? path.join(CRATES_DIR, pinMatch[1], "bin") : "";
+	await runInVsEnv(
+		`set "PATH=${sdk};%PATH%"\r\n${cargoExeQuoted} test -p openscreen-compositor --lib --release scene::tests::`,
+	);
+}
+
 if (process.env.REACTION_STATION_MEDIA_TESTS === "1") {
 	const sdk = pinMatch ? path.join(CRATES_DIR, pinMatch[1], "bin") : "";
 	await runInVsEnv(

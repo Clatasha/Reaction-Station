@@ -151,6 +151,8 @@ impl SceneLayout {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ResolvedClipLayout {
+    #[serde(default)]
+    pub preset: Option<String>,
     pub screen_rect: SceneRect,
     #[serde(default)]
     pub webcam_rect: Option<SceneRect>,
@@ -820,6 +822,9 @@ impl Scene {
         // scalaires : `compose_frame` continue de lire un seul `layout`, sans jamais avoir à
         // savoir qu'il en existe un par clip. Absent (payload ancien) → on garde les scalaires.
         if let Some(Some(l)) = scene.layout.layout_by_clip.get(clip_index).cloned() {
+            if let Some(preset) = l.preset {
+                scene.layout.preset = preset;
+            }
             scene.layout.screen_rect = Some(l.screen_rect);
             scene.layout.webcam_rect = l.webcam_rect;
             scene.layout.screen_radius_frac = l.screen_radius_frac;
@@ -882,6 +887,14 @@ mod tests {
         assert!(scene.clips[0].has_audio);
         assert_eq!(scene.crop_by_clip.len(), 1);
         assert_eq!(scene.output.width, 1920);
+        let mut scoped = scene.clone();
+        scoped.layout.layout_by_clip = vec![Some(serde_json::from_str(
+            r#"{"preset":"no-webcam","screenRect":{"x":0,"y":0,"width":1,"height":1},"webcamRect":null,"screenCover":false,"webcamCornerRadiusFrac":0}"#,
+        ).expect("clip layout"))];
+        let window = scoped.for_clip_window(0, 0.0, 4.0);
+        assert_eq!(window.layout.preset, "no-webcam");
+        assert!(window.layout.webcam_rect.is_none());
+
     }
 
     #[test]

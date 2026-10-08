@@ -320,7 +320,9 @@
 		"webcamBackground": "Sfondo della fotocamera",
 		"helpNoWebcam": "Questo progetto non ha una webcam, quindi i controlli di layout sono disattivati e il preset mostra «Nessuna webcam». Il layout salvato viene conservato per quando aggiungerai una webcam.",
 		"title": "Disposizione camera",
-		"noWebcam": "Nessuna webcam"
+		"noWebcam": "Nessuna webcam",
+		"selectedClipScope": "Layout for selected clip only",
+		"projectScope": "Default layout for the project"
 	},
 	"textAnimation": {
 		"slideLeft": "Scivola a sinistra",

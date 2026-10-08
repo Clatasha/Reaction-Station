@@ -121,6 +121,8 @@ const DECLARED: WritePath[] = [
 	),
 
 	// The persist that follows an undo. Recording it would undo the undo.
+	// User assigns a camera layout to the selected recording section.
+	w("src/components/ai-edition/RightPanes.tsx", "LayoutPane", "save", "gesture"),
 	w("src/components/ai-edition/NewEditorShell.tsx", "NewEditorShell", "save", "automatic"),
 	// "Save" on the unsaved-changes prompt.
 	w("src/components/ai-edition/NewEditorShell.tsx", "handleConfirmUnsaved", "save", "gesture"),
@@ -297,6 +299,8 @@ const DECLARED: WritePath[] = [
 	w("src/lib/ai-edition/store/useTimeline.ts", "removeRegion", "save", "gesture"),
 	w("src/lib/ai-edition/store/useTimeline.ts", "removeRegions", "save", "gesture"),
 	w("src/lib/ai-edition/store/useTimeline.ts", "saveZoomPatch", "save", "gesture"),
+	// User splits the recording at the playhead; undo restores the original clip.
+	w("src/lib/ai-edition/store/useTimeline.ts", "splitClip", "save", "gesture"),
 	w("src/lib/ai-edition/store/useTimeline.ts", "setTrimEntries", "save", "gesture"),
 	// The live halves of the two drags.
 	w("src/lib/ai-edition/store/useTimeline.ts", "updateAnnotationLive", "set", "automatic"),

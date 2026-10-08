@@ -694,6 +694,10 @@ export function NewEditorShell() {
 		// here doesn't cause this effect to re-subscribe on every playhead tick.
 	}, [videoElement, setPlaying]);
 
+	useEffect(() => {
+		if (editClipTarget) videoElement?.pause();
+	}, [editClipTarget, videoElement]);
+
 	const togglePlay = useCallback(() => {
 		if (!videoElement) return;
 		if (videoElement.paused) {
@@ -1439,6 +1443,11 @@ export function NewEditorShell() {
 					return;
 				}
 				void pasteRegion();
+				return;
+			}
+			if (matches("splitClip")) {
+				e.preventDefault();
+				void tl.splitClip();
 				return;
 			}
 			if (matches("playPause")) {

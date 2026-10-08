@@ -1224,3 +1224,32 @@ describe("playhead snapping", () => {
 		fireEvent.pointerUp(window);
 	});
 });
+
+describe("trim duration during the gesture", () => {
+	it("updates the transport before committing the trim resize", () => {
+		const setTrimEntries = vi.fn(async () => undefined);
+		renderTimeline(undefined, undefined, undefined, undefined, {
+			trimRanges: [
+				{
+					id: "cut",
+					assetId: "a1",
+					clipId: "c@0",
+					startSec: 10,
+					endSec: 20,
+					origin: "user",
+					reason: "",
+				},
+			],
+			setTrimEntries,
+		});
+		expect(screen.getByText("29:50.0")).toBeInTheDocument();
+		const pill = document.querySelector<HTMLElement>('[data-timeline-kind="trim"]')!;
+		const right = Array.from(pill.querySelectorAll("span"))[1];
+		fireEvent.pointerDown(right, { clientX: 0 });
+		act(() => window.dispatchEvent(new MouseEvent("pointermove", { clientX: 10 })));
+		expect(screen.getByText("29:30.0")).toBeInTheDocument();
+		expect(setTrimEntries).not.toHaveBeenCalled();
+		act(() => window.dispatchEvent(new MouseEvent("pointerup", { clientX: 10 })));
+		expect(setTrimEntries).toHaveBeenCalled();
+	});
+});

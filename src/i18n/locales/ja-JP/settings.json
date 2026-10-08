@@ -320,7 +320,9 @@
 		"webcamBackground": "カメラ背景",
 		"helpNoWebcam": "このプロジェクトにはカメラがないため、レイアウトの設定は無効で、プリセットは「Webカメラなし」と表示されます。保存されたレイアウトは、カメラを追加したときのために保持されます。",
 		"title": "カメラレイアウト",
-		"noWebcam": "Webカメラなし"
+		"noWebcam": "Webカメラなし",
+		"selectedClipScope": "Layout for selected clip only",
+		"projectScope": "Default layout for the project"
 	},
 	"textAnimation": {
 		"slideLeft": "左へスライド",

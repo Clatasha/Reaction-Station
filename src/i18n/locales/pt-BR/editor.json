@@ -331,7 +331,11 @@
 		"reset": "Redefinir",
 		"apply": "Aplicar",
 		"pickClipTitle": "Escolha um clipe para editar",
-		"clipLabel": "Clipe {{index}}"
+		"clipLabel": "Clipe {{index}}",
+		"setStart": "Set start here",
+		"setEnd": "Set end here",
+		"scrubPreview": "Scrub clip preview",
+		"previewFailed": "This video could not be played in the clip preview."
 	},
 	"insertSourceDialog": {
 		"title": "Inserir fonte",

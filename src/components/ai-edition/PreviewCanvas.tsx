@@ -228,6 +228,7 @@ export function PreviewCanvas(props: PreviewCanvasProps) {
 		[props.clips, props.currentTimeSec],
 	);
 	const cropRegion: CropRegion = activeClip?.cropRegion ?? DEFAULT_CROP_REGION;
+	const activeLayoutPreset = activeClip?.webcamLayoutPreset ?? settings.webcamLayoutPreset;
 
 	// P4 — the layout preset is global (one panel for the whole timeline) but the camera
 	// is per clip, so the layout has to be resolved against the clip under the playhead.
@@ -260,7 +261,7 @@ export function PreviewCanvas(props: PreviewCanvasProps) {
 		// only the webcam slot is not enough: the block presets size the SCREEN off the
 		// block, so the screen stayed squeezed into its half with nothing beside it.
 		const preset = resolveWebcamLayoutPreset(
-			settings.webcamLayoutPreset as WebcamLayoutPreset,
+			activeLayoutPreset as WebcamLayoutPreset,
 			activeClipHasCamera,
 		);
 		const mask = settings.webcamMaskShape as WebcamMaskShape;
@@ -300,7 +301,7 @@ export function PreviewCanvas(props: PreviewCanvasProps) {
 		cropRegion,
 		activeClipHasCamera,
 		webcamSourceSize,
-		settings.webcamLayoutPreset,
+		activeLayoutPreset,
 		settings.webcamMaskShape,
 		settings.webcamSizePreset,
 		settings.webcamAnchor,
@@ -381,7 +382,7 @@ export function PreviewCanvas(props: PreviewCanvasProps) {
 	};
 
 	const handleWebcamPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-		if (settings.webcamLayoutPreset !== "picture-in-picture") return;
+		if (activeLayoutPreset !== "picture-in-picture") return;
 		if (isPlaying) return;
 		const slot = webcamSlotRef.current;
 		if (!slot) return;
@@ -424,7 +425,7 @@ export function PreviewCanvas(props: PreviewCanvasProps) {
 		slot.addEventListener("pointercancel", handleUp);
 	};
 
-	const isPipGrab = settings.webcamLayoutPreset === "picture-in-picture";
+	const isPipGrab = activeLayoutPreset === "picture-in-picture";
 
 	const selectedZoomRegion = props.selectedZoomRegionId
 		? (props.zoomRegions?.find((z) => z.id === props.selectedZoomRegionId) ?? null)

@@ -111,7 +111,8 @@
 		"editClip": "Edit clip",
 		"mute": "Mute audio",
 		"unmute": "Unmute audio",
-		"fit": "Fit timeline to window"
+		"fit": "Fit timeline to window",
+		"split": "Split at playhead"
 	},
 	"media": {
 		"video": "Video overlay",

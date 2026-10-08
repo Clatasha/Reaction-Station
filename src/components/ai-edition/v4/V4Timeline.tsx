@@ -1928,6 +1928,28 @@ export function V4Timeline({
 		);
 	};
 
+	const liveTrimRanges =
+		activePillDrag?.kind === "trim"
+			? (() => {
+					const group = trimPills.find((pill) => pill.id === activePillDrag.id);
+					const ids = new Set(group?.sourceIds ?? []);
+					return [
+						...tl.trimRanges.filter((trim) => !ids.has(trim.id)),
+						...ventilateTimelineSpanToTrims(activePillDrag.start, activePillDrag.end, clips).map(
+							(range, index) => ({
+								assetId: range.assetId,
+								clipId: range.clipId,
+								startSec: range.sourceStartSec,
+								endSec: range.sourceEndSec,
+								id: `drag-trim-${index}`,
+								origin: "user" as const,
+								reason: "Live trim",
+							}),
+						),
+					];
+				})()
+			: tl.trimRanges;
+
 	const openTimelineContext = (element: HTMLElement, x: number, y: number) => {
 		const item = element.closest<HTMLElement>("[data-timeline-kind]");
 		const kind = (item?.dataset.timelineKind ?? "empty") as TimelineContextTarget["kind"];
@@ -1951,6 +1973,7 @@ export function V4Timeline({
 			const clip = clips.find((clip) => clip.id === target.id);
 			if (!clip) return;
 			if (action === "duplicate") void tl.duplicateClip(target.id);
+			if (action === "split") void tl.splitClip(target.id);
 			if (action === "delete") void tl.removeClip(target.id);
 			if (action === "edit") onEditClip(clip);
 		} else if (action === "duplicate") void tl.duplicateItem(target.kind, target.id);
@@ -2251,6 +2274,7 @@ export function V4Timeline({
 								playing={playing}
 								overrideTimeSec={scrubbingTimeSec}
 								clips={clips}
+								trimRanges={liveTrimRanges}
 								onTogglePlay={onTogglePlay}
 							/>
 						</TooltipProvider>

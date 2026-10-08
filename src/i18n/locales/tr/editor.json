@@ -331,7 +331,11 @@
 		"reset": "Sıfırla",
 		"apply": "Uygula",
 		"pickClipTitle": "Düzenlenecek klibi seçin",
-		"clipLabel": "Klip {{index}}"
+		"clipLabel": "Klip {{index}}",
+		"setStart": "Set start here",
+		"setEnd": "Set end here",
+		"scrubPreview": "Scrub clip preview",
+		"previewFailed": "This video could not be played in the clip preview."
 	},
 	"insertSourceDialog": {
 		"title": "Kaynağı ekle",

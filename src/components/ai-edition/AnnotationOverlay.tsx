@@ -225,7 +225,7 @@ export function AnnotationOverlay({
 				if (isDraggingRef.current) return;
 				onClick(annotation.id);
 			}}
-			bounds="parent"
+			bounds={annotation.type === "image" ? undefined : "parent"}
 			// Un texte garde sa forme : sa boîte est celle de ses mots, seule la taille change. Une
 			// flèche aussi : elle ne s'étire pas, elle grandit.
 			lockAspectRatio={isText || arrow !== null}

@@ -46,7 +46,8 @@
 		"exportProject": "Export",
 		"toggleSnapping": "Toggle snapping",
 		"toggleGuides": "Toggle alignment guides",
-		"fitTimeline": "Fit timeline to window"
+		"fitTimeline": "Fit timeline to window",
+		"splitClip": "Split clip at playhead"
 	},
 	"fixedActions": {
 		"undo": "Annuler",

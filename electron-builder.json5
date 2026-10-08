@@ -407,7 +407,7 @@
         // in the app spawns. Shipping it added a large binary to every Windows
         // installer, plus an LGPL redistribution obligation, for a file no
         // shipped code opens.
-        "filter": ["win32-*/*", "!win32-*/ffmpeg.exe"]
+        "filter": ["win32-*/*", "win32-*/cpu/*", "!win32-*/ffmpeg.exe"]
       }
     ],
     // The D3D11 compositor addon deliberately does NOT travel through `files` into

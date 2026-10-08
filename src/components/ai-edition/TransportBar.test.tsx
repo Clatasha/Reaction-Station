@@ -91,6 +91,33 @@ describe("TransportBar reads the playhead from the store", () => {
 		);
 		expect(screen.getByText("0:04.5")).toBeInTheDocument();
 	});
+	it("subtracts overlapping cuts once and updates the kept duration live", () => {
+		const trim = (id: string, startSec: number, endSec: number) => ({
+			id,
+			assetId: "asset_1",
+			clipId: "clip_a",
+			startSec,
+			endSec,
+			origin: "user" as const,
+			reason: "",
+		});
+		const view = (endSec: number) =>
+			providers(
+				<TransportBar
+					playing={false}
+					overrideTimeSec={20}
+					clips={clips}
+					trimRanges={[trim("a", 5, endSec), trim("b", 8, 12)]}
+					onTogglePlay={noop}
+				/>,
+			);
+		const { rerender } = render(view(10));
+		expect(screen.getByText("0:13.0")).toBeInTheDocument();
+		expect(screen.getByText("0:23.0")).toBeInTheDocument();
+		rerender(view(15));
+		expect(screen.getByText("0:10.0")).toBeInTheDocument();
+		expect(screen.getByText("0:20.0")).toBeInTheDocument();
+	});
 });
 
 describe("TransportBar play button", () => {

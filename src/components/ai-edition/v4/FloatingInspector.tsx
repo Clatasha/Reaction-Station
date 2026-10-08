@@ -165,7 +165,12 @@ export function FloatingInspector({
 					) : audioTrackSelected ? (
 						<AudioTrackPane tl={tl} onClose={() => tl.clearSelection()} />
 					) : (
-						<FacetBody facet={facet} onCollapse={onToggleOpen} transcriptProps={transcriptProps} />
+						<FacetBody
+							selectedClipId={tl.clipSelection}
+							facet={facet}
+							onCollapse={onToggleOpen}
+							transcriptProps={transcriptProps}
+						/>
 					)}
 				</div>
 			) : null}
@@ -1328,11 +1333,13 @@ function SelectionPane({ tl, onClose }: { tl: TimelineApi; onClose: () => void }
 const PANE_BUTTON = `${shell.btn} ${shell.btnSecondary}`;
 
 function FacetBody({
+	selectedClipId,
 	facet,
 	onCollapse,
 	transcriptProps,
 }: {
 	facet: Facet;
+	selectedClipId?: string | null;
 	onCollapse: () => void;
 	transcriptProps: TranscriptProps;
 }) {
@@ -1364,7 +1371,7 @@ function FacetBody({
 		</button>
 	);
 
-	if (facet === "layout") return wrap(collapse, <LayoutPane />);
+	if (facet === "layout") return wrap(collapse, <LayoutPane selectedClipId={selectedClipId} />);
 	if (facet === "audio") return wrap(collapse, <AudioPane />);
 	if (facet === "cursor") return wrap(collapse, <CursorPane />);
 	if (facet === "transcript") return wrap(collapse, <TranscriptPane {...transcriptProps} />);

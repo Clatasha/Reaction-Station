@@ -717,3 +717,83 @@ describe("VirtualPreview primary audio keeps to the picture", () => {
 		expect(world.audioEl.playbackRate).toBe(1);
 	});
 });
+
+describe("VirtualPreview media identity and pending seeks", () => {
+	it("keeps the mounted media when an import is inserted before its source", () => {
+		const clips = [clip("recording", "a1", 0, 10, 0)];
+		const recording = { id: "a1", src: "file:///tmp/a1.mp4", label: "a1" };
+		const onTimeChange = vi.fn();
+		const { container, rerender } = render(
+			<VirtualPreview
+				videoSources={[recording]}
+				clips={clips}
+				trimRanges={[]}
+				onTimeChange={onTimeChange}
+			/>,
+		);
+		const element = container.querySelector("video")!;
+		const video = driveVideo(element);
+		fireEvent.loadedMetadata(element);
+		video.seekTo(4);
+		video.play();
+		tick();
+		rerender(
+			<VirtualPreview
+				videoSources={[{ id: "new", src: "file:///tmp/new.mp4", label: "new" }, recording]}
+				clips={clips}
+				trimRanges={[]}
+				onTimeChange={onTimeChange}
+			/>,
+		);
+		expect(container.querySelector("video")).toBe(element);
+		expect(element.src).toBe(recording.src);
+		video.seekTo(5);
+		tick();
+		expect(reportedTimes(onTimeChange).at(-1)).toBe(5);
+	});
+	it("does not publish a stale decoder position during a seek", () => {
+		const { element, video, onTimeChange } = mount([clip("recording", "a1", 0, 10, 0)]);
+		video.seekTo(3);
+		video.play();
+		tick();
+		onTimeChange.mockClear();
+		Object.defineProperty(element, "seeking", { configurable: true, value: true });
+		video.seekTo(1);
+		tick();
+		expect(onTimeChange).not.toHaveBeenCalled();
+		Object.defineProperty(element, "seeking", { configurable: true, value: false });
+		video.seekTo(7);
+		fireEvent.seeked(element);
+		tick();
+		expect(reportedTimes(onTimeChange).at(-1)).toBe(7);
+	});
+});
+
+describe("stalled preview recovery", () => {
+	it("reloads a seek that never completes and restores the requested position", async () => {
+		vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+		let now = 0;
+		const clock = vi.spyOn(performance, "now").mockImplementation(() => now);
+		try {
+			const { element, video } = mount([clip("recording", "a1", 0, 10, 0)]);
+			element.load = vi.fn();
+			video.seekTo(3);
+			video.play();
+			tick();
+			Object.defineProperty(element, "seeking", { configurable: true, value: true });
+			tick();
+			now = 6000;
+			tick();
+			await act(() => vi.runOnlyPendingTimersAsync());
+			expect(element.load).toHaveBeenCalledOnce();
+			video.seekTo(0);
+			Object.defineProperty(element, "seeking", { configurable: true, value: false });
+			fireEvent.loadedMetadata(element);
+			expect(element.currentTime).toBe(3);
+		} finally {
+			cleanup();
+			clock.mockRestore();
+			vi.useRealTimers();
+		}
+	});
+});

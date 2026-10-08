@@ -331,7 +331,11 @@
 		"reset": "إعادة التعيين",
 		"apply": "تطبيق",
 		"pickClipTitle": "اختر مقطعًا لتعديله",
-		"clipLabel": "المقطع {{index}}"
+		"clipLabel": "المقطع {{index}}",
+		"setStart": "Set start here",
+		"setEnd": "Set end here",
+		"scrubPreview": "Scrub clip preview",
+		"previewFailed": "This video could not be played in the clip preview."
 	},
 	"insertSourceDialog": {
 		"title": "إدراج المصدر",

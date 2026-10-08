@@ -331,7 +331,11 @@
 		"reset": "重設",
 		"apply": "套用",
 		"pickClipTitle": "選擇要編輯的片段",
-		"clipLabel": "片段 {{index}}"
+		"clipLabel": "片段 {{index}}",
+		"setStart": "Set start here",
+		"setEnd": "Set end here",
+		"scrubPreview": "Scrub clip preview",
+		"previewFailed": "This video could not be played in the clip preview."
 	},
 	"insertSourceDialog": {
 		"title": "插入來源",

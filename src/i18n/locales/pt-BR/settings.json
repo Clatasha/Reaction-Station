@@ -320,7 +320,9 @@
 		"webcamBackground": "Plano de fundo da câmera",
 		"helpNoWebcam": "Este projeto não tem câmera, então os controles de layout estão desativados e a predefinição mostra “Sem Webcam”. Seu layout salvo é mantido para quando você adicionar uma câmera.",
 		"title": "Layout da câmera",
-		"noWebcam": "Sem Webcam"
+		"noWebcam": "Sem Webcam",
+		"selectedClipScope": "Layout for selected clip only",
+		"projectScope": "Default layout for the project"
 	},
 	"textAnimation": {
 		"slideLeft": "Deslizar à Esquerda",

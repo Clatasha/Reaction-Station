@@ -331,7 +331,11 @@
 		"reset": "Réinitialiser",
 		"apply": "Appliquer",
 		"pickClipTitle": "Choisissez un clip à modifier",
-		"clipLabel": "Clip {{index}}"
+		"clipLabel": "Clip {{index}}",
+		"setStart": "Set start here",
+		"setEnd": "Set end here",
+		"scrubPreview": "Scrub clip preview",
+		"previewFailed": "This video could not be played in the clip preview."
 	},
 	"insertSourceDialog": {
 		"title": "Insérer la source",

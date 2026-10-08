@@ -320,7 +320,9 @@
 		"webcamBackground": "Camera background",
 		"helpNoWebcam": "This project has no camera, so the layout controls are off and the preset reads “No webcam”. Your saved layout is kept for when a camera is added.",
 		"title": "Camera layout",
-		"noWebcam": "No webcam"
+		"noWebcam": "No webcam",
+		"selectedClipScope": "Layout for selected clip only",
+		"projectScope": "Default layout for the project"
 	},
 	"textAnimation": {
 		"slideLeft": "Slide left",

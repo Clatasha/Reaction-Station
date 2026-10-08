@@ -320,7 +320,9 @@
 		"webcamBackground": "Nền máy ảnh",
 		"helpNoWebcam": "Dự án này không có camera nên các tùy chọn bố cục bị tắt và thiết lập sẵn hiển thị “Không có webcam”. Bố cục đã lưu của bạn vẫn được giữ lại cho khi bạn thêm camera.",
 		"title": "Bố cục camera",
-		"noWebcam": "Không có webcam"
+		"noWebcam": "Không có webcam",
+		"selectedClipScope": "Layout for selected clip only",
+		"projectScope": "Default layout for the project"
 	},
 	"textAnimation": {
 		"slideLeft": "Trượt sang trái",

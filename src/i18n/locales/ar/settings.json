@@ -320,7 +320,9 @@
 		"webcamBackground": "خلفية الكاميرا",
 		"helpNoWebcam": "لا يحتوي هذا المشروع على كاميرا، لذلك فإن عناصر التحكم في التخطيط معطّلة ويعرض الإعداد المسبق «بدون كاميرا». يُحتفظ بالتخطيط المحفوظ لحين إضافة كاميرا.",
 		"title": "تخطيط الكاميرا",
-		"noWebcam": "بدون كاميرا"
+		"noWebcam": "بدون كاميرا",
+		"selectedClipScope": "Layout for selected clip only",
+		"projectScope": "Default layout for the project"
 	},
 	"textAnimation": {
 		"slideLeft": "انزلاق لليسار",

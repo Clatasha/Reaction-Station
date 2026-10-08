@@ -358,7 +358,7 @@
 		0 40px 90px -30px rgba(0, 0, 0, 0.75),
 		0 12px 28px -12px rgba(0, 0, 0, 0.5),
 		inset 0 0 0 1px rgba(255, 255, 255, 0.09);
-	overflow: hidden;
+	overflow: visible;
 	display: grid;
 	place-items: center;
 	/* Its own stacking context: the layers inside it (gimbals, zoom focus, webcam drag) order
@@ -2644,4 +2644,8 @@ textarea.control {
   flex: 0 0 auto;
   margin-top: 2px;
   opacity: 0.8;
+}
+
+.previewFrame > canvas {
+	border-radius: inherit;
 }

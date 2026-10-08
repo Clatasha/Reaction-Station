@@ -331,7 +331,11 @@
 		"reset": "Đặt lại",
 		"apply": "Áp dụng",
 		"pickClipTitle": "Chọn clip để chỉnh sửa",
-		"clipLabel": "Clip {{index}}"
+		"clipLabel": "Clip {{index}}",
+		"setStart": "Set start here",
+		"setEnd": "Set end here",
+		"scrubPreview": "Scrub clip preview",
+		"previewFailed": "This video could not be played in the clip preview."
 	},
 	"insertSourceDialog": {
 		"title": "Chèn nguồn",

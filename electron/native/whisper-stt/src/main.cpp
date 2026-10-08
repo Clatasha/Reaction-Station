@@ -288,7 +288,11 @@ int main(int argc, char** argv) {
 
 	for (int i = 1; i < argc; ++i) {
 		const std::string a = argv[i];
-		if (a == "--model"   && i + 1 < argc) model_path = argv[++i];
+		if (a == "--self-test") {
+			std::cout << "Speech runtime loaded successfully\n";
+			return 0;
+		}
+		else if (a == "--model"   && i + 1 < argc) model_path = argv[++i];
 		else if (a == "--vad-model" && i + 1 < argc) vad_model_path = argv[++i];
 		else if (a == "--host" && i + 1 < argc) { host = argv[++i]; host_from_flag = true; }
 		else if (a == "--port" && i + 1 < argc) port = std::atoi(argv[++i]);

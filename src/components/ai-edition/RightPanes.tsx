@@ -2790,7 +2790,7 @@ const CAMERA_BACKGROUND_MODES: Array<{
 	},
 ];
 
-export function LayoutPane() {
+export function LayoutPane({ selectedClipId = null }: { selectedClipId?: string | null } = {}) {
 	const canSegmentCamera = useCanSegmentCamera();
 	const ts = useScopedT("settings");
 	const { settings, set, setLive, commit, hasDocument } = useEditorSettings();
@@ -2798,6 +2798,7 @@ export function LayoutPane() {
 		(dataUrl) => set({ webcamWallpaper: dataUrl }),
 	);
 	const document = useProjectStore((s) => s.document);
+	const selectedClip = document?.timeline.clips.find((clip) => clip.id === selectedClipId);
 	// A project can hold clips with no camera attached at all (plain imports or a
 	// recording made without a webcam). Keep the saved camera preference for later, but
 	// make the disabled control describe whether this project has any camera at all.
@@ -2816,7 +2817,7 @@ export function LayoutPane() {
 		[document],
 	);
 	const effectiveLayoutPreset = resolveWebcamLayoutPreset(
-		settings.webcamLayoutPreset,
+		selectedClip?.webcamLayoutPreset ?? settings.webcamLayoutPreset,
 		hasAnyCamera,
 	);
 
@@ -2865,6 +2866,9 @@ export function LayoutPane() {
 	};
 	return (
 		<Pane title={ts("layout.title")} icon={<Camera size={16} />} helpText={helpText}>
+			<div className={styles.sectionLabel}>
+				{selectedClip ? ts("layout.selectedClipScope") : ts("layout.projectScope")}
+			</div>
 			{/* The heading names the current layout: the tiles below only draw theirs. */}
 			<div className={styles.sectionLabel}>
 				{ts("layout.preset")}
@@ -2898,7 +2902,26 @@ export function LayoutPane() {
 					}))}
 					value={effectiveLayoutPreset}
 					disabled={layoutControlsDisabled}
-					onChange={(preset) => void set({ webcamLayoutPreset: preset })}
+					onChange={(preset) => {
+						if (!selectedClipId) {
+							void set({ webcamLayoutPreset: preset });
+							return;
+						}
+						const state = useProjectStore.getState();
+						if (!state.document) return;
+						void state.saveDocument(
+							{
+								...state.document,
+								timeline: {
+									...state.document.timeline,
+									clips: state.document.timeline.clips.map((clip) =>
+										clip.id === selectedClipId ? { ...clip, webcamLayoutPreset: preset } : clip,
+									),
+								},
+							},
+							{ history: true },
+						);
+					}}
 				/>
 			</div>
 			<div className={styles.paneRow}>

@@ -320,7 +320,9 @@
 		"webcamBackground": "Фон камеры",
 		"helpNoWebcam": "В этом проекте нет камеры, поэтому настройки компоновки отключены, а пресет показывает «Без веб-камеры». Сохранённая компоновка останется на случай, если вы добавите камеру.",
 		"title": "Расположение камеры",
-		"noWebcam": "Без веб-камеры"
+		"noWebcam": "Без веб-камеры",
+		"selectedClipScope": "Layout for selected clip only",
+		"projectScope": "Default layout for the project"
 	},
 	"textAnimation": {
 		"slideLeft": "Скольжение влево",

@@ -658,3 +658,7 @@
 
 .dockWindowControls { flex-shrink: 0; -webkit-app-region: no-drag; }
 .hudBarHorizontal .hudTransport { box-sizing: border-box; }
+
+/* Let the measured dock include the complete control row, including language. */
+.hudBarHorizontal { width: max-content; align-items: stretch; }
+.hudBarHorizontal .hudTransport { flex-shrink: 0; min-width: max-content; }
