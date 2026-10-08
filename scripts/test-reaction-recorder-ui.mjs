@@ -28,33 +28,53 @@ try {
 			),
 		)
 		.toBe(true);
-	const checkCloseInsideDock = async () => {
-		const surface = await dock.boundingBox();
-		const close = await page
-			.getByRole("button", { name: "Quit Reaction Station", exact: true })
-			.boundingBox();
-		if (
-			!surface ||
-			!close ||
-			close.x < surface.x ||
-			close.y < surface.y ||
-			close.x + close.width > surface.x + surface.width + 1 ||
-			close.y + close.height > surface.y + surface.height + 1
-		)
-			throw new Error("Recorder Close is outside the dock");
-		const language = await dock.getByRole("button").filter({ hasText: /^EN$/ }).boundingBox();
-		if (
-			!surface ||
-			!language ||
-			language.x < surface.x ||
-			language.y < surface.y ||
-			language.x + language.width > surface.x + surface.width + 1 ||
-			language.y + language.height > surface.y + surface.height + 1
-		) {
-			throw new Error("Recorder language control is outside the dock");
+	const checkDockControls = async () => {
+		const controls = [
+			["Close", page.getByRole("button", { name: "Quit Reaction Station", exact: true })],
+			["language", dock.getByRole("button").filter({ hasText: /^EN$/ })],
+		];
+		for (const [name, control] of controls) {
+			// Vertical mode intentionally scrolls on shorter displays. Check the
+			// control's visible position, rather than its offscreen content position.
+			await control.scrollIntoViewIfNeeded();
+			let geometry;
+			try {
+				await expect
+					.poll(
+						async () => {
+							const surface = await dock.boundingBox();
+							const button = await control.boundingBox();
+							geometry = {
+								surface,
+								button,
+								...(await dock.evaluate((el) => ({
+									layout: el.getAttribute("data-tray-layout"),
+									scrollTop: el.scrollTop,
+									scrollHeight: el.scrollHeight,
+									clientHeight: el.clientHeight,
+								}))),
+							};
+							return Boolean(
+								surface &&
+									button &&
+									button.x >= surface.x - 1 &&
+									button.y >= surface.y - 1 &&
+									button.x + button.width <= surface.x + surface.width + 1 &&
+									button.y + button.height <= surface.y + surface.height + 1,
+							);
+						},
+						{ message: `Recorder ${name} must be inside the dock` },
+					)
+					.toBe(true);
+			} catch (error) {
+				await page.screenshot({ path: path.join(output, "recorder-containment-failure.png") });
+				throw new Error(`Recorder ${name} is outside the dock: ${JSON.stringify(geometry)}`, {
+					cause: error,
+				});
+			}
 		}
 	};
-	await checkCloseInsideDock();
+	await checkDockControls();
 	await page.getByTestId("launch-system-audio-button").click();
 	await dock.screenshot({ path: path.join(output, "recorder-dock.png") });
 	await page.getByRole("button", { name: "Session controls", exact: true }).click();
@@ -79,7 +99,7 @@ try {
 	await page.getByRole("button", { name: "Switch to vertical bar", exact: true }).click();
 	await page.locator("[data-tray-layout='vertical']").waitFor();
 	await expect.poll(async () => (await dock.boundingBox())?.width ?? 1000).toBeLessThan(100);
-	await checkCloseInsideDock();
+	await checkDockControls();
 	await dock.screenshot({ path: path.join(output, "vertical-dock.png") });
 	if (errors.length) throw new Error(errors.join("\n"));
 	const recordings = await application.evaluate(

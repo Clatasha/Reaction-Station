@@ -1,5 +1,5 @@
 name: Reaction Station Windows test installer
-run-name: Reaction Station 0.6 creator editing test (${{ github.ref_name }})
+run-name: Reaction Station 0.6 recorder containment test (${{ github.ref_name }})
 
 on:
   workflow_dispatch:
@@ -13,6 +13,7 @@ on:
       - fix/creator-editing-playback
     paths:
       - .github/workflows/reaction-station-windows-test.yml
+      - scripts/test-reaction-recorder-ui.mjs
 
 permissions:
   contents: read
