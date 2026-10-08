@@ -51,13 +51,18 @@ export function TimelineContextMenu({
 	const t = useScopedT("timeline");
 	const lastTarget = useRef(target);
 	if (target) lastTarget.current = target;
+	// Radix keeps closing content mounted through its exit animation. Preserve
+	// its rows and anchor until unmount: a pointerdown can dismiss the popover
+	// before click, and moving Delete then sends pointerup to the timeline.
+	const displayedTarget = target ?? lastTarget.current;
 	const anchor = useRef({ getBoundingClientRect: () => new DOMRect(0, 0, 0, 0) });
-	anchor.current.getBoundingClientRect = () => new DOMRect(target?.x ?? 0, target?.y ?? 0, 0, 0);
+	anchor.current.getBoundingClientRect = () =>
+		new DOMRect(displayedTarget?.x ?? 0, displayedTarget?.y ?? 0, 0, 0);
 	const item = (action: TimelineMenuAction, icon: React.ReactNode, label: string) => (
 		<button
 			type="button"
 			role="menuitem"
-			disabled={target?.locked && action !== "fit"}
+			disabled={displayedTarget?.locked && action !== "fit"}
 			className={styles.appMenuRow}
 			onClick={() => {
 				// Exit animations can leave a menu button mounted after dismissal.
@@ -100,42 +105,42 @@ export function TimelineContextMenu({
 					event.nativeEvent.stopPropagation();
 				}}
 			>
-				{target?.kind !== "empty" ? (
+				{displayedTarget?.kind !== "empty" ? (
 					<>
-						{target?.kind === "clip" ||
-						target?.kind === "annotation" ||
-						target?.kind === "audio" ? (
+						{displayedTarget?.kind === "clip" ||
+						displayedTarget?.kind === "annotation" ||
+						displayedTarget?.kind === "audio" ? (
 							<>
-								{target.canSeparate
+								{displayedTarget.canSeparate
 									? item("separate", <Unlink size={14} />, t("context.separate"))
 									: null}
 								{item("rename", <Pencil size={14} />, t("context.rename"))}
-								{target.kind !== "clip"
+								{displayedTarget.kind !== "clip"
 									? item(
 											"disable",
 											<EyeOff size={14} />,
-											t(target.disabled ? "context.enable" : "context.disable"),
+											t(displayedTarget.disabled ? "context.enable" : "context.disable"),
 										)
 									: null}
 								{item(
-									target.linked ? "unlink" : "link",
-									target.linked ? <Unlink size={14} /> : <Link2 size={14} />,
-									t(target.linked ? "context.unlink" : "context.link"),
+									displayedTarget.linked ? "unlink" : "link",
+									displayedTarget.linked ? <Unlink size={14} /> : <Link2 size={14} />,
+									t(displayedTarget.linked ? "context.unlink" : "context.link"),
 								)}
 							</>
 						) : null}
 						{item("duplicate", <Copy size={14} />, t("context.duplicate"))}
-						{target?.kind === "clip"
+						{displayedTarget?.kind === "clip"
 							? item("split", <Scissors size={14} />, t("context.split"))
 							: null}
-						{target?.kind === "clip"
+						{displayedTarget?.kind === "clip"
 							? item("edit", <Pencil size={14} />, t("context.editClip"))
 							: null}
-						{target?.kind === "audio"
+						{displayedTarget?.kind === "audio"
 							? item(
 									"mute",
 									<VolumeX size={14} />,
-									t(target.muted ? "context.unmute" : "context.mute"),
+									t(displayedTarget.muted ? "context.unmute" : "context.mute"),
 								)
 							: null}
 						{item("delete", <Trash2 size={14} />, t("context.delete"))}

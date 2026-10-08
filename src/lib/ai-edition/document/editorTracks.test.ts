@@ -413,3 +413,16 @@ it("moves adjacent selected recording sections as one ripple block", () => {
 		10,
 	);
 });
+
+it("deletes an independent audio duplicate by its displayed group id", () => {
+	const doc = unlinkEditorItems(fixture(), { kind: "audio", id: "audio-group" });
+	const next = duplicateLinkedItem(doc, "audio", "audio-group");
+	const originalIds = new Set(doc.audioTracks.map((row) => row.id));
+	const copy = next.audioTracks.find((row) => !originalIds.has(row.id))!;
+	const pill = collapseTracksToPills(next.audioTracks).find(
+		(row) => row.id === (copy.trackId ?? copy.id),
+	)!;
+	expect(pill).toBeDefined();
+	const removed = removeLinkedEditorItems(next, { kind: "audio", id: pill.id });
+	expect(removed.audioTracks).toEqual(doc.audioTracks);
+});

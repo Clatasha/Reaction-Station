@@ -64,3 +64,20 @@ it("exposes disable and unlink for linked media and blocks edits on locked track
 	expect(screen.getByRole("menuitem", { name: "context.duplicate" })).toBeDisabled();
 	expect(screen.getByRole("menuitem", { name: "context.fit" })).toBeEnabled();
 });
+
+it("keeps every audio menu row in place while dismissal precedes pointerup", () => {
+	const onAction = vi.fn();
+	const audioTarget = { ...target, linked: true, muted: true };
+	const view = render(
+		<TimelineContextMenu target={audioTarget} onClose={vi.fn()} onAction={onAction} />,
+	);
+	const rows = screen.getAllByRole("menuitem").map((row) => row.textContent);
+	const deletion = screen.getByRole("menuitem", { name: "context.delete" });
+	fireEvent.pointerDown(deletion, { button: 0 });
+	view.rerender(<TimelineContextMenu target={null} onClose={vi.fn()} onAction={onAction} />);
+	expect(screen.getAllByRole("menuitem").map((row) => row.textContent)).toEqual(rows);
+	expect(screen.getByRole("menuitem", { name: "context.delete" })).toBe(deletion);
+	fireEvent.pointerUp(deletion, { button: 0 });
+	fireEvent.click(deletion);
+	expect(onAction).toHaveBeenCalledWith("delete", audioTarget);
+});

@@ -232,6 +232,12 @@ try {
 	await editor
 		.locator(`[data-timeline-kind="audio"][data-timeline-id="${copiedId}"]`)
 		.click({ button: "right" });
+	// Keep the full audio menu through dismissal; dropping these rows used to
+	// move Delete under the pointer before the click finished.
+	await expect(editor.getByRole("menuitem", { name: "Rename item", exact: true })).toBeVisible();
+	await expect(editor.getByRole("menuitem", { name: "Disable item", exact: true })).toBeVisible();
+	await expect(editor.getByRole("menuitem", { name: "Mute audio", exact: true })).toBeVisible();
+	await expect(editor.getByRole("menuitem", { name: "Delete", exact: true })).toBeEnabled();
 	await editor.screenshot({ path: path.join(output, "timeline-context-menu.png") });
 	await editor.getByRole("menuitem", { name: "Delete", exact: true }).click();
 	await expect.poll(async () => (await getImportedDocument()).audioTracks.length).toBe(2);
