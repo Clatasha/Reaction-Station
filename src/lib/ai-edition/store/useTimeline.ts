@@ -584,6 +584,7 @@ export function useTimeline() {
 			if (!tracks.some((track) => track.id === region.editorTrackId))
 				tracks.unshift({
 					id: region.editorTrackId!,
+					autoCreated: true,
 					kind: "visual",
 					label: input.content,
 					locked: false,
@@ -593,6 +594,7 @@ export function useTimeline() {
 			if (sound[0])
 				tracks.splice(tracks.findIndex((track) => track.id === region.editorTrackId) + 1, 0, {
 					id: sound[0].editorTrackId!,
+					autoCreated: true,
 					kind: "audio",
 					label: input.content,
 					locked: false,

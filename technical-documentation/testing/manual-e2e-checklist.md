@@ -899,3 +899,12 @@ Desktop checks before a stable release:
 - Disable imported media and hide the recording track; compare preview with MP4 export. Recording visibility must suppress picture, webcam, screen shadow/frame and cursor while retaining programme duration.
 - Move a source file, Locate it from Library, then save/reopen. Verify source offsets, edits, thumbnails, links, track flags, animations and extracted audio references survive. Reject an incompatible or too-short replacement.
 - Add more than eight tracks and confirm scrolling keeps the preview height stable. Check headers, ruler and playhead alignment when zooming, scrolling and resizing the Library.
+
+
+### Reaction Station 0.8 timeline polish
+
+| Build / branch | Platform | Result | Scope / skipped checks |
+| --- | --- | --- | --- |
+| feat/library-linked-timeline | Windows / macOS / Linux | Skipped desktop | Native computer APIs and local Rust tooling are unavailable. Regression tests cover automatic track cleanup, manual/shared track preservation, recording track ordering, destination ghosts, Library context actions and explicit Stop shortcut routing. Windows CI checks the packaged interface and builds one combined installer. Physical recording hotkeys, real mouse placement and audible capture remain manual checks. |
+
+Desktop scope: delete added media and confirm its empty automatic track disappears; preserve manually added and shared tracks and undo/redo correctly. Right-click Library files to Locate/Replace. Check filename and Edit Clip visibility. Drag linked media between levels and confirm both destination silhouettes match placement. Verify original video, desktop audio and microphone stay first. Press Ctrl+Shift+R while recording and while paused: capture must stop once, show saving feedback, then open the editor. Repeat while saving and confirm no new capture starts.

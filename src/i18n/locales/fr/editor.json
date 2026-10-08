@@ -468,6 +468,8 @@
 		"unsupported": "Unsupported media type",
 		"unreadable": "Could not access the media file",
 		"wrongType": "Choose the same type of media for this replacement",
-		"tooShort": "This file is shorter than the edited source window"
+		"tooShort": "This file is shorter than the edited source window",
+		"locateFile": "Locate file",
+		"replaceFile": "Replace file"
 	}
 }

@@ -218,6 +218,7 @@ const editorItemShape = {
 	editorLabel: z.string().optional(),
 };
 export const editorTrackSchema = z.object({
+	autoCreated: z.boolean().optional(),
 	id: z.string().min(1),
 	kind: z.enum(["video", "visual", "audio", "effect"]),
 	label: z.string(),

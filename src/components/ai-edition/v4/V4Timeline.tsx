@@ -1100,13 +1100,15 @@ export function V4Timeline({
 		tl.clips,
 		tl.trimRanges,
 	]);
-	const tracks = doc ? editorTracks(doc) : [];
+
 	const [itemSelection, setItemSelection] = useState<EditorItemRef[]>([]);
 	const [groupDrag, setGroupDrag] = useState<{
 		refs: EditorItemRef[];
 		delta: number;
 		trackId?: string;
+		preview: AxcutDocument;
 	} | null>(null);
+	const tracks = doc ? editorTracks(groupDrag?.preview ?? doc) : [];
 	const [dropPreview, setDropPreview] = useState<{ time: number; trackId?: string } | null>(null);
 	const [renameTarget, setRenameTarget] = useState<EditorItemRef | null>(null);
 	const [renameValue, setRenameValue] = useState("");
@@ -1194,7 +1196,12 @@ export function V4Timeline({
 				);
 				delta = (snap.value - head) * 1000;
 				target = trackAt(ev.clientX, ev.clientY);
-				setGroupDrag({ refs, delta, trackId: target });
+				setGroupDrag({
+					refs,
+					delta,
+					trackId: target,
+					preview: moveEditorItems(doc, refs, delta, target),
+				});
 				setSnapPct(prefs.showGuides && snap.guide !== null ? pctOf(snap.guide) : null);
 			};
 			const cleanup = () => {
@@ -1241,6 +1248,28 @@ export function V4Timeline({
 		)
 			? groupDrag.delta / 1000
 			: 0;
+	const renderDragGhosts = (trackId: string) =>
+		groupDrag?.refs.flatMap((ref) => {
+			const rows = itemRows(groupDrag.preview, ref);
+			if (!rows.length || itemTrackId(rows[0], ref.kind) !== trackId) return [];
+			const start =
+				ref.kind === "clip"
+					? (rows[0] as AxcutClip).timelineStartSec
+					: Math.min(...rows.map((row) => (row as AxcutAudioTrack).startMs)) / 1000;
+			const end =
+				ref.kind === "clip"
+					? (rows[0] as AxcutClip).timelineEndSec
+					: Math.max(...rows.map((row) => (row as AxcutAudioTrack).endMs)) / 1000;
+			return [
+				<div
+					key={`${ref.kind}:${ref.id}`}
+					aria-hidden
+					data-testid="timeline-drag-ghost"
+					className={styles.dragGhost}
+					style={{ left: `${pctOf(start)}%`, width: `${pctOf(end - start)}%` }}
+				/>,
+			];
+		});
 	const renderTrackControls = (track: EditorTrack) => (
 		<div
 			className={styles.trackControls}
@@ -2462,6 +2491,7 @@ export function V4Timeline({
 									...editorTracks(current),
 									{
 										id: createId("visual-track"),
+										autoCreated: false,
 										kind: "visual",
 										label: t("tracks.visual"),
 										locked: false,
@@ -2488,6 +2518,7 @@ export function V4Timeline({
 									...editorTracks(current),
 									{
 										id: createId("audio-track"),
+										autoCreated: false,
 										kind: "audio",
 										label: t("tracks.audio"),
 										locked: false,
@@ -2908,116 +2939,6 @@ export function V4Timeline({
 							/>
 						) : null}
 
-						{showLanes
-							? tracks
-									.filter((track) => track.id !== "main-video")
-									.map((track) => {
-										const regions =
-											track.kind === "effect"
-												? track.id === "effect:zoom"
-													? zoomPills
-													: track.id === "effect:speed"
-														? speedPills
-														: track.id === "effect:trim"
-															? trimPills
-															: cameraFullscreenPills
-												: annPills.filter((pill) => {
-														const row = doc?.annotations.find((item) => item.id === pill.id);
-														return row && itemTrackId(row, "annotation") === track.id;
-													});
-										const audio = audioPills.filter(
-											(item) => itemTrackId(item, "audio") === track.id,
-										);
-										const packed = packAudioTrackRows(
-											track.kind === "audio"
-												? audio
-												: regions.map((item) => ({
-														id: item.id,
-														startMs: item.start * 1000,
-														endMs: item.end * 1000,
-													})),
-										);
-										const hints: Record<string, string> = {
-											"effect:zoom": t("hints.pressZoom", {
-												key: formatBinding(shortcuts.addZoom, isMac),
-											}),
-											"effect:speed": t("hints.pressSpeed", {
-												key: formatBinding(shortcuts.addSpeed, isMac),
-											}),
-											"effect:trim": t("hints.pressTrim", {
-												key: formatBinding(shortcuts.addTrim, isMac),
-											}),
-											"effect:cameraFullscreen": hasAnyCamera
-												? t("hints.pressCameraFullscreen", {
-														key: formatBinding(shortcuts.addCameraFullscreen, isMac),
-													})
-												: ts("layout.noWebcam"),
-										};
-										return (
-											<div
-												key={track.id}
-												data-editor-track-id={track.id}
-												className={`${styles.tlLane} ${track.kind === "audio" ? styles.tlLaneAudio : ""}`}
-												style={{
-													height:
-														track.kind === "audio"
-															? Math.max(1, packed.rowCount) *
-																	(AUDIO_ROW_HEIGHT_PX + AUDIO_ROW_GAP_PX) +
-																AUDIO_LANE_PAD_PX * 2
-															: Math.max(1, packed.rowCount) * 32,
-													opacity: track.hidden || track.muted ? 0.6 : 1,
-												}}
-											>
-												{renderTrackControls(track)}
-												{track.kind === "audio" ? (
-													audio.length ? (
-														audio.map((item) =>
-															renderAudioPill(item, packed.rowOf.get(item.id) ?? 0),
-														)
-													) : (
-														<span
-															className={styles.laneEmpty}
-															style={{ left: `${nav.start * 100}%`, width: `${navSpan * 100}%` }}
-														>
-															{tracks.find((item) => item.kind === "audio")?.id === track.id
-																? t("hints.pressAudio", {
-																		audioKey: formatBinding(shortcuts.addAudio, isMac),
-																		voiceoverKey: formatBinding(shortcuts.addVoiceover, isMac),
-																	})
-																: track.label}
-														</span>
-													)
-												) : (
-													Array.from({ length: Math.max(1, packed.rowCount) }, (_, row) => (
-														<div key={row} style={{ height: 32, position: "relative" }}>
-															{renderPills(
-																regions.filter((item) => (packed.rowOf.get(item.id) ?? 0) === row),
-																hints[track.id] ??
-																	t("hints.pressAnnotation", {
-																		key: formatBinding(shortcuts.addAnnotation, isMac),
-																	}),
-															)}
-														</div>
-													))
-												)}
-											</div>
-										);
-									})
-							: null}
-						{dropPreview ? (
-							<div className={styles.dropPreview} style={{ left: `${pctOf(dropPreview.time)}%` }}>
-								<span>
-									{tracks.find((track) => track.id === dropPreview.trackId)?.label} ·{" "}
-									{formatSec(dropPreview.time)}
-								</span>
-							</div>
-						) : null}
-						{groupDrag?.trackId ? (
-							<div className={styles.dropTrackLabel}>
-								{tracks.find((track) => track.id === groupDrag.trackId)?.label}
-							</div>
-						) : null}
-
 						<div
 							ref={clipsRef}
 							data-editor-track-id="main-video"
@@ -3026,6 +2947,7 @@ export function V4Timeline({
 							{tracks.find((track) => track.id === "main-video")
 								? renderTrackControls(tracks.find((track) => track.id === "main-video")!)
 								: null}
+							{renderDragGhosts("main-video")}
 							{clips.map((c, i) => {
 								const dur = c.timelineEndSec - c.timelineStartSec;
 								// On the expanded ruler the box also carries whatever pauses fall
@@ -3171,6 +3093,117 @@ export function V4Timeline({
 								</div>
 							) : null}
 						</div>
+
+						{showLanes
+							? tracks
+									.filter((track) => track.id !== "main-video")
+									.map((track) => {
+										const regions =
+											track.kind === "effect"
+												? track.id === "effect:zoom"
+													? zoomPills
+													: track.id === "effect:speed"
+														? speedPills
+														: track.id === "effect:trim"
+															? trimPills
+															: cameraFullscreenPills
+												: annPills.filter((pill) => {
+														const row = doc?.annotations.find((item) => item.id === pill.id);
+														return row && itemTrackId(row, "annotation") === track.id;
+													});
+										const audio = audioPills.filter(
+											(item) => itemTrackId(item, "audio") === track.id,
+										);
+										const packed = packAudioTrackRows(
+											track.kind === "audio"
+												? audio
+												: regions.map((item) => ({
+														id: item.id,
+														startMs: item.start * 1000,
+														endMs: item.end * 1000,
+													})),
+										);
+										const hints: Record<string, string> = {
+											"effect:zoom": t("hints.pressZoom", {
+												key: formatBinding(shortcuts.addZoom, isMac),
+											}),
+											"effect:speed": t("hints.pressSpeed", {
+												key: formatBinding(shortcuts.addSpeed, isMac),
+											}),
+											"effect:trim": t("hints.pressTrim", {
+												key: formatBinding(shortcuts.addTrim, isMac),
+											}),
+											"effect:cameraFullscreen": hasAnyCamera
+												? t("hints.pressCameraFullscreen", {
+														key: formatBinding(shortcuts.addCameraFullscreen, isMac),
+													})
+												: ts("layout.noWebcam"),
+										};
+										return (
+											<div
+												key={track.id}
+												data-editor-track-id={track.id}
+												className={`${styles.tlLane} ${track.kind === "audio" ? styles.tlLaneAudio : ""}`}
+												style={{
+													height:
+														track.kind === "audio"
+															? Math.max(1, packed.rowCount) *
+																	(AUDIO_ROW_HEIGHT_PX + AUDIO_ROW_GAP_PX) +
+																AUDIO_LANE_PAD_PX * 2
+															: Math.max(1, packed.rowCount) * 32,
+													opacity: track.hidden || track.muted ? 0.6 : 1,
+												}}
+											>
+												{renderTrackControls(track)}
+												{renderDragGhosts(track.id)}
+												{track.kind === "audio" ? (
+													audio.length ? (
+														audio.map((item) =>
+															renderAudioPill(item, packed.rowOf.get(item.id) ?? 0),
+														)
+													) : (
+														<span
+															className={styles.laneEmpty}
+															style={{ left: `${nav.start * 100}%`, width: `${navSpan * 100}%` }}
+														>
+															{tracks.find((item) => item.kind === "audio")?.id === track.id
+																? t("hints.pressAudio", {
+																		audioKey: formatBinding(shortcuts.addAudio, isMac),
+																		voiceoverKey: formatBinding(shortcuts.addVoiceover, isMac),
+																	})
+																: track.label}
+														</span>
+													)
+												) : (
+													Array.from({ length: Math.max(1, packed.rowCount) }, (_, row) => (
+														<div key={row} style={{ height: 32, position: "relative" }}>
+															{renderPills(
+																regions.filter((item) => (packed.rowOf.get(item.id) ?? 0) === row),
+																hints[track.id] ??
+																	t("hints.pressAnnotation", {
+																		key: formatBinding(shortcuts.addAnnotation, isMac),
+																	}),
+															)}
+														</div>
+													))
+												)}
+											</div>
+										);
+									})
+							: null}
+						{dropPreview ? (
+							<div className={styles.dropPreview} style={{ left: `${pctOf(dropPreview.time)}%` }}>
+								<span>
+									{tracks.find((track) => track.id === dropPreview.trackId)?.label} ·{" "}
+									{formatSec(dropPreview.time)}
+								</span>
+							</div>
+						) : null}
+						{groupDrag?.trackId ? (
+							<div className={styles.dropTrackLabel}>
+								{tracks.find((track) => track.id === groupDrag.trackId)?.label}
+							</div>
+						) : null}
 					</div>
 				</div>
 

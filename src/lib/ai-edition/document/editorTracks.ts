@@ -52,7 +52,15 @@ export function editorTracks(doc: AxcutDocument): EditorTrack[] {
 	const tracks = [...(doc.timeline.tracks ?? [])];
 	const add = (id: string, kind: EditorTrack["kind"], label: string) => {
 		if (!tracks.some((t) => t.id === id))
-			tracks.push({ id, kind, label, locked: false, hidden: false, muted: false });
+			tracks.push({
+				id,
+				kind,
+				label,
+				locked: false,
+				hidden: false,
+				muted: false,
+				autoCreated: kind === "visual" || kind === "audio",
+			});
 	};
 	for (const r of [...doc.annotations].sort((a, b) => b.zIndex - a.zIndex))
 		add(
@@ -69,7 +77,17 @@ export function editorTracks(doc: AxcutDocument): EditorTrack[] {
 	if (tracks.filter((t) => t.kind === "audio").length < 2) add("audio-empty-2", "audio", "Audio 2");
 	add(MAIN_TRACK, "video", "Recording");
 	for (const id of ["zoom", "speed", "trim", "cameraFullscreen"]) add(`effect:${id}`, "effect", id);
-	return tracks;
+	const recordingAudio = ["desktop", "microphone"].flatMap((source) => {
+		const row = doc.audioTracks.find(
+			(item) => item.origin === "system" && item.recordingSource === source,
+		);
+		return row ? [itemTrackId(row, "audio")] : [];
+	});
+	const pinned = [...new Set([MAIN_TRACK, ...recordingAudio])];
+	return [
+		...pinned.flatMap((id) => tracks.filter((track) => track.id === id)),
+		...tracks.filter((track) => !pinned.includes(track.id)),
+	];
 }
 export function trackForItem(doc: AxcutDocument, ref: EditorItemRef): EditorTrack | undefined {
 	const row = itemRows(doc, ref)[0];
@@ -161,6 +179,16 @@ export function moveEditorItems(
 	if (!Number.isFinite(deltaMs)) return doc;
 	const moving = linkedItemRefs(doc, refs);
 	if (moving.some((r) => isItemLocked(doc, r))) return doc;
+	const primaryRow = itemRows(doc, refs[0] ?? { kind: "clip", id: "" })[0];
+	if (
+		targetTrackId &&
+		primaryRow &&
+		"recordingSource" in primaryRow &&
+		primaryRow.recordingSource &&
+		primaryRow.origin === "system" &&
+		targetTrackId !== itemTrackId(primaryRow, "audio")
+	)
+		return doc;
 	const target = editorTracks(doc).find((t) => t.id === targetTrackId);
 	if (target?.locked) return doc;
 	const spans = moving.flatMap((ref) =>
@@ -256,6 +284,7 @@ export function moveEditorItems(
 				if (!neighbor || neighbor.kind !== kind || neighbor.locked) {
 					neighbor = {
 						id: createId(`${kind}-track`),
+						autoCreated: true,
 						kind,
 						label: row.editorLabel || ("label" in row ? row.label : target.label) || target.label,
 						locked: false,
@@ -445,7 +474,15 @@ export function attachClipAudio(
 	tracks.splice(
 		tracks.findIndex((track) => track.id === MAIN_TRACK),
 		0,
-		{ id: trackId, kind: "audio", label: asset.label, locked: false, hidden: false, muted: false },
+		{
+			id: trackId,
+			kind: "audio",
+			label: asset.label,
+			locked: false,
+			hidden: false,
+			muted: false,
+			autoCreated: true,
+		},
 	);
 	return {
 		...doc,
@@ -614,5 +651,31 @@ export function removeLinkedEditorItems(doc: AxcutDocument, ref: EditorItemRef):
 	for (const item of refs)
 		if (item.kind === "clip" && next.timeline.clips.some((clip) => clip.id === item.id))
 			next = removeClip(next, item.id);
-	return { ...next, assets: doc.assets };
+	return pruneEmptyAutomaticTracks(doc, { ...next, assets: doc.assets });
+}
+
+/** Retain deliberate empty lanes; remove media lanes vacated by deletion or movement. */
+export function pruneEmptyAutomaticTracks(
+	before: AxcutDocument,
+	after: AxcutDocument,
+): AxcutDocument {
+	if (!after.timeline.tracks) return after;
+	const occupied = (doc: AxcutDocument) =>
+		new Set([
+			...doc.annotations.map((row) => itemTrackId(row, "annotation")),
+			...doc.audioTracks.map((row) => itemTrackId(row, "audio")),
+		]);
+	const wasOccupied = occupied(before),
+		nowOccupied = occupied(after);
+	const tracks = after.timeline.tracks.filter(
+		(track) =>
+			track.kind === "video" ||
+			track.kind === "effect" ||
+			track.autoCreated === false ||
+			!wasOccupied.has(track.id) ||
+			nowOccupied.has(track.id),
+	);
+	return tracks.length === after.timeline.tracks.length
+		? after
+		: { ...after, timeline: { ...after.timeline, tracks } };
 }

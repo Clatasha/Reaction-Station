@@ -1,12 +1,14 @@
 import { Import, Search } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { useScopedT } from "@/contexts/I18nContext";
 import { relinkEditorAsset } from "@/lib/ai-edition/document/editorTracks";
 import type { AxcutAsset, AxcutDocument } from "@/lib/ai-edition/schema";
 import { useProjectStore } from "@/lib/ai-edition/store/projectStore";
 import { useChatPromptBus } from "@/lib/ai-edition/store/useChatPromptBus";
 import { droppedMediaKind } from "@/lib/ai-edition/timeline/mediaDrop";
+import { moveMenuFocus } from "@/lib/menuKeyboard";
 import { ChatStripPanel } from "./LeftPanel";
 import styles from "./LibraryPanel.module.css";
 import { MediaThumbnail } from "./MediaThumbnail";
@@ -32,6 +34,13 @@ export function LibraryPanel({
 	const [filter, setFilter] = useState("all");
 	const [missing, setMissing] = useState<Set<string>>(new Set());
 	const [busy, setBusy] = useState(false);
+	const [context, setContext] = useState<{ asset: AxcutAsset; x: number; y: number } | null>(null);
+	const lastContext = useRef(context);
+	if (context) lastContext.current = context;
+	const displayedContext = context ?? lastContext.current;
+	const anchor = useRef({ getBoundingClientRect: () => new DOMRect(0, 0, 0, 0) });
+	anchor.current.getBoundingClientRect = () =>
+		new DOMRect(displayedContext?.x ?? 0, displayedContext?.y ?? 0, 0, 0);
 	const picker = useRef<HTMLInputElement>(null);
 	const relinkId = useRef<string>();
 	const importFiles = async (files: File[]) => {
@@ -109,6 +118,44 @@ export function LibraryPanel({
 				}
 			}}
 		>
+			<Popover
+				open={!!context}
+				onOpenChange={(open) => {
+					if (!open) setContext(null);
+				}}
+			>
+				<PopoverAnchor virtualRef={anchor} />
+				<PopoverContent
+					className={styles.contextMenu}
+					role="menu"
+					align="start"
+					sideOffset={0}
+					onKeyDown={(event) => {
+						if (event.key === "Escape") setContext(null);
+						else moveMenuFocus(event);
+						event.nativeEvent.stopPropagation();
+					}}
+				>
+					{["locateFile", "replaceFile"].map((action) => (
+						<button
+							type="button"
+							role="menuitem"
+							key={action}
+							disabled={busy}
+							onClick={() => {
+								if (
+									displayedContext &&
+									assets.some((asset) => asset.id === displayedContext.asset.id)
+								)
+									locate(displayedContext.asset);
+								setContext(null);
+							}}
+						>
+							{t(`library.${action}`)}
+						</button>
+					))}
+				</PopoverContent>
+			</Popover>
 			<div className={styles.header}>
 				<h2>{t("library.title")}</h2>
 				<button
@@ -168,7 +215,20 @@ export function LibraryPanel({
 							type="button"
 							draggable={!busy && !missing.has(asset.id)}
 							title={asset.label}
-							onDoubleClick={() => void onAdd(asset.id)}
+							onContextMenu={(event) => {
+								event.preventDefault();
+								setContext({ asset, x: event.clientX, y: event.clientY });
+							}}
+							onKeyDown={(event) => {
+								if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
+									event.preventDefault();
+									const rect = event.currentTarget.getBoundingClientRect();
+									setContext({ asset, x: rect.left, y: rect.bottom });
+								}
+							}}
+							onDoubleClick={() => {
+								if (!busy && !missing.has(asset.id)) void onAdd(asset.id);
+							}}
 							onDragStart={(event) => {
 								event.dataTransfer.setData("application/x-axcut-asset", asset.id);
 								event.dataTransfer.effectAllowed = "copy";
@@ -182,14 +242,9 @@ export function LibraryPanel({
 							</div>
 							<span>{asset.label}</span>
 						</button>
-						<button
-							type="button"
-							disabled={busy}
-							onClick={() => locate(asset)}
-							title={t("library.locate")}
-						>
-							{missing.has(asset.id) ? t("library.missing") : t("library.locate")}
-						</button>
+						{missing.has(asset.id) ? (
+							<span className={styles.missing}>{t("library.missing")}</span>
+						) : null}
 					</div>
 				))}
 				{!rows.length ? (

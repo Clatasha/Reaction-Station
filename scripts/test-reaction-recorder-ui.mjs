@@ -218,6 +218,7 @@ try {
 		.first();
 	const tracks = editor.locator('[class*="tlTracks_"]').first();
 	const originalTracksHeight = await tracks.evaluate((el) => el.clientHeight);
+	const originalTrackCount = await editor.locator("[data-editor-track-id]").count();
 	await microphone.click({ button: "right" });
 	await editor.screenshot({ path: path.join(output, "timeline-before-duplicate.png") });
 	await editor.getByRole("menuitem", { name: "Duplicate", exact: true }).click();
@@ -241,6 +242,9 @@ try {
 	await editor.screenshot({ path: path.join(output, "timeline-context-menu.png") });
 	await editor.getByRole("menuitem", { name: "Delete", exact: true }).click();
 	await expect.poll(async () => (await getImportedDocument()).audioTracks.length).toBe(2);
+	await expect
+		.poll(() => editor.locator("[data-editor-track-id]").count())
+		.toBe(originalTrackCount);
 
 	const bin = editor.getByTestId("media-bin");
 	await expect(bin).toBeVisible();
@@ -249,6 +253,11 @@ try {
 			bin.evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(" ").length),
 		)
 		.toBe(3);
+	await bin.getByRole("button").first().click({ button: "right" });
+	await expect(editor.getByRole("menuitem", { name: "Locate file", exact: true })).toBeVisible();
+	await expect(editor.getByRole("menuitem", { name: "Replace file", exact: true })).toBeVisible();
+	await editor.screenshot({ path: path.join(output, "library-context-menu.png") });
+	await editor.keyboard.press("Escape");
 	const micRow = editor
 		.locator("[data-editor-track-id]")
 		.filter({

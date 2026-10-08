@@ -1442,14 +1442,8 @@
 	scrollbar-width: auto;
 	scrollbar-gutter: stable;
 	scrollbar-color: var(--border-hi) transparent;
-	/* Bottom-anchor via column-reverse (the single child is .tlCanvas, so its
-	   internal lane→clip order is untouched): the main clip track sits at the
-	   bottom edge and stays visible as the panel shrinks, while the edit lanes
-	   above overflow the top and REMAIN reachable by scrolling up. `flex-end`
-	   would bottom-anchor too, but content it pushes past the top edge isn't
-	   scrollable — which is why the lanes couldn't be reached before. */
 	display: flex;
-	flex-direction: column-reverse;
+	flex-direction: column;
 	cursor: text;
 }
 .tlTracks::-webkit-scrollbar { width: 10px; }
@@ -1915,7 +1909,7 @@
 .tlClipLabel {
 	position: absolute;
 	left: 8px;
-	top: 8px;
+	top: 28px;
 	z-index: 2;
 	display: inline-flex;
 	align-items: center;
@@ -2210,3 +2204,5 @@
 .clipMediaName > span:last-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
 .clipMediaName { z-index: 1; }
+
+.dragGhost { position:absolute; top:3px; height:26px; border:2px dashed var(--accent); background:color-mix(in srgb,var(--accent) 18%,transparent); border-radius:6px; pointer-events:none; z-index:8; min-width:3px; box-sizing:border-box; }

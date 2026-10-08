@@ -23,6 +23,7 @@ import {
 	moveLinkedClip,
 	patchEditorItem,
 	patchEditorTrack,
+	pruneEmptyAutomaticTracks,
 	relinkEditorAsset,
 	removeLinkedEditorItems,
 	unlinkEditorItems,
@@ -425,4 +426,67 @@ it("deletes an independent audio duplicate by its displayed group id", () => {
 	expect(pill).toBeDefined();
 	const removed = removeLinkedEditorItems(next, { kind: "audio", id: pill.id });
 	expect(removed.audioTracks).toEqual(doc.audioTracks);
+});
+
+it("removes vacated automatic lanes but preserves manual and shared lanes", () => {
+	const doc = fixture();
+	doc.timeline.tracks = editorTracks(doc).map((track) => ({ ...track, autoCreated: true }));
+	doc.timeline.tracks.push({
+		id: "manual",
+		kind: "visual",
+		label: "My lane",
+		locked: false,
+		hidden: false,
+		muted: false,
+		autoCreated: false,
+	});
+	const removed = removeLinkedEditorItems(doc, { kind: "annotation", id: "visual" });
+	expect(
+		removed.timeline.tracks?.some(
+			(track) => track.id === "visual-track" || track.id === "sound-track",
+		),
+	).toBe(false);
+	expect(removed.timeline.tracks?.some((track) => track.id === "manual")).toBe(true);
+	const shared = {
+		...doc,
+		annotations: [
+			...doc.annotations,
+			{ ...doc.annotations[0], id: "other", mediaLayerId: "other", linkGroupId: undefined },
+		],
+	};
+	expect(
+		removeLinkedEditorItems(shared, { kind: "annotation", id: "visual" }).timeline.tracks?.some(
+			(track) => track.id === "visual-track",
+		),
+	).toBe(true);
+	expect(pruneEmptyAutomaticTracks(doc, doc)).toBe(doc);
+});
+it("pins the recording above desktop and microphone sources, followed by added media", () => {
+	const doc = fixture();
+	doc.audioTracks = [
+		{
+			...doc.audioTracks[0],
+			id: "mic",
+			trackId: undefined,
+			recordingSource: "microphone",
+			origin: "system",
+			editorTrackId: "mic-lane",
+		},
+		{
+			...doc.audioTracks[0],
+			id: "desktop",
+			trackId: undefined,
+			recordingSource: "desktop",
+			origin: "system",
+			editorTrackId: "desktop-lane",
+		},
+		...doc.audioTracks,
+	];
+	const tracks = editorTracks(doc);
+	expect(tracks.slice(0, 3).map((track) => track.id)).toEqual([
+		"main-video",
+		"desktop-lane",
+		"mic-lane",
+	]);
+	expect(moveEditorItems(doc, [{ kind: "audio", id: "mic" }], 0, "sound-track")).toBe(doc);
 });

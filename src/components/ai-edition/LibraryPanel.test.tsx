@@ -109,7 +109,8 @@ it("marks unreadable media and relinks the existing asset without replacing its 
 	});
 	const { container } = render(<LibraryPanel onAdd={add} editDocument={edit} />);
 	fireEvent.error(container.querySelector("video")!);
-	fireEvent.click(screen.getByText("library.missing"));
+	fireEvent.contextMenu(screen.getByTitle("Reaction.mp4"));
+	fireEvent.click(await screen.findByRole("menuitem", { name: "library.locateFile" }));
 	fireEvent.change(container.querySelector('input[type="file"]')!, {
 		target: { files: [new File(["video"], "Found.mp4", { type: "video/mp4" })] },
 	});
@@ -130,4 +131,12 @@ it("renders safely before a project is loaded", () => {
 	render(<LibraryPanel onAdd={add} editDocument={edit} />);
 	expect(screen.getByRole("textbox", { name: "library.search" })).toBeVisible();
 	expect(screen.queryByText("Actual AI chat")).not.toBeInTheDocument();
+});
+
+it("keeps Locate and Replace in the media context menu", async () => {
+	render(<LibraryPanel onAdd={add} editDocument={edit} />);
+	expect(screen.queryByText("library.locate")).not.toBeInTheDocument();
+	fireEvent.contextMenu(screen.getByTitle("Music.wav"));
+	expect(await screen.findByRole("menuitem", { name: "library.locateFile" })).toBeVisible();
+	expect(screen.getByRole("menuitem", { name: "library.replaceFile" })).toBeVisible();
 });

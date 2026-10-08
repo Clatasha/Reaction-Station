@@ -107,3 +107,14 @@ describe("recording global shortcuts", () => {
 		expect(mocks.callbacks.has("CommandOrControl+Shift+R")).toBe(false);
 	});
 });
+
+it("uses explicit Stop for an active take, including paused recording, while retaining idle Start and other actions", async () => {
+	const engine = await import("./recordingShortcuts");
+	const send = vi.fn();
+	engine.dispatchRecordingShortcut("record", true, send);
+	expect(send).toHaveBeenLastCalledWith("stop-recording-from-tray");
+	engine.dispatchRecordingShortcut("record", false, send);
+	expect(send).toHaveBeenLastCalledWith("recording-shortcut", "record");
+	engine.dispatchRecordingShortcut("pause", true, send);
+	expect(send).toHaveBeenLastCalledWith("recording-shortcut", "pause");
+});

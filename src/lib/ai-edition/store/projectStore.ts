@@ -4,7 +4,7 @@ import { toFileUrl } from "@/components/video-editor/projectPersistence";
 import { toastText } from "@/i18n/toastText";
 import { nativeBridgeClient } from "@/native/client";
 import { anchorAudioTrackFragments, placeAudioTrackInDocument } from "../document/audioTracks";
-import { changesLockedTracks } from "../document/editorTracks";
+import { changesLockedTracks, pruneEmptyAutomaticTracks } from "../document/editorTracks";
 import { createId } from "../document/ids";
 import { type Interval, replaceTimeline as replaceTimelineOp } from "../document/timeline";
 import { type AxcutAsset, type AxcutDocument, createAudioTrack, documentSchema } from "../schema";
@@ -560,6 +560,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
 	async saveDocument(document, opts) {
 		const previous = get().document;
+		if (opts.history && previous) document = pruneEmptyAutomaticTracks(previous, document);
 		if (opts?.history && previous && changesLockedTracks(previous, document)) {
 			toast.error("Unlock the track before editing its contents");
 			return false;

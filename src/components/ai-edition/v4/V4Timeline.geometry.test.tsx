@@ -1254,3 +1254,89 @@ describe("trim duration during the gesture", () => {
 		expect(setTrimEntries).toHaveBeenCalled();
 	});
 });
+
+describe("workspace track placement", () => {
+	it("renders original picture, desktop sound and microphone before added media", () => {
+		const base = {
+			kind: "voiceover",
+			assetId: "a1",
+			sourcePath: "/tmp/sound.wav",
+			startMs: 0,
+			endMs: 2000,
+			offsetMs: 0,
+			gainDb: 0,
+			fadeInMs: 0,
+			fadeOutMs: 0,
+		};
+		renderTimeline(
+			undefined,
+			undefined,
+			[{ ...NO_CAMERA_ASSET, originalPath: "/tmp/sound.wav" }],
+			undefined,
+			{
+				audioTracks: [
+					{ ...base, id: "added", origin: "user" },
+					{ ...base, id: "mic", origin: "system", recordingSource: "microphone" },
+					{ ...base, id: "desktop", origin: "system", recordingSource: "desktop" },
+				],
+			},
+		);
+		const rows = [...document.querySelectorAll<HTMLElement>("[data-editor-track-id]")];
+		expect(rows[0].dataset.editorTrackId).toBe("main-video");
+		expect(rows[1].querySelector('[data-timeline-id="desktop"]')).not.toBeNull();
+		expect(rows[2].querySelector('[data-timeline-id="mic"]')).not.toBeNull();
+	});
+	it("shows a ghost in the destination lane and commits only on release", () => {
+		vi.stubGlobal("PointerEvent", MouseEvent);
+		const editWorkspace = vi.fn();
+		const base = {
+			kind: "voiceover",
+			assetId: "a1",
+			sourcePath: "/tmp/sound.wav",
+			startMs: 10000,
+			endMs: 12000,
+			offsetMs: 0,
+			gainDb: 0,
+			fadeInMs: 0,
+			fadeOutMs: 0,
+			origin: "user",
+		};
+		renderTimeline(
+			undefined,
+			undefined,
+			[{ ...NO_CAMERA_ASSET, originalPath: "/tmp/sound.wav" }],
+			undefined,
+			{
+				editWorkspace,
+				audioTracks: [
+					{ ...base, id: "moving", editorTrackId: "source" },
+					{ ...base, id: "other", editorTrackId: "destination" },
+				],
+			},
+		);
+		const destination = document.querySelector('[data-editor-track-id="destination"]')!;
+		const original = Object.getOwnPropertyDescriptor(document, "elementFromPoint");
+		Object.defineProperty(document, "elementFromPoint", {
+			configurable: true,
+			value: () => destination,
+		});
+		try {
+			fireEvent.pointerDown(document.querySelector('[data-timeline-id="moving"]')!, {
+				button: 0,
+				clientX: 5,
+				clientY: 10,
+			});
+			fireEvent.pointerMove(window, { clientX: 10, clientY: 200 });
+			expect(screen.getByTestId("timeline-drag-ghost").closest("[data-editor-track-id]")).toBe(
+				destination,
+			);
+			expect(editWorkspace).not.toHaveBeenCalled();
+			fireEvent.pointerUp(window);
+			expect(editWorkspace).toHaveBeenCalledTimes(1);
+			expect(screen.queryByTestId("timeline-drag-ghost")).not.toBeInTheDocument();
+		} finally {
+			if (original) Object.defineProperty(document, "elementFromPoint", original);
+			else Reflect.deleteProperty(document, "elementFromPoint");
+		}
+	});
+});

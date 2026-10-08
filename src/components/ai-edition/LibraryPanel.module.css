@@ -16,3 +16,8 @@
 .chat[open] { display:flex; flex-direction:column; height:45%; min-height:160px; overflow:hidden; }
 .chat summary { cursor:pointer; padding:8px 0; font-size:12px; }
 .chatBody { flex:1; min-height:0; overflow:auto; }
+
+.contextMenu { width:200px; padding:5px; }
+.contextMenu button { display:block; width:100%; text-align:left; border:0; background:transparent; color:var(--fg); border-radius:5px; padding:8px; cursor:pointer; }
+.contextMenu button:hover,.contextMenu button:focus-visible { background:var(--surface-2); }
+.missing { color:var(--danger); padding-top:4px; }

@@ -123,3 +123,13 @@ export async function saveRecordingShortcuts(config: RecordingShortcuts) {
 		saving = false;
 	}
 }
+
+/** An active take always gets the explicit Stop command, irrespective of renderer state. */
+export function dispatchRecordingShortcut(
+	action: RecordingAction,
+	recording: boolean,
+	send: (channel: string, ...args: unknown[]) => void,
+) {
+	if (action === "record" && recording) send("stop-recording-from-tray");
+	else send("recording-shortcut", action);
+}

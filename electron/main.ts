@@ -71,6 +71,7 @@ import { setDisplaySleepBlocked } from "./recording/displaySleepBlocker";
 import {
 	activateRecordingShortcuts,
 	deactivateRecordingShortcuts,
+	dispatchRecordingShortcut,
 	initializeRecordingShortcuts,
 	loadRecordingShortcuts,
 	saveRecordingShortcuts,
@@ -1438,7 +1439,9 @@ appReady?.then(async () => {
 	await loadAndRegisterGlobalShortcut(showMainWindow);
 	await initializeRecordingShortcuts((action) => {
 		if (mainWindow && !mainWindow.isDestroyed() && !isEditorWindow(mainWindow)) {
-			mainWindow.webContents.send("recording-shortcut", action);
+			dispatchRecordingShortcut(action, isRecording, (channel, ...args) =>
+				mainWindow?.webContents.send(channel, ...args),
+			);
 		}
 	});
 
