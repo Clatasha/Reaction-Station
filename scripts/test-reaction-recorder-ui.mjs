@@ -255,29 +255,24 @@ try {
 			has: editor.locator('[data-timeline-kind="audio"]').filter({ hasText: "Microphone" }),
 		})
 		.first();
+	const micTrackId = await micRow.getAttribute("data-editor-track-id");
+	// Old projects have no persisted track settings until the first control edit.
+	// Poll the exact row without throwing during the asynchronous document save.
+	const savedMicTrack = async () =>
+		(await getImportedDocument())?.timeline?.tracks?.find((track) => track.id === micTrackId);
 	await micRow.getByRole("button", { name: "Lock track", exact: true }).click();
-	await expect
-		.poll(async () =>
-			(await getImportedDocument()).timeline.tracks.some(
-				(track) => track.locked && track.kind === "audio",
-			),
-		)
-		.toBe(true);
+	await expect.poll(async () => (await savedMicTrack())?.locked).toBe(true);
 	await micRow.getByRole("button", { name: "Unlock track", exact: true }).click();
+	await expect.poll(async () => (await savedMicTrack())?.locked).toBe(false);
 	await micRow.getByRole("button", { name: "Mute track", exact: true }).click();
-	await expect
-		.poll(async () =>
-			(await getImportedDocument()).timeline.tracks.some(
-				(track) => track.muted && track.kind === "audio",
-			),
-		)
-		.toBe(true);
+	await expect.poll(async () => (await savedMicTrack())?.muted).toBe(true);
 	await micRow.getByRole("button", { name: "Unmute track", exact: true }).click();
+	await expect.poll(async () => (await savedMicTrack())?.muted).toBe(false);
 	await microphone.click({ button: "right" });
 	await editor.getByRole("menuitem", { name: "Disable item", exact: true }).click();
 	await expect
 		.poll(async () =>
-			(await getImportedDocument()).audioTracks.some(
+			(await getImportedDocument())?.audioTracks?.some(
 				(track) => track.recordingSource === "microphone" && track.disabled,
 			),
 		)
@@ -286,7 +281,7 @@ try {
 	await editor.getByRole("menuitem", { name: "Enable item", exact: true }).click();
 	await expect
 		.poll(async () =>
-			(await getImportedDocument()).audioTracks.some(
+			(await getImportedDocument())?.audioTracks?.some(
 				(track) => track.recordingSource === "microphone" && track.disabled,
 			),
 		)
