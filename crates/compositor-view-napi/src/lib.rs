@@ -584,6 +584,8 @@ pub struct ExportParamsInput {
     /// Débit vidéo visé, en bits/s, calculé par l'app d'après la taille et la cadence.
     /// Absent ou nul → le repli du pipeline, qui ignore la cadence.
     pub bitrate: Option<u32>,
+    /// AAC audio bitrate in bits/s.
+    pub audio_bitrate: Option<u32>,
 }
 
 /// Export multiclip mesuré (worker libuv). Rend la vraie timeline (clips + trims) en un MP4.
@@ -642,6 +644,7 @@ impl Task for ExportMultiTask {
         if let Some(p) = &self.params {
             export_params.fps = p.fps;
             export_params.bit_rate = p.bitrate.filter(|&b| b > 0).map(i64::from);
+            export_params.audio_bit_rate = p.audio_bitrate.filter(|&b| b > 0).map(i64::from);
             if let Some(codec) = &p.codec {
                 export_params.codec = match codec.as_str() {
                     "h264" => pipeline::ExportCodec::H264,

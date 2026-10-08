@@ -160,6 +160,7 @@ export function ExportDialog({ open, onClose, document }: ExportDialogProps) {
 	const cpuCompositor = useIsCpuCompositor();
 	const [format, setFormat] = useState<ExportFormat>("mp4");
 	const [quality, setQuality] = useState<ExportQuality>("good");
+	const [audioBitrate, setAudioBitrate] = useState(192_000);
 	const [fps, setFps] = useState<24 | 30 | 60>(60);
 	const [gifFrameRate, setGifFrameRate] = useState<GifFrameRate>(15);
 	const [gifSize, setGifSize] = useState<GifSizePreset>("medium");
@@ -444,6 +445,7 @@ export function ExportDialog({ open, onClose, document }: ExportDialogProps) {
 									// measured Macs, and the files half the players cannot open.
 									codec: "h264",
 									bitrate: outDims?.bitrate,
+									audioBitrate,
 								},
 								job.id,
 							);
@@ -582,6 +584,30 @@ export function ExportDialog({ open, onClose, document }: ExportDialogProps) {
 								</button>
 							))}
 						</div>
+						<label style={{ display: "block", marginTop: 12 }}>
+							<span className={styles.groupLabel}>{t("exportDialog.audioQuality")}</span>
+							<select
+								aria-label={t("exportDialog.audioQuality")}
+								disabled={isBusy}
+								value={audioBitrate}
+								onChange={(event) => setAudioBitrate(Number(event.target.value))}
+								style={{
+									display: "block",
+									width: "100%",
+									padding: 8,
+									background: "var(--surface-1)",
+									color: "var(--fg)",
+									border: "1px solid var(--border)",
+									borderRadius: 8,
+								}}
+							>
+								{[64, 96, 128, 192, 256, 320].map((rate) => (
+									<option key={rate} value={rate * 1000}>
+										AAC · {rate} kbps
+									</option>
+								))}
+							</select>
+						</label>
 						<div style={{ marginTop: 12 }}>
 							<div className={styles.groupLabel}>{t("exportDialog.frameRate")}</div>
 							<div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6 }}>

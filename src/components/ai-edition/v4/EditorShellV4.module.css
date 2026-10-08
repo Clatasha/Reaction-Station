@@ -1443,7 +1443,7 @@
 	scrollbar-gutter: stable;
 	scrollbar-color: var(--border-hi) transparent;
 	display: flex;
-	flex-direction: column;
+	flex-direction: column-reverse;
 	cursor: text;
 }
 .tlTracks::-webkit-scrollbar { width: 10px; }

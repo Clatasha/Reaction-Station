@@ -16,6 +16,10 @@
 import "@testing-library/jest-dom";
 import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { EditorDialogsProvider } from "@/contexts/EditorDialogsContext";
+import { useProjectStore } from "@/lib/ai-edition/store/projectStore";
+import { ChatStripPanel } from "./LeftPanel";
 
 const ASSISTANT_CONTENT =
 	"Stub assistant reply for issue 738.\nSecond line with unicode: ✓ 🎬 — em dash, accént, 中文.";
@@ -150,11 +154,7 @@ afterEach(() => {
 });
 
 async function renderPanelWithAssistantMessage() {
-	const { useProjectStore } = await import("@/lib/ai-edition/store/projectStore");
 	useProjectStore.setState({ projectId: "project-1" });
-	const { EditorDialogsProvider } = await import("@/contexts/EditorDialogsContext");
-	const { ChatStripPanel } = await import("./LeftPanel");
-	const { TooltipProvider } = await import("@/components/ui/tooltip");
 	const view = render(
 		<TooltipProvider>
 			<EditorDialogsProvider>
@@ -163,9 +163,14 @@ async function renderPanelWithAssistantMessage() {
 		</TooltipProvider>,
 	);
 	// Flush the session load so the assistant bubble (and its copy button) is on screen.
-	await waitFor(() => {
-		expect(view.getAllByRole("button", { name: "chat.copyMessage" }).length).toBeGreaterThan(0);
-	});
+	// The first render loads the chat editor modules on a cold worker. Allow that
+	// setup to finish under suite load without relaxing any clipboard assertions.
+	await waitFor(
+		() => {
+			expect(view.getAllByRole("button", { name: "chat.copyMessage" }).length).toBeGreaterThan(0);
+		},
+		{ timeout: 5_000 },
+	);
 	return view;
 }
 

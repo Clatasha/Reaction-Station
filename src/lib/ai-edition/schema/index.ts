@@ -170,6 +170,7 @@ export const assetTranscriptionFailureSchema = z.object({
 });
 
 export const assetSchema = z.object({
+	libraryHidden: z.boolean().optional(),
 	id: z.string().min(1),
 	// Widened from a `"video"` literal when external-audio import landed (issue
 	// #350). An imported voiceover / BGM / SFX file carries no video stream, so it
@@ -321,6 +322,7 @@ export const timelineSchema = z.preprocess(
 	},
 	z.object({
 		tracks: z.array(editorTrackSchema).optional(),
+		removedTrackIds: z.array(z.string()).optional(),
 		clips: z.array(clipSchema).default([]),
 		gaps: z.array(gapSchema).default([]),
 		trimRanges: z.array(trimRangeSchema).default([]),

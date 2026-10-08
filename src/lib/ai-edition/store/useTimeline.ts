@@ -1450,9 +1450,8 @@ export function useTimeline() {
 			// had already undone wiped `future`, destroying redo from a background write.
 			await state.saveDocument(
 				{
-					...doc,
+					...withClipsChanged(doc, nextClips),
 					assets: nextAssets,
-					timeline: { ...doc.timeline, clips: nextClips },
 				},
 				{ history: false },
 			);
@@ -1480,7 +1479,10 @@ export function useTimeline() {
 			// Insert immediately at whatever we know. If the asset has a cached
 			// durationSec we use it; otherwise we fall back to the placeholder
 			// and let the background probe correct it.
-			const knownDuration = asset.durationSec ?? PLACEHOLDER_DURATION_SEC;
+			const knownDuration =
+				asset.durationSec ??
+				currentDoc.assets.find((row) => row.id === audioAssetId)?.durationSec ??
+				PLACEHOLDER_DURATION_SEC;
 			const newClip: Clip = {
 				id: createId("clip"),
 				assetId,

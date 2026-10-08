@@ -209,7 +209,8 @@
 		"failedToWriteFile": "寫入檔案失敗",
 		"qualityUpscaleWarning": "放大",
 		"exportedVideoOf": "的影片已匯出，耗時",
-		"nothingToExport": "沒有可匯出的內容 — 時間軸為空。"
+		"nothingToExport": "沒有可匯出的內容 — 時間軸為空。",
+		"audioQuality": "Audio quality"
 	},
 	"inspector": {
 		"resetFocusPoint": "重設焦點",
@@ -470,6 +471,7 @@
 		"wrongType": "Choose the same type of media for this replacement",
 		"tooShort": "This file is shorter than the edited source window",
 		"locateFile": "Locate file",
-		"replaceFile": "Replace file"
+		"replaceFile": "Replace file",
+		"delete": "Delete"
 	}
 }

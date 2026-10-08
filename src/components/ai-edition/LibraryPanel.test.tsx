@@ -140,3 +140,14 @@ it("keeps Locate and Replace in the media context menu", async () => {
 	expect(await screen.findByRole("menuitem", { name: "library.locateFile" })).toBeVisible();
 	expect(screen.getByRole("menuitem", { name: "library.replaceFile" })).toBeVisible();
 });
+
+it("deletes the selected bin entry through its context menu and retains its source metadata", async () => {
+	render(<LibraryPanel onAdd={add} editDocument={edit} />);
+	fireEvent.contextMenu(screen.getByTitle("Reaction.mp4"));
+	fireEvent.click(await screen.findByRole("menuitem", { name: "library.delete" }));
+	await waitFor(() => expect(screen.queryByTitle("Reaction.mp4")).not.toBeInTheDocument());
+	expect(
+		useProjectStore.getState().document?.assets.find((asset) => asset.id === "video"),
+	).toMatchObject({ libraryHidden: true, originalPath: "/reaction.mp4" });
+	expect(edit).toHaveBeenCalledTimes(1);
+});

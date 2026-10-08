@@ -246,6 +246,28 @@ try {
 		.poll(() => editor.locator("[data-editor-track-id]").count())
 		.toBe(originalTrackCount);
 
+	const trackOrder = await editor.locator("[data-editor-track-id]").evaluateAll((rows) =>
+		rows.slice(-3).map((row) => ({
+			id: row.dataset.editorTrackId,
+			audio: row.querySelector('[data-timeline-kind="audio"]')?.textContent ?? "",
+		})),
+	);
+	expect(trackOrder[0].id).toBe("main-video");
+	expect(trackOrder[1].audio).toContain("Desktop audio");
+	expect(trackOrder[2].audio).toContain("Microphone");
+	const lanesBeforeAdd = await editor.locator("[data-editor-track-id]").count();
+	await editor.getByTitle("Add audio track", { exact: true }).click();
+	await expect
+		.poll(() => editor.locator("[data-editor-track-id]").count())
+		.toBe(lanesBeforeAdd + 1);
+	const addedLane = (await getImportedDocument()).timeline.tracks.find(
+		(track) => track.autoCreated === false && track.kind === "audio",
+	);
+	await editor
+		.locator(`[data-editor-track-id="${addedLane.id}"]`)
+		.getByRole("button", { name: "Remove track", exact: true })
+		.click();
+	await expect.poll(() => editor.locator("[data-editor-track-id]").count()).toBe(lanesBeforeAdd);
 	const bin = editor.getByTestId("media-bin");
 	await expect(bin).toBeVisible();
 	await expect
@@ -256,6 +278,7 @@ try {
 	await bin.getByRole("button").first().click({ button: "right" });
 	await expect(editor.getByRole("menuitem", { name: "Locate file", exact: true })).toBeVisible();
 	await expect(editor.getByRole("menuitem", { name: "Replace file", exact: true })).toBeVisible();
+	await expect(editor.getByRole("menuitem", { name: "Delete", exact: true })).toBeVisible();
 	await editor.screenshot({ path: path.join(output, "library-context-menu.png") });
 	await editor.keyboard.press("Escape");
 	const micRow = editor
