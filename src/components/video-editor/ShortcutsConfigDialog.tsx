@@ -175,7 +175,23 @@ export function ShortcutsConfigDialog() {
 														: "bg-[var(--surface-2)] border-[var(--border)] text-[var(--fg-2)] hover:border-[var(--brand)] hover:text-[var(--brand)] cursor-pointer",
 											].join(" ")}
 										>
-											{isCapturing ? t("pressKey") : formatBinding(draft[action], isMac)}
+											{isCapturing
+												? t("pressKey")
+												: draft[action].key
+													? formatBinding(draft[action], isMac)
+													: t("unassigned")}
+										</button>
+										<button
+											type="button"
+											aria-label={`${t("clearShortcut")}: ${t(`actions.${action}`)}`}
+											onClick={() => {
+												setCaptureFor(null);
+												setConflict(null);
+												setDraft((prev) => ({ ...prev, [action]: { key: "" } }));
+											}}
+											className="px-2 text-xs text-[var(--muted)] hover:text-[var(--fg)]"
+										>
+											×
 										</button>
 									</div>
 									{hasConflict && conflict?.conflictWith.type === "configurable" && (
@@ -211,21 +227,23 @@ export function ShortcutsConfigDialog() {
 
 					<div className="space-y-0.5 mt-2">
 						<p className="mb-2 text-[13px] font-semibold leading-[1.3] text-[var(--fg-2)]">
-							{t("fixed")}
+							{t("mouseGestures")}
 						</p>
-						{FIXED_SHORTCUTS.map((shortcut) => (
-							<div
-								key={shortcut.i18nKey}
-								className="flex items-center justify-between py-1.5 px-1 border-b border-[var(--border-soft)] last:border-0"
-							>
-								<span className="text-sm text-[var(--muted)]">
-									{t(`fixedActions.${shortcut.i18nKey}`, { defaultValue: shortcut.label })}
-								</span>
-								<kbd className="px-2 py-1.5 bg-[var(--surface-2)] border border-[var(--border)] rounded-[8px] text-xs font-mono text-[var(--muted)] min-w-[90px] text-center">
-									{formatFixedShortcut(shortcut, isMac)}
-								</kbd>
-							</div>
-						))}
+						{FIXED_SHORTCUTS.filter((shortcut) => shortcut.bindings.length === 0).map(
+							(shortcut) => (
+								<div
+									key={shortcut.i18nKey}
+									className="flex items-center justify-between py-1.5 px-1 border-b border-[var(--border-soft)] last:border-0"
+								>
+									<span className="text-sm text-[var(--muted)]">
+										{t(`fixedActions.${shortcut.i18nKey}`, { defaultValue: shortcut.label })}
+									</span>
+									<kbd className="px-2 py-1.5 bg-[var(--surface-2)] border border-[var(--border)] rounded-[8px] text-xs font-mono text-[var(--muted)] min-w-[90px] text-center">
+										{formatFixedShortcut(shortcut, isMac)}
+									</kbd>
+								</div>
+							),
+						)}
 					</div>
 
 					<p className="mt-2 text-xs leading-normal text-[var(--muted)]">{t("helpText")}</p>

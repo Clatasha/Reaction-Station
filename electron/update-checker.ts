@@ -1,5 +1,5 @@
-const LATEST_RELEASE_API = "https://api.github.com/repos/Clatasha/openscreen/releases/latest";
-const OFFICIAL_RELEASE_PREFIX = "/Clatasha/openscreen/releases/tag/";
+const LATEST_RELEASE_API = "https://api.github.com/repos/Clatasha/Reaction-Station/releases/latest";
+const OFFICIAL_RELEASE_PREFIX = "/Clatasha/Reaction-Station/releases/tag/";
 
 interface ReleaseResponse {
 	ok: boolean;

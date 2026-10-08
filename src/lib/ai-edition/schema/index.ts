@@ -179,6 +179,10 @@ export const assetSchema = z.object({
 	kind: z.enum(["video", "audio"]).default("video"),
 	label: z.string().min(1),
 	originalPath: z.string().min(1),
+	stillImagePath: z.string().optional(),
+	libraryCategory: z.enum(["media", "sticker"]).optional(),
+	// Suppress the embedded fallback mix once separate recording sources are imported.
+	sourceAudioMuted: z.boolean().optional(),
 	proxyPath: z.string().optional(),
 	waveformPath: z.string().optional(),
 	durationSec: z.number().nonnegative().optional(),
@@ -206,8 +210,27 @@ export const clipCropRegionSchema = z.object({
 	height: z.number().min(0).max(1),
 });
 
+// Additive editor metadata, shared by footage, overlays and independent audio.
+const editorItemShape = {
+	editorTrackId: z.string().min(1).optional(),
+	linkGroupId: z.string().min(1).optional(),
+	disabled: z.boolean().optional(),
+	editorLabel: z.string().optional(),
+};
+export const editorTrackSchema = z.object({
+	autoCreated: z.boolean().optional(),
+	id: z.string().min(1),
+	kind: z.enum(["video", "visual", "audio", "effect"]),
+	label: z.string(),
+	locked: z.boolean().default(false),
+	hidden: z.boolean().default(false),
+	muted: z.boolean().default(false),
+});
+
 export const clipSchema = z
 	.object({
+		...editorItemShape,
+		embeddedAudioMuted: z.boolean().optional(),
 		id: z.string().min(1),
 		assetId: z.string().min(1),
 		sourceStartSec: z.number().nonnegative(),
@@ -224,6 +247,11 @@ export const clipSchema = z
 		// that as the identity region {x:0,y:0,width:1,height:1} rather than
 		// storing the identity explicitly, so untouched clips stay lean.
 		cropRegion: clipCropRegionSchema.optional(),
+		mediaAnimation: z.enum(["none", "fade", "rise", "pop", "slide-left", "pulse"]).optional(),
+		keepSeparate: z.boolean().optional(),
+		webcamLayoutPreset: z
+			.enum(["picture-in-picture", "vertical-stack", "dual-frame", "no-webcam"])
+			.optional(),
 	})
 	.refine((data) => data.timelineEndSec >= data.timelineStartSec, {
 		message: "timelineEndSec must be greater than or equal to timelineStartSec",
@@ -292,6 +320,7 @@ export const timelineSchema = z.preprocess(
 		return value;
 	},
 	z.object({
+		tracks: z.array(editorTrackSchema).optional(),
 		clips: z.array(clipSchema).default([]),
 		gaps: z.array(gapSchema).default([]),
 		trimRanges: z.array(trimRangeSchema).default([]),
@@ -452,6 +481,7 @@ const clipAnchorShape = {
 
 export const annotationRegionSchema = endGteStart(
 	z.object({
+		...editorItemShape,
 		id: z.string().min(1),
 		startMs: z.number().nonnegative(),
 		endMs: z.number().nonnegative(),
@@ -460,6 +490,11 @@ export const annotationRegionSchema = endGteStart(
 		content: z.string().default(""),
 		textContent: z.string().optional(),
 		imageContent: z.string().optional(),
+		mediaAssetId: z.string().optional(),
+		mediaLayerId: z.string().optional(),
+		// A surviving fragment can have its original head before timeline zero after a reorder.
+		mediaOffsetMs: z.number().finite().optional(),
+		mediaSourceStartSec: z.number().nonnegative().optional(),
 		// The box `position`, `size` and the text size are measured against. `"frame"`, the output
 		// frame: where text, images and arrows are placed, so padding and the footage's size never
 		// move them. Absent, the footage (screen rect): a privacy blur always, since it must stay on
@@ -468,8 +503,8 @@ export const annotationRegionSchema = endGteStart(
 		space: z.literal("frame").optional(),
 		// At least 0 too, except for an arrow: see the refine below.
 		position: z.object({
-			x: z.number().max(100),
-			y: z.number().max(100),
+			x: z.number().finite(),
+			y: z.number().finite(),
 		}),
 		size: z.object({
 			width: z.number().positive(),
@@ -487,7 +522,11 @@ export const annotationRegionSchema = endGteStart(
 	// The compositor draws an arrow in the middle of its square box, so an arrow drawn against the
 	// frame's left or top edge has a box that starts before the frame (`annotations/arrowBounds.ts`).
 	// Its strokes stay inside. Every other box starts inside the frame.
-	(region) => region.type === "figure" || (region.position.x >= 0 && region.position.y >= 0),
+	(region) =>
+		region.type === "image" ||
+		(region.position.x <= 100 &&
+			region.position.y <= 100 &&
+			(region.type === "figure" || (region.position.x >= 0 && region.position.y >= 0))),
 	{ message: "position must be at least 0", path: ["position"] },
 );
 
@@ -568,6 +607,7 @@ export const zoomRegionSchema = endGteStart(
 // audibly restart at the boundary.
 export const audioTrackSchema = endGteStart(
 	z.object({
+		...editorItemShape,
 		id: z.string().min(1),
 		// Shared by every fragment of one user-visible track: what the lane draws
 		// as a single pill, what the inspector edits, and what delete removes.
@@ -579,6 +619,8 @@ export const audioTrackSchema = endGteStart(
 		...clipAnchorShape,
 		assetId: z.string().min(1),
 		kind: z.enum(["voiceover", "music"]).default("music"),
+		// Recorded sources follow video speed and retain their capture levels.
+		recordingSource: z.enum(["microphone", "desktop"]).optional(),
 		// Full source duration of the underlying file, cached here so the timeline
 		// can lay out the pill before the asset is re-probed on load.
 		durationSec: z.number().nonnegative().default(0),

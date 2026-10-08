@@ -14,8 +14,15 @@ Capture what you are watching alongside your webcam and voice, then edit the rec
 
 - **Capture the content** — record a browser window, another app or your entire screen.
 - **Add your reaction** — record your microphone and system audio, with a webcam overlay for your face.
+- **Control your take** — configurable global recording hotkeys and live audio volume/mute controls.
+- **Mix your reaction** — Windows native recordings open with separate microphone and desktop audio tracks for independent editing.
 - **Frame your camera** — adjust the webcam position, shape, roundness and mirroring.
 - **Edit the recording** — trim sections, crop the picture and change the speed of individual segments.
+- **Build your timeline** — drop video, image and audio files into the sequence or overlay lanes, with a scrolling timeline and visual animation presets.
+- **Organize your media** — a three-column Library with search, reusable media, custom sticker imports and collapsible AI chat.
+- **Keep sound in sync** — imported video/audio pairs are linked by default; unlink them for independent edits.
+- **Control your tracks** — rename, lock, hide or mute tracks; move added media between compatible rows, and disable items without deleting them.
+- **Recover missing files** — locate a moved source while keeping your timeline edits.
 - **Add context** — use captions, text, arrows, images and zooms to support your commentary.
 - **Export your video** — save an MP4 in the aspect ratio and resolution that suit your channel.
 
@@ -25,11 +32,11 @@ The editing tools also include backgrounds, cursor effects, customizable keyboar
 
 Reaction Station is being developed around the workflow of reaction creators: watching content, recording commentary and preparing the result for YouTube. Dedicated reaction features will build on the recording and editing tools already in the codebase.
 
-Ideas for improving that workflow are welcome through [pull requests](https://github.com/Clatasha/openscreen/pulls).
+Ideas for improving that workflow are welcome through [pull requests](https://github.com/Clatasha/Reaction-Station/pulls).
 
 ## Downloads
 
-A Reaction Station installer has not been released yet. Builds will be posted on [this repository's Releases page](https://github.com/Clatasha/openscreen/releases) when they are ready.
+Windows test installers are available from the [Reaction Station Windows test workflow](https://github.com/Clatasha/Reaction-Station/actions/workflows/reaction-station-windows-test.yml). Open a successful run and download the `reaction-station-windows-test` artifact. Stable releases will be posted on [this repository's Releases page](https://github.com/Clatasha/Reaction-Station/releases) when ready.
 
 ## Development
 
@@ -38,7 +45,7 @@ Development is public and the project is in its early stages. The codebase inclu
 For local development, use Node.js **22.22.1** and npm **10.9.4**:
 
 ```bash
-git clone https://github.com/Clatasha/openscreen.git reaction-station
+git clone https://github.com/Clatasha/Reaction-Station.git reaction-station
 cd reaction-station
 npm ci
 npm run dev

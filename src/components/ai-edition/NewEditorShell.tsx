@@ -5,10 +5,7 @@ import { toFileUrl } from "@/components/video-editor/projectPersistence";
 import { useEditorDialogActions } from "@/contexts/EditorDialogsContext";
 import { useScopedT } from "@/contexts/I18nContext";
 import { useShortcuts } from "@/contexts/ShortcutsContext";
-import {
-	AUDIO_ROW_EXPANSION_PX,
-	computeAudioRowCount,
-} from "@/lib/ai-edition/document/audioTracks";
+import { editorTracks, visibleEditorDocument } from "@/lib/ai-edition/document/editorTracks";
 import { createId } from "@/lib/ai-edition/document/ids";
 import {
 	migrateProjectDataToAxcutDocument,
@@ -40,12 +37,18 @@ import {
 	useTranscriptionStore,
 } from "@/lib/ai-edition/store/transcriptionStore";
 import { useUndoRedoShortcuts } from "@/lib/ai-edition/store/undo";
-import { future as redoStack, past as undoStack } from "@/lib/ai-edition/store/undoStack";
+import {
+	currentWriteEpoch,
+	future as redoStack,
+	past as undoStack,
+} from "@/lib/ai-edition/store/undoStack";
 import { useChatPromptBus } from "@/lib/ai-edition/store/useChatPromptBus";
 import { useSequentialTimelineOps } from "@/lib/ai-edition/store/useSequentialTimelineOps";
 import { useTimeline } from "@/lib/ai-edition/store/useTimeline";
 import { isGeneratedAssetId } from "@/lib/ai-edition/timeline/clip-parts";
 import { mergeCloseCuts } from "@/lib/ai-edition/timeline/cut-breath";
+import { probeVideoDuration } from "@/lib/ai-edition/timeline/duration";
+import { droppedMediaKind, type MediaDropPlacement } from "@/lib/ai-edition/timeline/mediaDrop";
 import { newRegionDurationSec } from "@/lib/ai-edition/timeline/newRegionDuration";
 import {
 	dropTrimPillsByIds,
@@ -53,14 +56,15 @@ import {
 	ventilateTimelineSpanToTrims,
 } from "@/lib/ai-edition/timeline/trim-mapping";
 import { firstTimelineBusyView } from "@/lib/ai-edition/transcription/status";
-import { matchesShortcut } from "@/lib/shortcuts";
+import { matchesShortcut, type ShortcutAction } from "@/lib/shortcuts";
+import { fitTimelineToWindow, useWorkspace } from "@/lib/workspace";
 import { nativeBridgeClient } from "@/native";
 import type { AiEditionProjectSummary } from "@/native/contracts";
 import { resolveVisibleClips } from "@/native/sceneDescription";
 import { useNativePlaybackSync } from "@/native/useNativePlaybackSync";
 import { ExportDialog } from "./ExportDialog";
 import { insertionsEnabled } from "./insertionsEnabled";
-import { ChatStripPanel } from "./LeftPanel";
+import { LibraryPanel } from "./LibraryPanel";
 import {
 	EditClipModal,
 	NewProjectModal,
@@ -213,7 +217,7 @@ export function NewEditorShell() {
 	// v4 shell: three modes (Media / Edit / Rec), a collapsible agent (chat)
 	// column, and a floating facet inspector over the stage.
 	const [mode, setMode] = useState<EditorMode>("edit");
-	const [chatOpen, setChatOpen] = useState(false);
+	const [chatOpen, setChatOpen] = useState(true);
 	const pendingChatPrompt = useChatPromptBus((s) => s.pending);
 	useEffect(() => {
 		if (pendingChatPrompt && !chatOpen) {
@@ -246,17 +250,9 @@ export function NewEditorShell() {
 		return Math.min(MAX_TIMELINE_HEIGHT_PX, Math.max(MIN_TIMELINE_HEIGHT_PX, val));
 	});
 
-	// The timeline height automatically expands by AUDIO_ROW_EXPANSION_PX (+29px)
-	// whenever the project transitions between 1 and 2 stacked audio rows (e.g. voiceover + music).
-	const audioRowCount = useMemo(
-		() => computeAudioRowCount(document?.audioTracks ?? []),
-		[document?.audioTracks],
-	);
-	const extraAudioHeightPx = Math.max(0, audioRowCount - 1) * AUDIO_ROW_EXPANSION_PX;
-	const timelineHeightPx = Math.min(
-		MAX_TIMELINE_HEIGHT_PX,
-		Math.max(MIN_TIMELINE_HEIGHT_PX, timelineBaseHeightPx + extraAudioHeightPx),
-	);
+	// Eight default lanes fit the saved panel size. Additional lanes scroll instead
+	// of taking height from the preview; only the resize handle changes this size.
+	const timelineHeightPx = timelineBaseHeightPx;
 	const [inspectorOpen, setInspectorOpen] = useState(true);
 	const [facet, setFacet] = useState<Facet>("effects");
 	const [openProjectOpen, setOpenProjectOpen] = useState(false);
@@ -311,10 +307,14 @@ export function NewEditorShell() {
 	// edit the user just undid came back. `history: false` is load-bearing — a
 	// recording save here would push the restored document straight back onto the
 	// stack and clear the redo the undo had just created.
-	const { runUndo, runRedo } = useUndoRedoShortcuts(() => {
-		const doc = useProjectStore.getState().document;
-		if (doc) void useProjectStore.getState().saveDocument(doc, { history: false });
-	});
+	const { runUndo, runRedo } = useUndoRedoShortcuts(
+		() => {
+			const doc = useProjectStore.getState().document;
+			if (doc) void useProjectStore.getState().saveDocument(doc, { history: false });
+		},
+		shortcuts,
+		isMac,
+	);
 	const [copiedClipId, setCopiedClipId] = useState<string | null>(null);
 	const [projectSummaries, setProjectSummaries] = useState<AiEditionProjectSummary[]>([]);
 	const seekSeqRef = useRef(0);
@@ -354,7 +354,10 @@ export function NewEditorShell() {
 		document?.assets.find((a) => a.id === document.project.primaryAssetId)?.originalPath ?? null;
 	void primaryAssetPath;
 	const clips: AxcutClip[] = document?.timeline.clips ?? [];
-	const visibleClips = useMemo(() => (document ? resolveVisibleClips(document) : []), [document]);
+	const visibleClips = useMemo(
+		() => (document ? resolveVisibleClips(visibleEditorDocument(document)) : []),
+		[document],
+	);
 	const hasProject = Boolean(document);
 	const hasAsset = projectId !== null && (document?.assets.length ?? 0) > 0;
 	const project = document?.project
@@ -485,6 +488,7 @@ export function NewEditorShell() {
 		// catches up on the next save.
 		return document.assets.map((asset) => ({
 			id: asset.id,
+			sourceAudioMuted: asset.sourceAudioMuted,
 			filePath: /^(https?|blob|data):/.test(asset.originalPath) ? undefined : asset.originalPath,
 			// Real Electron assets are filesystem paths and go through toFileUrl.
 			// In the browser preview an asset can already point at an http(s)/
@@ -552,19 +556,72 @@ export function NewEditorShell() {
 	// closure, `clips.length` stays frozen at the last render, so the second add lands
 	// before the first instead of after it.
 	const handleDropAsset = useCallback(
-		(assetId: string) =>
-			enqueueTimelineWrite(() => {
+		(
+			assetId: string,
+			placement: MediaDropPlacement = "sequence",
+			dropTime?: number,
+			trackId?: string,
+		) =>
+			enqueueTimelineWrite(async () => {
 				const doc = useProjectStore.getState().document;
+				const projectId = useProjectStore.getState().projectId;
+				const epoch = currentWriteEpoch();
+				const superseded = () =>
+					useProjectStore.getState().projectId !== projectId || currentWriteEpoch() !== epoch;
 				// An audio asset has no video, so it must never become a clip (issue
 				// #350) — it goes on the audio lane as a track. Adding it "to the
 				// timeline" reuses its existing track if it already has one (importing
 				// already placed one) so the same file can't stack up duplicate lanes.
 				if (doc?.assets.find((a) => a.id === assetId)?.kind === "audio") {
-					if (doc.audioTracks.some((t) => t.assetId === assetId)) return Promise.resolve();
-					return tl.addAudioTrack(assetId).then(() => undefined);
+					return tl
+						.addAudioTrack(assetId, dropTime, {
+							editorTrackId:
+								editorTracks(doc).find((track) => track.id === trackId && track.kind === "audio")
+									?.id ?? createId("audio-track"),
+						})
+						.then(() => undefined);
 				}
-				const at = doc?.timeline.clips.length ?? 0;
-				return tl.insertClipAt(assetId, at);
+				const asset = doc?.assets.find((a) => a.id === assetId);
+				if (placement === "overlay" && asset) {
+					const durationSec =
+						asset.durationSec ?? (await probeVideoDuration(toFileUrl(asset.originalPath)));
+					if (superseded()) return;
+					if (!durationSec) throw new Error("Could not read video duration");
+					const startSec = dropTime ?? useProjectStore.getState().currentTimeSec;
+					let audioAssetId: string | undefined;
+					if (!asset.sourceAudioMuted && !asset.stillImagePath) {
+						const audio = await useProjectStore
+							.getState()
+							.addAudioAsset(asset.originalPath, `${asset.label} audio`);
+						if (superseded()) return;
+						audioAssetId = audio?.id;
+					}
+					await tl.addMediaOverlay({
+						assetId,
+						content: asset.stillImagePath ?? asset.label,
+						startSec,
+						durationSec: asset.stillImagePath ? 5 : durationSec,
+						audioAssetId,
+						trackId,
+					});
+					return;
+				}
+				const found =
+					dropTime === undefined
+						? -1
+						: (doc?.timeline.clips.findIndex(
+								(c) => (c.timelineStartSec + c.timelineEndSec) / 2 > dropTime,
+							) ?? -1);
+				const at = found < 0 ? (doc?.timeline.clips.length ?? 0) : found;
+				let audioAssetId: string | undefined;
+				if (asset && !asset.sourceAudioMuted && !asset.stillImagePath) {
+					const audio = await useProjectStore
+						.getState()
+						.addAudioAsset(asset.originalPath, asset.label);
+					if (superseded()) return;
+					audioAssetId = audio?.id;
+				}
+				return tl.insertClipAt(assetId, at, audioAssetId);
 			}).catch((error) => {
 				toast.error(te("mediaStage.couldNotAddAsset"), {
 					description: error instanceof Error ? error.message : String(error),
@@ -572,6 +629,42 @@ export function NewEditorShell() {
 				throw error;
 			}),
 		[tl, te, enqueueTimelineWrite],
+	);
+
+	const handleDropFiles = useCallback(
+		async (files: File[], placement: MediaDropPlacement, dropTime: number, trackId?: string) => {
+			let nextTime = dropTime;
+			const projectId = useProjectStore.getState().projectId;
+			for (const file of files) {
+				try {
+					const kind = droppedMediaKind(file.name);
+					if (!kind) throw new Error(`Unsupported media file: ${file.name}`);
+
+					const path = window.electronAPI.getPathForFile(file);
+					if (!path) throw new Error("Could not access the dropped file");
+					const asset = await enqueueTimelineWrite(async () => {
+						const state = useProjectStore.getState();
+						if (state.projectId !== projectId) return null;
+						return kind === "audio"
+							? state.addAudioAsset(path, file.name)
+							: state.addAsset(path, file.name);
+					});
+					if (!asset || useProjectStore.getState().projectId !== projectId) return;
+					await handleDropAsset(
+						asset.id,
+						kind === "image" ? "overlay" : placement,
+						nextTime,
+						trackId,
+					);
+					if (placement === "sequence" && kind !== "audio") nextTime += asset.durationSec ?? 60;
+				} catch (error) {
+					toast.error(te("mediaStage.couldNotAddAsset"), {
+						description: error instanceof Error ? error.message : String(error),
+					});
+				}
+			}
+		},
+		[enqueueTimelineWrite, handleDropAsset, te],
 	);
 
 	// Ref so the 'ended' listener below always sees the latest clips without tearing
@@ -616,6 +709,10 @@ export function NewEditorShell() {
 		// setPlaying is a stable Zustand action reference (never recreated), so listing it
 		// here doesn't cause this effect to re-subscribe on every playhead tick.
 	}, [videoElement, setPlaying]);
+
+	useEffect(() => {
+		if (editClipTarget) videoElement?.pause();
+	}, [editClipTarget, videoElement]);
 
 	const togglePlay = useCallback(() => {
 		if (!videoElement) return;
@@ -1214,7 +1311,9 @@ export function NewEditorShell() {
 	}, [tl]);
 
 	useEffect(() => {
-		const onKey = (e: KeyboardEvent) => {
+		const onKey = (e: KeyboardEvent, menuAction?: ShortcutAction) => {
+			const matches = (action: ShortcutAction) =>
+				menuAction ? menuAction === action : matchesShortcut(e, shortcuts[action], isMac);
 			if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) return;
 			if (e.target instanceof HTMLElement && e.target.isContentEditable) return;
 			// A modal owns the screen. Its own controls are buttons, not text fields, so the two
@@ -1224,13 +1323,38 @@ export function NewEditorShell() {
 			// flag per dialog — the flag version knew only about the two dialogs whose open state
 			// happened to live in a context, so Z/T/C kept adding regions under Export (#434).
 			if (isModalOpen()) return;
-			const ctrl = e.ctrlKey || e.metaKey;
-			if (ctrl && e.key === "s") {
+			if (matches("toggleSnapping")) {
+				e.preventDefault();
+				useWorkspace.getState().toggle("snapping");
+				return;
+			}
+			if (matches("toggleGuides")) {
+				e.preventDefault();
+				useWorkspace.getState().toggle("showGuides");
+				return;
+			}
+			if (matches("fitTimeline")) {
+				e.preventDefault();
+				fitTimelineToWindow();
+				return;
+			}
+
+			if (matches("saveProjectAs")) {
 				e.preventDefault();
 				void handleSave();
 				return;
 			}
-			if (ctrl && e.key === "n") {
+			if (matches("exportProject")) {
+				e.preventDefault();
+				handleExport();
+				return;
+			}
+			if (matches("saveProject")) {
+				e.preventDefault();
+				void handleSave();
+				return;
+			}
+			if (matches("newProject")) {
 				e.preventDefault();
 				void (async () => {
 					const choice = await promptUnsaved("new");
@@ -1244,7 +1368,7 @@ export function NewEditorShell() {
 				})();
 				return;
 			}
-			if (ctrl && e.key === "o") {
+			if (matches("openProject")) {
 				e.preventDefault();
 				void (async () => {
 					const choice = await promptUnsaved("open");
@@ -1258,9 +1382,14 @@ export function NewEditorShell() {
 				})();
 				return;
 			}
-			if (!hasProject && e.key !== "?") return;
-			if (ctrl && (e.key === "z" || e.key.toLowerCase() === "y")) return;
-			if (e.key === "?" || (e.shiftKey && e.key === "/")) {
+			if (!hasProject && !matches("openShortcuts")) return;
+			if (
+				[shortcuts.undo, shortcuts.redo, shortcuts.redoAlternate].some((binding) =>
+					matchesShortcut(e, binding, isMac),
+				)
+			)
+				return;
+			if (matches("openShortcuts")) {
 				e.preventDefault();
 				openShortcutsConfig();
 				return;
@@ -1289,7 +1418,7 @@ export function NewEditorShell() {
 			// F2.9 — configurable actions read the user's saved bindings instead
 			// of hardcoded keys, so rebinding in the shortcuts dialog actually
 			// changes runtime behavior.
-			if (matchesShortcut(e, shortcuts.copySelected, isMac)) {
+			if (matches("copySelected")) {
 				// A pill and a clip can no longer both be selected (see selectRegion /
 				// selectClip), so this reads the one the user actually picked instead
 				// of preferring clips whatever was clicked last.
@@ -1308,7 +1437,7 @@ export function NewEditorShell() {
 					return;
 				}
 			}
-			if (ctrl && e.key.toLowerCase() === "x") {
+			if (matches("cutSelected")) {
 				// F2.8 — cut: remember the region in the clipboard, then remove it.
 				// Trims included now that copying one means copying its length.
 				if (tl.selection) {
@@ -1318,7 +1447,7 @@ export function NewEditorShell() {
 					return;
 				}
 			}
-			if (matchesShortcut(e, shortcuts.paste, isMac)) {
+			if (matches("paste")) {
 				e.preventDefault();
 				// Paste what was COPIED. It used to fall back to `tl.clipSelection`,
 				// so a clip merely being selected hijacked the paste — and since
@@ -1332,17 +1461,22 @@ export function NewEditorShell() {
 				void pasteRegion();
 				return;
 			}
-			if (matchesShortcut(e, shortcuts.playPause, isMac)) {
+			if (matches("splitClip")) {
+				e.preventDefault();
+				void tl.splitClip();
+				return;
+			}
+			if (matches("playPause")) {
 				e.preventDefault();
 				togglePlay();
 				return;
 			}
-			if (matchesShortcut(e, shortcuts.deleteSelected, isMac)) {
+			if (matches("deleteSelected")) {
 				e.preventDefault();
 				deleteSelection();
 				return;
 			}
-			if (e.key === "Delete" || e.key === "Backspace") {
+			if (matches("deleteAlternate") || matches("deleteBackspace")) {
 				e.preventDefault();
 				deleteSelection();
 				return;
@@ -1352,50 +1486,50 @@ export function NewEditorShell() {
 			// way most regions get created. Left on the flat default they came out
 			// under two pixels on a 30-minute recording, hidden behind the playhead
 			// they were created at. See timeline/newRegionDuration.
-			if (matchesShortcut(e, shortcuts.addZoom, isMac)) {
+			if (matches("addZoom")) {
 				e.preventDefault();
 				void tl.addZoom(newRegionDurationSec());
 				return;
 			}
-			if (matchesShortcut(e, shortcuts.addTrim, isMac)) {
+			if (matches("addTrim")) {
 				e.preventDefault();
 				void tl.addTrim(newRegionDurationSec());
 				return;
 			}
-			if (matchesShortcut(e, shortcuts.addAnnotation, isMac)) {
+			if (matches("addAnnotation")) {
 				e.preventDefault();
 				void tl.addAnnotation(newRegionDurationSec());
 				return;
 			}
 			// Unlike its neighbours this opens a file picker rather than dropping a region at
 			// the playhead — there is nothing to size, so it takes no duration (issue #350).
-			if (matchesShortcut(e, shortcuts.addAudio, isMac)) {
+			if (matches("addAudio")) {
 				e.preventDefault();
 				void tl.addAudio();
 				return;
 			}
-			if (matchesShortcut(e, shortcuts.addVoiceover, isMac)) {
+			if (matches("addVoiceover")) {
 				e.preventDefault();
 				openVoiceoverFlow();
 				return;
 			}
-			if (matchesShortcut(e, shortcuts.addSpeed, isMac)) {
+			if (matches("addSpeed")) {
 				e.preventDefault();
 				void tl.addSpeed(newRegionDurationSec());
 				return;
 			}
-			if (matchesShortcut(e, shortcuts.addCameraFullscreen, isMac)) {
+			if (matches("addCameraFullscreen")) {
 				e.preventDefault();
 				void tl.addCameraFullscreen(newRegionDurationSec());
 				return;
 			}
 
-			// Fixed (non-configurable) shortcuts advertised in the shortcuts dialog.
-			if (e.key === "Tab") {
+			// Navigation follows the same saved bindings as editing commands.
+			if (matches("cycleAnnotationsForward") || matches("cycleAnnotationsBackward")) {
 				const annotations = [...tl.annotationRegions].sort((a, b) => a.startMs - b.startMs);
 				if (annotations.length > 0) {
 					e.preventDefault();
-					const direction = e.shiftKey ? -1 : 1;
+					const direction = matches("cycleAnnotationsBackward") ? -1 : 1;
 					const currentId = tl.selection?.kind === "annotation" ? tl.selection.id : null;
 					const currentIndex = currentId ? annotations.findIndex((a) => a.id === currentId) : -1;
 					const nextIndex =
@@ -1408,21 +1542,49 @@ export function NewEditorShell() {
 				}
 				return;
 			}
-			if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+			if (matches("frameBack") || matches("frameForward")) {
 				e.preventDefault();
 				const frameStepSec = 1 / 60;
-				const direction = e.key === "ArrowLeft" ? -1 : 1;
+				const direction = matches("frameBack") ? -1 : 1;
 				const playhead = useProjectStore.getState().currentTimeSec;
 				handleSeek(Math.max(0, playhead + direction * frameStepSec));
 				return;
 			}
 		};
+		const unsubscribeClipboard = window.electronAPI?.onMenuClipboard?.((action) => {
+			const target = window.document.activeElement;
+			if (
+				target instanceof HTMLInputElement ||
+				target instanceof HTMLTextAreaElement ||
+				(target instanceof HTMLElement && target.isContentEditable)
+			) {
+				window.document.execCommand?.(
+					action === "cutSelected" ? "cut" : action === "copySelected" ? "copy" : "paste",
+				);
+				return;
+			}
+			const binding = shortcuts[action];
+			// A menu click remains usable when its keyboard shortcut is unassigned.
+			const event = new KeyboardEvent("keydown", {
+				key: binding.key,
+				ctrlKey: !isMac && !!binding.ctrl,
+				metaKey: isMac && !!binding.ctrl,
+				shiftKey: !!binding.shift,
+				altKey: !!binding.alt,
+				cancelable: true,
+			});
+			onKey(event, action);
+		});
 		window.addEventListener("keydown", onKey);
-		return () => window.removeEventListener("keydown", onKey);
+		return () => {
+			window.removeEventListener("keydown", onKey);
+			unsubscribeClipboard?.();
+		};
 	}, [
 		hasProject,
 		handleCopyRegion,
 		handleSave,
+		handleExport,
 		pasteRegion,
 		tl,
 		promptUnsaved,
@@ -1433,8 +1595,13 @@ export function NewEditorShell() {
 		isMac,
 		togglePlay,
 		handleSeek,
+		openVoiceoverFlow,
 	]);
 
+	const playbackDocument = useMemo(
+		() => (document ? visibleEditorDocument(document) : null),
+		[document],
+	);
 	const showTimeline = mode !== "rec";
 	const timelineRow = mode === "media" ? "188px" : `${timelineHeightPx}px`;
 	const bodyColumns = mode === "edit" && chatOpen ? `${chatWidthPx}px 1fr` : "1fr";
@@ -1477,9 +1644,9 @@ export function NewEditorShell() {
 				// timeline, since it sits below the handle.
 				const renderedTarget = Math.min(
 					MAX_TIMELINE_HEIGHT_PX,
-					Math.max(MIN_TIMELINE_HEIGHT_PX, startBase + extraAudioHeightPx - (ev.clientY - startY)),
+					Math.max(MIN_TIMELINE_HEIGHT_PX, startBase - (ev.clientY - startY)),
 				);
-				latestBase = Math.max(MIN_TIMELINE_HEIGHT_PX, renderedTarget - extraAudioHeightPx);
+				latestBase = Math.max(MIN_TIMELINE_HEIGHT_PX, renderedTarget);
 				setTimelineBaseHeightPx(latestBase);
 			};
 			const up = () => {
@@ -1490,7 +1657,7 @@ export function NewEditorShell() {
 			window.addEventListener("pointermove", move);
 			window.addEventListener("pointerup", up);
 		},
-		[timelineBaseHeightPx, extraAudioHeightPx],
+		[timelineBaseHeightPx],
 	);
 
 	const transcriptProps = {
@@ -1553,8 +1720,11 @@ export function NewEditorShell() {
 			<div className={v4.body} style={{ gridTemplateColumns: bodyColumns }}>
 				{mode === "edit" && chatOpen ? (
 					<>
-						<aside className={v4.agent} aria-label={te("shell.aiEditor")}>
-							<ChatStripPanel />
+						<aside className={v4.agent} aria-label={te("library.title")}>
+							<LibraryPanel
+								onAdd={(id) => handleDropAsset(id, "overlay")}
+								editDocument={tl.editWorkspace}
+							/>
 						</aside>
 						<div
 							className={v4.chatResizeHandle}
@@ -1612,17 +1782,26 @@ export function NewEditorShell() {
 									// and lands in the new take; even on headphones, narrating over
 									// an earlier voiceover is not what the button offers. The video
 									// itself keeps playing — that is what the user is narrating to.
-									audioTracks={voiceoverRecording ? NO_AUDIO_TRACKS : tl.audioTracks}
+									audioTracks={
+										voiceoverRecording ? NO_AUDIO_TRACKS : (playbackDocument?.audioTracks ?? [])
+									}
 									audioSources={videoSources}
 									clips={clips}
-									zoomRegions={tl.zoomRegions}
-									speedRegions={tl.speedRegions}
-									cameraFullscreenRegions={tl.cameraFullscreenRegions}
-									trimRanges={tl.trimRanges}
+									zoomRegions={playbackDocument?.zoomRanges ?? []}
+									speedRegions={
+										(playbackDocument?.legacyEditor?.speedRegions as typeof tl.speedRegions) ?? []
+									}
+									cameraFullscreenRegions={
+										(playbackDocument?.legacyEditor
+											?.cameraFullscreenRegions as typeof tl.cameraFullscreenRegions) ?? []
+									}
+									trimRanges={playbackDocument?.timeline.trimRanges ?? []}
 									selectedZoomRegionId={tl.selection?.kind === "zoom" ? tl.selection.id : null}
 									onZoomFocusChange={tl.updateZoomFocusLive}
 									onZoomFocusCommit={() => void tl.commitZoomFocus()}
-									annotationRegions={tl.annotationRegions}
+									annotationRegions={
+										(playbackDocument?.annotations as unknown as typeof tl.annotationRegions) ?? []
+									}
 									selectedAnnotationId={
 										tl.selection?.kind === "annotation" ? tl.selection.id : null
 									}
@@ -1693,6 +1872,7 @@ export function NewEditorShell() {
 						setCurrentTime={handleSeek}
 						variant={mode === "media" ? "media" : "edit"}
 						onDropAsset={handleDropAsset}
+						onDropFiles={handleDropFiles}
 						videoSources={videoSources}
 						playing={playing}
 						onTogglePlay={togglePlay}
@@ -1733,7 +1913,7 @@ export function NewEditorShell() {
 						: null
 				}
 				videoSources={videoSources}
-				onApply={(sStart, sEnd, cropRegion) => {
+				onApply={(sStart, sEnd, cropRegion, mediaAnimation) => {
 					if (!editClipTarget) return;
 					const clipId = editClipTarget.id;
 					// One user action, one document, one save. This used to be two calls —
@@ -1742,7 +1922,9 @@ export function NewEditorShell() {
 					// first and one of the two edits vanished silently (#355). It goes on the
 					// shared write queue for the same reason every other timeline edit does:
 					// so it can't clobber, or be clobbered by, a save already in flight.
-					void enqueueTimelineWrite(() => tl.applyClipEdit(clipId, sStart, sEnd, cropRegion));
+					void enqueueTimelineWrite(() =>
+						tl.applyClipEdit(clipId, sStart, sEnd, cropRegion, mediaAnimation),
+					);
 					setEditClipTarget(null);
 				}}
 			/>

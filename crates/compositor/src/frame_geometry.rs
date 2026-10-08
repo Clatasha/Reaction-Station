@@ -1849,6 +1849,8 @@ pub struct FrameGeometryInput<'a> {
 /// produit, 60 meurent avant le premier draw — ce sont ceux-là, et seulement ceux-là,
 /// qui traversent.
 pub struct FrameGeometry {
+    pub media_opacity: f32,
+    pub screen_hidden: bool,
     pub scene_preset: Option<String>,
     pub mb_taps: f32,
     pub mb_amount: f32,
@@ -1997,6 +1999,12 @@ pub fn annotation_dst_in(anchor: [f32; 4], x: f32, y: f32, w: f32, h: f32) -> [f
 }
 
 impl FrameGeometry {
+    pub fn animated_screen_layer(&self, mut cb: LayerCB) -> LayerCB {
+        if cb.mode == 8.0 { cb.trail_mb[2] = 1.0 - self.media_opacity; }
+        else { cb.color[3] *= self.media_opacity; }
+        cb
+    }
+
     /// Le quad de l'écran incliné pour une boîte de `s_px` px, `None` quand l'écran est droit.
     /// LE point de passage de l'écran, de son ombre, du curseur et du masque de flou : tous
     /// doivent porter la même séparation base / dynamique, sinon ils se décollent.
@@ -2124,6 +2132,7 @@ impl FrameGeometry {
     /// Pas sous un masque de bloc : la case ne bouge pas, seul le métrage bouge dedans, et le
     /// flou par pixel (modes 0 et 8) reste le bon.
     pub fn screen_trail(&self, render_px: [f32; 2]) -> bool {
+        if self.screen_hidden { return false; }
         if self.mb_taps < 2.0 || self.mb_amount <= 0.001 || self.screen_mask.is_some() {
             return false;
         }
@@ -2415,6 +2424,7 @@ impl FrameGeometry {
     /// coins) : là où le métrage incliné ne couvre plus l'ouverture, on voit l'écran éteint, pas
     /// un trou vers le fond d'écran. Ailleurs, l'appareil n'a rien sous l'écran.
     pub fn window_frame_cb(&self, render_px: [f32; 2]) -> Option<LayerCB> {
+        if self.screen_hidden { return None; }
         let frame = self.window_frame.as_ref()?;
         let [rw, rh] = render_px;
         if frame.kind.is_device() {
@@ -2541,6 +2551,7 @@ impl FrameGeometry {
     /// Le plan proche (`device_near_plane`) n'a pas d'emplacement : les shaders le tirent de
     /// `src.z / src.w` et de `mb.xy`.
     pub fn device_frame_cb(&self, render_px: [f32; 2]) -> Option<LayerCB> {
+        if self.screen_hidden { return None; }
         let frame = self.window_frame.as_ref().filter(|f| f.kind.is_device())?;
         let [rw, rh] = render_px;
         let view = self.device_view(render_px)?;
@@ -2646,6 +2657,7 @@ impl FrameGeometry {
         annotation: &crate::scene::SceneAnnotation,
         render_px: [f32; 2],
     ) -> Option<PrivacyMask> {
+        if self.screen_hidden { return None; }
         let [rw, rh] = render_px;
         let (x, y, w, h) = (annotation.x, annotation.y, annotation.w, annotation.h);
         if w <= 0.0 || h <= 0.0 || rw <= 0.0 || rh <= 0.0 {
@@ -3474,7 +3486,17 @@ pub fn plan_frame(input: &FrameGeometryInput) -> FrameGeometry {
                 },
             };
 
+    let motion = scene.and_then(|s| s.clips.get(s.active_clip_index)).and_then(|c| c.media_animation.as_ref());
+    let (s_dst, media_opacity) = if let Some(motion) = motion {
+        crate::media_image::animated_rect(s_dst, Some(&motion.name), source_t - motion.start_sec as f32, 1.0)
+    } else { (s_dst, 1.0) };
+    let s_dst_prev = if let Some(motion) = motion {
+        crate::media_image::animated_rect(s_dst_prev, Some(&motion.name), source_t - 1.0 / FPS - motion.start_sec as f32, 1.0).0
+    } else { s_dst_prev };
+    let screen_hidden = scene.and_then(|s| s.clips.get(s.active_clip_index)).map(|c| c.screen_hidden).unwrap_or(false);
     FrameGeometry {
+        screen_hidden,
+        media_opacity: if screen_hidden { 0.0 } else { media_opacity },
         scene_preset,
         mb_taps,
         mb_amount,
@@ -3654,6 +3676,7 @@ fn click_impact_at(
 /// courant (zoom serré, hors écran), ou sprite réduit à rien au creux d'un click bounce
 /// extrême — un état normal en lecture, pas une erreur.
 pub fn plan_cursor(g: &FrameGeometry, input: &CursorPlanInput) -> Option<CursorPlan> {
+        if g.screen_hidden { return None; }
     let (rw, rh) = (input.render_px[0], input.render_px[1]);
 
     // Caché par l'application (`visible: false`) : rien de ce plan n'est dessiné, ni le sprite,
@@ -4697,6 +4720,21 @@ mod tests {
         let mut input = golden_input(scene, &cfg);
         input.render_px = [1920.0, 1080.0];
         plan_frame(&input)
+    }
+
+    #[test]
+    fn hidden_recording_keeps_geometry_but_suppresses_screen_chrome() {
+        let mut scene = framed_scene(r#","frame":"window""#, "null", 1.0, false);
+        let visible = framed_plan(&scene);
+        assert!(visible.window_frame_cb([1920.0, 1080.0]).is_some());
+        scene.clips[0].screen_hidden = true;
+        let hidden = framed_plan(&scene);
+        assert!(hidden.screen_hidden);
+        assert_eq!(hidden.media_opacity, 0.0);
+        assert_eq!(hidden.s_dst, visible.s_dst);
+        assert!(hidden.window_frame_cb([1920.0, 1080.0]).is_none());
+        assert!(hidden.device_frame_cb([1920.0, 1080.0]).is_none());
+        assert!(!hidden.screen_trail([1920.0, 1080.0]));
     }
 
     const RENDER: [f32; 2] = [1920.0, 1080.0];
@@ -7710,6 +7748,8 @@ mod tests {
             mb_amount: 0.0,
             source_t: 0.0,
             programme_t: 0.0,
+            media_opacity: 1.0,
+            screen_hidden: false,
             zoom_rotation: [0.0, 0.0, 0.0],
             zoom_rotation_dyn: [0.0, 0.0, 0.0],
             camera: None,

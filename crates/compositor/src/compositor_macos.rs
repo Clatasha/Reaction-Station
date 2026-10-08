@@ -1027,15 +1027,7 @@ impl Compositor {
     /// Miroir de `compositor_windows::load_image_srv`. Les annotations image stockent une
     /// data URL plutôt qu'un chemin (cf. `types.ts`), d'où les deux entrées.
     fn load_image_texture(&self, path: &str) -> Result<(metal::Texture, u32, u32)> {
-        let img = if let Some(bytes) = crate::frame_geometry::decode_data_uri(path) {
-            image::load_from_memory(&bytes)
-                .map_err(|e| anyhow!("data URI image ({} octets) : {e}", bytes.len()))?
-                .to_rgba8()
-        } else {
-            image::open(path)
-                .map_err(|e| anyhow!("wallpaper {path} : {e}"))?
-                .to_rgba8()
-        };
+        let img = crate::media_image::load(path)?;
         let (w, h) = (img.width(), img.height());
         let pixels = img.into_raw();
         let tex = make_texture(
@@ -1454,6 +1446,7 @@ impl Compositor {
         mask: Option<crate::frame_geometry::ScreenMask>,
         // Le plan à la frame d'avant, pour son flou de mouvement (`FrameGeometry::tilt_pixel_trail`).
         trail: Option<crate::frame_geometry::TiltTrail>,
+        media_opacity: f32,
         y: &metal::Texture,
         uv: &metal::Texture,
         dof_pyramid: Option<&metal::Texture>,
@@ -1463,7 +1456,7 @@ impl Compositor {
         // coupé : `k = 0`, rien n'y est lu.
         enc.set_fragment_texture(5, dof_pyramid.map(|t| &**t));
         // La pyramide liée décide seule si la profondeur de champ tourne.
-        let cb = crate::frame_geometry::tilted_screen_cb(
+        let mut cb = crate::frame_geometry::tilted_screen_cb(
             quad,
             s_px,
             center_px,
@@ -1476,6 +1469,7 @@ impl Compositor {
             mask,
             trail,
         );
+        cb.trail_mb[2] = 1.0 - media_opacity;
         self.draw_video(enc, &cb, y, uv);
     }
 
@@ -1557,6 +1551,7 @@ impl Compositor {
             // cadre de sortie. Le dénominateur de la police plus bas lit le MÊME `anchor`.
             let anchor = a.anchor_rect(s_ann);
             let dst = crate::frame_geometry::annotation_dst_in(anchor, a.x, a.y, a.w, a.h);
+            let (dst, media_opacity) = if a.kind == "image" { crate::media_image::animated_rect(dst, a.media_animation.as_deref(), t - a.start_sec as f32 + a.media_animation_offset_sec, anchor[3]) } else { (dst, 1.0) };
             let quad_px = [dst[2] * rw, dst[3] * rh];
             if quad_px[0] <= 0.0 || quad_px[1] <= 0.0 {
                 continue;
@@ -1619,12 +1614,13 @@ impl Compositor {
                     });
                 }
                 "image" => {
-                    let Some(src) = a.image_path.as_ref().filter(|s| !s.is_empty()) else {
+                    let Some(frame_source) = a.frame_source(t) else {
                         continue;
                     };
+                    let src = &frame_source;
                     let cached = {
                         let c = self.ann_img_cache.borrow();
-                        c.get(&a.id).filter(|(_, _, _, len)| *len == src.len()).cloned()
+                        c.get(&a.id).filter(|(_, _, _, len)| a.video_path.is_none() && *len == src.len()).cloned()
                     };
                     let Some((tex, iw, ih, _)) = cached.or_else(|| {
                         match self.load_image_texture(src) {
@@ -1662,7 +1658,7 @@ impl Compositor {
                         src: [0.0, 0.0, 1.0, 1.0],
                         quad_px: [fit_w * rw, fit_h * rh],
                         mode: 7.0,
-                        color: [1.0, 1.0, 1.0, 1.0],
+                        color: [1.0, 1.0, 1.0, media_opacity],
                         fx: [0.0, 0.0, 1.0, 1.0],
                         ..Default::default()
                     });
@@ -2450,7 +2446,7 @@ impl Compositor {
             (g.s_dst[0] + g.s_dst[2] * 0.5) * rw,
             (g.s_dst[1] + g.s_dst[3] * 0.5) * rh,
         ];
-        if cfg.shadow {
+        if cfg.shadow && !g.screen_hidden {
             let spread = SCREEN_SHADOW_SPREAD_FRAC * g.screen_unit_px;
             let offset = g.screen_shadow_offset();
             let opacity = 0.45 * lp.shadow_scale;
@@ -2491,7 +2487,7 @@ impl Compositor {
                     quad_px,
                     radius_px,
                     mode: 0.0,
-                    color: [0.0, 0.0, 0.0, 1.0],
+                    color: [0.0, 0.0, 0.0, g.media_opacity],
                     src_prev: [su0, sv0, su1, sv1],
                     dst_prev: g.s_dst_prev,
                     mb: [g.screen_pixel_taps([rw, rh]), g.mb_amount, top_lift, square_top],
@@ -2511,6 +2507,7 @@ impl Compositor {
                 top_lift,
                 g.screen_mask,
                 g.tilt_pixel_trail([rw, rh]),
+                g.media_opacity,
                 &sy,
                 &suv,
                 dof_pyramid.as_ref(),
@@ -2659,7 +2656,7 @@ impl Compositor {
 
         // --- caméra : ombre PiP puis vidéo ---
         let enc = self.begin_pass(cmd_buf, &self.rt, None, &self.pipeline_main)?;
-        if let (true, Some((wy, wuv))) = (lp.has_webcam, webcam_tex.as_ref()) {
+        if let (true, Some((wy, wuv))) = (lp.has_webcam && !g.screen_hidden, webcam_tex.as_ref()) {
             let [cu0, cv0, cu1, cv1] = crate::frame_geometry::webcam_source_rect(
                 [wcw, wch],
                 [wtw as f32, wth as f32],

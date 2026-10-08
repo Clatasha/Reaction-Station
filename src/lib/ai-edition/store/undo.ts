@@ -12,6 +12,7 @@
 // `s.document`.
 
 import { useCallback, useEffect, useRef } from "react";
+import { DEFAULT_SHORTCUTS, matchesShortcut, type ShortcutsConfig } from "@/lib/shortcuts";
 import { isModalOpen } from "../modalGuard";
 import type { AxcutDocument } from "../schema";
 import { useProjectStore } from "./projectStore";
@@ -102,7 +103,11 @@ export interface UndoRedoHandlers {
 	runRedo: () => void;
 }
 
-export function useUndoRedoShortcuts(onAfter: () => void): UndoRedoHandlers {
+export function useUndoRedoShortcuts(
+	onAfter: () => void,
+	shortcuts: ShortcutsConfig = DEFAULT_SHORTCUTS,
+	isMac = /Mac/.test(globalThis.navigator?.platform ?? ""),
+): UndoRedoHandlers {
 	const onAfterRef = useRef(onAfter);
 	onAfterRef.current = onAfter;
 	useEffect(() => {
@@ -112,20 +117,20 @@ export function useUndoRedoShortcuts(onAfter: () => void): UndoRedoHandlers {
 			// so its modal guard never runs for them: without this one, undo kept rewriting the
 			// document under every open modal, including the ones the shell does suppress.
 			if (isModalOpen()) return;
-			const ctrl = e.ctrlKey || e.metaKey;
-			if (ctrl && e.shiftKey && e.key.toLowerCase() === "z") {
+
+			if (matchesShortcut(e, shortcuts.redo, isMac)) {
 				e.preventDefault();
 				if (redo()) onAfterRef.current();
 				return;
 			}
-			if (ctrl && e.key.toLowerCase() === "y") {
+			if (matchesShortcut(e, shortcuts.redoAlternate, isMac)) {
 				e.preventDefault();
 				if (redo()) onAfterRef.current();
 				return;
 			}
 			// `toLowerCase()`, like the two branches above: with Caps Lock on the browser
 			// reports "Z", and the bare `=== "z"` here fell through to nothing at all.
-			if (ctrl && e.key.toLowerCase() === "z") {
+			if (matchesShortcut(e, shortcuts.undo, isMac)) {
 				e.preventDefault();
 				if (undo()) onAfterRef.current();
 				return;
@@ -133,7 +138,7 @@ export function useUndoRedoShortcuts(onAfter: () => void): UndoRedoHandlers {
 		};
 		window.addEventListener("keydown", onKey);
 		return () => window.removeEventListener("keydown", onKey);
-	}, []);
+	}, [shortcuts, isMac]);
 
 	// `execCommand` is the only handle the renderer has on the browser's text undo,
 	// and it is what the `undo` menu ROLE reached through `webContents.undo()`. It is

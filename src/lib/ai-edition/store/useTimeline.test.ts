@@ -3,9 +3,16 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "@/contexts/I18nContext";
 import { DEFAULT_TEXT_PLATE } from "../annotations/background";
+import { moveEditorItems } from "../document/editorTracks";
 import { type RegionKind, readSpeedRegions } from "../document/timeline";
 import type { AxcutDocument } from "../schema";
-import { axcutSchemaVersion, parseDocumentFile } from "../schema";
+import {
+	annotationRegionSchema,
+	assetSchema,
+	axcutSchemaVersion,
+	createAudioTrack,
+	parseDocumentFile,
+} from "../schema";
 import { coalesceRegionsForRuler } from "../timeline/timelineMap";
 import { useProjectStore } from "./projectStore";
 import { clearHistory, redo, undo } from "./undo";
@@ -702,6 +709,34 @@ describe("useTimeline.addAnnotation", () => {
 		vi.clearAllMocks();
 	});
 
+	it("adds and selects a persistent visual overlay, clamped to the main sequence", async () => {
+		const { result } = renderTimeline();
+		await act(async () => {
+			await result.current.addMediaOverlay({
+				content: "data:image/png;base64,AQID",
+				startSec: 8,
+				durationSec: 5,
+			});
+		});
+		const annotations = useProjectStore.getState().document?.annotations ?? [];
+		expect(annotations).toHaveLength(1);
+		expect(annotations[0]).toMatchObject({
+			type: "image",
+			startMs: 8000,
+			endMs: 10000,
+			mediaOffsetMs: 8000,
+			clipId: "clip_a",
+		});
+		expect(result.current.selection).toEqual({ kind: "annotation", id: annotations[0].id });
+	});
+	it("rejects an overlay outside the main sequence without saving it", async () => {
+		const { result } = renderTimeline();
+		await expect(
+			result.current.addMediaOverlay({ content: "image", startSec: 10, durationSec: 5 }),
+		).rejects.toThrow("within the main sequence");
+		expect(useProjectStore.getState().document?.annotations).toEqual([]);
+		expect(bridgeMocks.save).not.toHaveBeenCalled();
+	});
 	it("creates a text annotation carrying the localised default text", async () => {
 		const { result } = renderTimeline();
 		await act(async () => {
@@ -2633,5 +2668,84 @@ describe("useTimeline.addZoomsBulk reads the document at write time", () => {
 
 		expect(added).toBe(0);
 		expect(bridgeMocks.save).not.toHaveBeenCalled();
+	});
+});
+
+describe("Library editing history", () => {
+	beforeEach(() => {
+		useProjectStore.getState().clear();
+		clearHistory();
+		bridgeMocks.save.mockReset();
+		bridgeMocks.save.mockImplementation(async (document: AxcutDocument) => ({
+			success: true,
+			document,
+		}));
+		const doc: AxcutDocument = {
+			...sampleDoc,
+			assets: [
+				...sampleDoc.assets,
+				assetSchema.parse({
+					id: "sound",
+					kind: "audio",
+					origin: "user",
+					label: "Sound",
+					originalPath: "/sound.wav",
+					durationSec: 10,
+				}),
+			],
+			annotations: [
+				annotationRegionSchema.parse({
+					id: "overlay",
+					type: "image",
+					mediaLayerId: "overlay",
+					startMs: 1000,
+					endMs: 3000,
+					position: { x: 25, y: 25 },
+					size: { width: 50, height: 50 },
+					zIndex: 1,
+					linkGroupId: "pair",
+					content: "Image",
+					style: {},
+				}),
+			],
+			audioTracks: [
+				{
+					...createAudioTrack({
+						assetId: "sound",
+						durationSec: 10,
+						timelineStartSec: 1,
+						spanSec: 2,
+					}),
+					id: "sound",
+					trackId: "sound",
+					linkGroupId: "pair",
+				},
+			],
+		};
+		useProjectStore.setState({ projectId: doc.project.id, document: doc });
+	});
+	afterEach(() => {
+		useProjectStore.getState().clear();
+		clearHistory();
+	});
+	it("writes one undo step for a linked drag and restores both sides on undo/redo", async () => {
+		const { result } = renderTimeline();
+		await act(async () => {
+			await result.current.editWorkspace((doc) =>
+				moveEditorItems(doc, [{ kind: "annotation", id: "overlay" }], 2000),
+			);
+		});
+		expect(bridgeMocks.save).toHaveBeenCalledTimes(1);
+		expect(past).toHaveLength(1);
+		expect(useProjectStore.getState().document?.annotations[0].startMs).toBe(3000);
+		expect(useProjectStore.getState().document?.audioTracks[0].startMs).toBe(3000);
+		act(() => {
+			expect(undo()).toBe(true);
+		});
+		expect(useProjectStore.getState().document?.audioTracks[0].startMs).toBe(1000);
+		act(() => {
+			expect(redo()).toBe(true);
+		});
+		expect(useProjectStore.getState().document?.annotations[0].startMs).toBe(3000);
 	});
 });

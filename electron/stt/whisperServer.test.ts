@@ -602,6 +602,66 @@ describe("WhisperServerManager", () => {
 		}
 	});
 
+	it("uses the isolated Windows CPU runtime after a loader failure without stderr", async () => {
+		const fs = await import("node:fs/promises");
+		const { spawn } = await import("node:child_process");
+		const dir = await mkdtemp(path.join(tmpdir(), "whisper-cpu-fallback-"));
+		const originalPlatform = Object.getOwnPropertyDescriptor(process, "platform");
+		try {
+			Object.defineProperty(process, "platform", { value: "win32", configurable: true });
+			const modelPath = path.join(dir, "ggml-small-q8_0.bin");
+			const fakeBinaryPath = path.join(dir, "whisper-stt-server.exe");
+			await fs.writeFile(modelPath, "dummy-ggml");
+			await fs.writeFile(fakeBinaryPath, "x", { mode: 0o755 });
+			const cpuPath = path.join(dir, "cpu", "whisper-stt-server.exe");
+			await fs.mkdir(path.dirname(cpuPath));
+			await fs.writeFile(cpuPath, "x");
+
+			const child = () => {
+				const proc = Object.assign(new EventEmitter(), {
+					stdout: new EventEmitter(),
+					stderr: new EventEmitter(),
+					pid: 1234,
+					kill: vi.fn(),
+				});
+				return proc;
+			};
+			const gpuChild = child();
+			const cpuChild = child();
+			vi.mocked(spawn)
+				.mockImplementationOnce(() => {
+					queueMicrotask(() => {
+						gpuChild.emit("exit", 3221225781);
+					});
+					return gpuChild as never;
+				})
+				.mockReturnValueOnce(cpuChild as never);
+			vi.stubGlobal(
+				"fetch",
+				vi
+					.fn()
+					.mockImplementationOnce(() => new Promise<Response>(() => undefined))
+					.mockResolvedValueOnce(new Response("ok", { status: 200 })),
+			);
+
+			const mgr = new WhisperServerManager();
+			const result = await mgr.start({
+				modelPath,
+				binaryPath: fakeBinaryPath,
+				backend: "whispercpp-vulkan",
+			});
+			expect(result.backend).toBe("whispercpp-cpu");
+			expect(spawn).toHaveBeenCalledTimes(2);
+			expect(vi.mocked(spawn).mock.calls[1]?.[0]).toBe(cpuPath);
+			expect(vi.mocked(spawn).mock.calls[0]?.[1]).not.toContain("--cpu");
+			expect(vi.mocked(spawn).mock.calls[1]?.[1]).toContain("--cpu");
+		} finally {
+			if (originalPlatform) Object.defineProperty(process, "platform", originalPlatform);
+			vi.unstubAllGlobals();
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
 	it("serializes overlapping start calls onto one helper process", async () => {
 		const fs = await import("node:fs/promises");
 		const { spawn } = await import("node:child_process");

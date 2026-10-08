@@ -323,17 +323,17 @@
 }
 
 .languageMenuItemActive {
-	background: rgba(16, 185, 129, 0.14);
+	background: rgba(178, 154, 255, 0.14);
 	color: #ffffff;
 }
 
-/* The popovers' own buttons: a mint ring for keyboard focus, like the bar's. Inset,
+/* The popovers' own buttons: a violet ring for keyboard focus, like the bar's. Inset,
    so a scrolling panel's overflow cannot clip it. */
 .hudModalClose:focus-visible,
 .hudModalAboutAction:focus-visible,
 .languageMenuItem:focus-visible {
 	outline: none;
-	box-shadow: inset 0 0 0 2px rgba(16, 185, 129, 0.7);
+	box-shadow: inset 0 0 0 2px rgba(178, 154, 255, 0.7);
 }
 
 /* Device-picker popovers (microphone / camera) reuse the language menu's
@@ -357,3 +357,308 @@
 	width: 22px;
 	height: 1px;
 }
+
+/* Reaction Station recording dock: identity and session status above the tools. */
+.hudBar {
+	flex-direction: column;
+	padding: 0;
+	gap: 0;
+	border-radius: 22px;
+	border: 1px solid rgba(183, 160, 255, 0.22);
+	background: linear-gradient(135deg, #242033 0%, #15141e 55%, #191822 100%);
+	box-shadow: 0 16px 44px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.dockHeader {
+	align-self: stretch;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 24px;
+	padding: 12px 16px 10px;
+	border-bottom: 1px solid rgba(255,255,255,0.07);
+}
+
+.dockBrand {
+	display: flex;
+	align-items: center;
+	gap: 9px;
+	color: #f4f0ff;
+	font-size: 12px;
+	font-weight: 650;
+	letter-spacing: -0.2px;
+}
+
+.dockBrand img {
+	width: 30px;
+	height: 30px;
+}
+
+.dockBrand small {
+	display: block;
+	margin-top: 2px;
+	color: #968ba8;
+	font-size: 9px;
+	font-weight: 500;
+	letter-spacing: 1.5px;
+	text-transform: uppercase;
+}
+
+.dockStatus {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	color: #aca4bd;
+	font-size: 10px;
+	font-weight: 600;
+}
+
+.dockStatus > span {
+	width: 5px;
+	height: 5px;
+	border-radius: 50%;
+	background: #b29aff;
+}
+
+.dockStatus[data-recording="true"] {
+	color: #ffad96;
+}
+
+.dockStatus[data-recording="true"] > span {
+	background: #ff7049;
+	box-shadow: 0 0 9px #ff7049;
+}
+
+.mixerTrigger {
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	border-radius: 9px;
+	padding: 7px 9px;
+	color: #d8caff;
+	background: rgba(172,139,255,0.1);
+	font-size: 11px;
+	cursor: pointer;
+}
+
+.mixerTrigger:hover, .mixerTrigger[aria-expanded="true"] {
+	background: rgba(172,139,255,0.2);
+}
+
+.hudTransport {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	padding: 10px 12px;
+}
+
+.hudTransportVertical {
+	flex-direction: column;
+	padding: 10px;
+}
+
+.hudBarVertical .dockHeader {
+	flex-direction: column;
+	gap: 10px;
+	padding: 12px 8px;
+}
+
+.hudBarVertical .dockBrand > span, .hudBarVertical .mixerTrigger > span {
+	display: none;
+}
+
+.hudBarVertical .dockStatus {
+	font-size: 0;
+}
+
+.recorderPanel {
+	pointer-events: auto;
+	width: 360px;
+	box-sizing: border-box;
+	padding: 18px;
+	color: #ece7f7;
+	max-height: var(--hud-modal-max-h, 470px);
+	overflow-y: auto;
+	background: linear-gradient(145deg, #252030, #191720);
+}
+
+.panelHeader {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	font-size: 13px;
+	font-weight: 600;
+}
+
+.panelHeader button {
+	color: #a89cb8;
+	padding: 5px;
+	border-radius: 6px;
+	cursor: pointer;
+}
+
+.panelTabs {
+	display: flex;
+	gap: 4px;
+	padding: 4px;
+	border-radius: 10px;
+	background: #131119;
+	margin: 16px 0 12px;
+}
+
+.panelTabs button {
+	flex: 1;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 7px;
+	padding: 8px;
+	color: #93869f;
+	font-size: 11px;
+	border-radius: 7px;
+	cursor: pointer;
+}
+
+.panelTabs button[aria-selected="true"] {
+	background: #362b48;
+	color: #dfcfff;
+	box-shadow: 0 1px 4px #0003;
+}
+
+.panelHint {
+	color: #a095ad;
+	font-size: 11px;
+	line-height: 1.6;
+	margin: 9px 0;
+}
+
+.audioChannel {
+	background: rgba(255,255,255,0.025);
+	border: 1px solid #ffffff0d;
+	border-radius: 12px;
+	padding: 13px;
+	margin-top: 12px;
+}
+
+.channelHeader {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	font-size: 12px;
+}
+
+.channelHeader > span {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.channelHeader button {
+	padding: 4px 9px;
+	border-radius: 6px;
+	background: #ffffff09;
+	color: #baaccc;
+	font-size: 10px;
+	cursor: pointer;
+}
+
+.channelHeader button[aria-pressed="true"] {
+	color: #ffae99;
+	background: #ff704922;
+}
+
+.channelSlider {
+	display: flex;
+	align-items: center;
+	gap: 14px;
+	margin-top: 16px;
+}
+
+.channelSlider input {
+	flex: 1;
+	min-width: 0;
+	accent-color: #b899ff;
+	cursor: pointer;
+}
+
+.channelSlider output {
+	min-width: 38px;
+	text-align: end;
+	font-size: 11px;
+	font-variant-numeric: tabular-nums;
+	color: #cfc0e0;
+}
+
+.shortcutRow {
+	display: block;
+	font-size: 11px;
+	margin: 13px 0;
+}
+
+.shortcutRow > div {
+	display: flex;
+	gap: 5px;
+	margin-top: 6px;
+}
+
+.shortcutRow select {
+	background: #131119;
+	color: #d6c6e9;
+	border: 1px solid #51415e;
+	padding: 6px 8px;
+	border-radius: 6px;
+}
+
+.shortcutRow select:first-child {
+	flex: 1;
+}
+
+.saveShortcuts {
+	width: 100%;
+	margin-top: 9px;
+	padding: 10px;
+	border-radius: 9px;
+	background: #b899ff;
+	color: #211830;
+	font-size: 12px;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.recorderPanel button:disabled, .recorderPanel select:disabled, .recorderPanel input:disabled {
+	opacity: 0.4;
+	cursor: not-allowed;
+}
+
+.mixerTrigger:focus-visible, .recorderPanel button:focus-visible, .recorderPanel select:focus-visible, .recorderPanel input:focus-visible {
+	outline: 2px solid #d1baff;
+	outline-offset: 3px;
+}
+
+
+.hudBarVertical {
+ scrollbar-width: thin;
+ scrollbar-color: #786591 transparent;
+}
+.channelSlider input {
+ height: 4px;
+ border-radius: 999px;
+}
+.channelSlider input::-webkit-slider-thumb {
+ width: 12px;
+ height: 12px;
+ background: #d8c5ff;
+ border-color: #d8c5ff;
+ box-shadow: 0 0 0 3px #b899ff18;
+}
+.channelSlider input::-webkit-slider-thumb:hover {
+ border-color: #d8c5ff;
+}
+
+.dockWindowControls { flex-shrink: 0; -webkit-app-region: no-drag; }
+.hudBarHorizontal .hudTransport { box-sizing: border-box; }
+
+/* Let the measured dock include the complete control row, including language. */
+.hudBarHorizontal { width: max-content; align-items: stretch; }
+.hudBarHorizontal .hudTransport { flex-shrink: 0; min-width: max-content; }

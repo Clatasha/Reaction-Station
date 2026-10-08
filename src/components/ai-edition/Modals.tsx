@@ -9,6 +9,10 @@ import {
 } from "react";
 import type { CropRegion } from "@/components/video-editor/types";
 import { useScopedT } from "@/contexts/I18nContext";
+import {
+	type AnnotationTextAnimation,
+	TEXT_ANIMATION_VALUES,
+} from "@/lib/ai-edition/annotations/textAnimation";
 import type { AxcutClip } from "@/lib/ai-edition/schema";
 import { formatSeconds } from "@/lib/ai-edition/timeline/format";
 import { cropDraftFromRegion, cropDraftToPct, previewBoxStyle } from "./cropDraft";
@@ -651,7 +655,12 @@ interface EditClipModalProps extends BaseModalProps {
 	/** `cropRegion` is `undefined` when the crop section wasn't touched (Reset
 	 * back to the clip's stored value) — the caller can skip the write in that
 	 * case — and `null` when the user explicitly reset it to "no crop". */
-	onApply: (sourceStartSec: number, sourceEndSec: number, cropRegion?: CropRegion | null) => void;
+	onApply: (
+		sourceStartSec: number,
+		sourceEndSec: number,
+		cropRegion?: CropRegion | null,
+		mediaAnimation?: AxcutClip["mediaAnimation"],
+	) => void;
 }
 
 // Mirrors Axcut's ClipEditDialog: an embedded preview of just this clip plus
@@ -673,9 +682,14 @@ export function EditClipModal({
 	const tc = useScopedT("common");
 	const ts = useScopedT("settings");
 	const trackRef = useRef<HTMLDivElement | null>(null);
+	const [mediaAnimation, setMediaAnimation] =
+		useState<NonNullable<AxcutClip["mediaAnimation"]>>("none");
 	const [draftStart, setDraftStart] = useState(0);
 	const [draftEnd, setDraftEnd] = useState(0);
 	const [activeEdge, setActiveEdge] = useState<"start" | "end" | null>(null);
+	const [previewTime, setPreviewTime] = useState(0);
+	const [previewPlaying, setPreviewPlaying] = useState(false);
+	const [previewError, setPreviewError] = useState(false);
 
 	// Crop draft — percentages (0-100), same shape/units CropModal used to
 	// keep locally before it was folded in here.
@@ -697,9 +711,13 @@ export function EditClipModal({
 	// `open` is the trigger so external clip changes don't fight the user mid-edit.
 	useEffect(() => {
 		if (!open || !clip) return;
+		setMediaAnimation(clip.mediaAnimation ?? "none");
 		setDraftStart(clip.sourceStartSec);
 		setDraftEnd(clip.sourceEndSec ?? clip.sourceStartSec);
 		setActiveEdge(null);
+		setPreviewTime(clip.sourceStartSec);
+		setPreviewPlaying(false);
+		setPreviewError(false);
 		const region = clip.cropRegion ?? IDENTITY_CROP;
 		const pct = cropDraftToPct(cropDraftFromRegion(region));
 		setCropXPct(pct.x);
@@ -721,9 +739,7 @@ export function EditClipModal({
 		setCropRatio(detectRatio(region, videoAspectRatio));
 	}, [open, clip, videoAspectRatio, cropTouched]);
 
-	// Crop preview: a paused still frame is enough to judge a crop (mirrors
-	// the standalone CropModal this replaced) — seek once per open to the
-	// clip's original in-point, not on every trim drag.
+	// Begin at the clip in-point; playback and scrubbing stay local to this dialog.
 	useEffect(() => {
 		if (!open || !clip) return;
 		// A clip switch must not leave the previous clip's dimensions live: an
@@ -744,7 +760,10 @@ export function EditClipModal({
 		};
 		if (v.readyState >= 1) seek();
 		else v.addEventListener("loadedmetadata", seek, { once: true });
-		return () => v.removeEventListener("loadedmetadata", seek);
+		return () => {
+			v.removeEventListener("loadedmetadata", seek);
+			v.pause();
+		};
 	}, [open, clip]);
 
 	if (!clip) return null;
@@ -769,7 +788,8 @@ export function EditClipModal({
 	const hasTrimChanges =
 		Math.abs(draftStart - clip.sourceStartSec) > 0.001 ||
 		Math.abs(draftEnd - (clip.sourceEndSec ?? 0)) > 0.001;
-	const hasChanges = hasTrimChanges || cropTouched;
+	const hasChanges =
+		hasTrimChanges || cropTouched || mediaAnimation !== (clip.mediaAnimation ?? "none");
 	const clipSources = videoSources.filter((s) => s.id === clip.assetId);
 	const cropPreviewSource = clipSources[0] ?? null;
 
@@ -786,11 +806,24 @@ export function EditClipModal({
 		const move = (moveEvent: PointerEvent) => {
 			const deltaSec = ((moveEvent.clientX - startClientX) / widthPx) * sourceDurationSec;
 			if (edge === "start") {
-				setDraftStart(Math.min(Math.max(startDraftStart + deltaSec, 0), startDraftEnd - 0.05));
+				const next = Math.min(Math.max(startDraftStart + deltaSec, 0), startDraftEnd - 0.05);
+				setDraftStart(next);
+				if (cropVideoRef.current) {
+					cropVideoRef.current.pause();
+					cropVideoRef.current.currentTime = next;
+				}
+				setPreviewTime(next);
 			} else {
-				setDraftEnd(
-					Math.max(Math.min(startDraftEnd + deltaSec, sourceDurationSec), startDraftStart + 0.05),
+				const next = Math.max(
+					Math.min(startDraftEnd + deltaSec, sourceDurationSec),
+					startDraftStart + 0.05,
 				);
+				setDraftEnd(next);
+				if (cropVideoRef.current) {
+					cropVideoRef.current.pause();
+					cropVideoRef.current.currentTime = Math.max(draftStart, next - 0.001);
+				}
+				setPreviewTime(next);
 			}
 		};
 		const end = () => {
@@ -923,7 +956,12 @@ export function EditClipModal({
 		};
 		const isIdentity =
 			nextCrop.x === 0 && nextCrop.y === 0 && nextCrop.width === 1 && nextCrop.height === 1;
-		onApply(draftStart, draftEnd, cropTouched ? (isIdentity ? null : nextCrop) : undefined);
+		const cropChange = cropTouched ? (isIdentity ? null : nextCrop) : undefined;
+		if (mediaAnimation !== (clip.mediaAnimation ?? "none")) {
+			onApply(draftStart, draftEnd, cropChange, mediaAnimation);
+		} else {
+			onApply(draftStart, draftEnd, cropChange);
+		}
 		onClose();
 	};
 
@@ -979,7 +1017,17 @@ export function EditClipModal({
 					<video
 						ref={cropVideoRef}
 						src={cropPreviewSource.src}
-						muted
+						onPlay={() => setPreviewPlaying(true)}
+						onPause={() => setPreviewPlaying(false)}
+						onError={() => setPreviewError(true)}
+						onTimeUpdate={(event) => {
+							const video = event.currentTarget;
+							if (!video.paused && video.currentTime >= draftEnd) {
+								video.pause();
+								video.currentTime = draftEnd;
+							}
+							setPreviewTime(video.currentTime);
+						}}
 						playsInline
 						style={{
 							position: "absolute",
@@ -1050,6 +1098,65 @@ export function EditClipModal({
 					))}
 				</div>
 			</div>
+
+			{cropPreviewSource ? (
+				<div style={{ flexShrink: 0, display: "grid", gap: 8 }}>
+					{previewError ? <p role="alert">{t("editClipDialog.previewFailed")}</p> : null}
+					<div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+						<button
+							type="button"
+							className={styles.btn}
+							onClick={() => {
+								const video = cropVideoRef.current;
+								if (!video) return;
+								if (!video.paused) {
+									video.pause();
+									return;
+								}
+								if (video.currentTime < draftStart || video.currentTime >= draftEnd)
+									video.currentTime = draftStart;
+								void video.play().catch(() => setPreviewError(true));
+							}}
+						>
+							{t(previewPlaying ? "transport.pause" : "transport.play")}
+						</button>
+						<span>
+							{formatSeconds(previewTime)} / {formatSeconds(sourceDurationSec)}
+						</span>
+						<button
+							type="button"
+							className={styles.btn}
+							onClick={() => setDraftStart(Math.min(previewTime, draftEnd - 0.05))}
+						>
+							{t("editClipDialog.setStart")}
+						</button>
+						<button
+							type="button"
+							className={styles.btn}
+							onClick={() => setDraftEnd(Math.max(previewTime, draftStart + 0.05))}
+						>
+							{t("editClipDialog.setEnd")}
+						</button>
+					</div>
+					<input
+						type="range"
+						min={0}
+						max={sourceDurationSec}
+						step={0.01}
+						value={previewTime}
+						aria-label={t("editClipDialog.scrubPreview")}
+						onChange={(event) => {
+							const next = Number(event.target.value);
+							const video = cropVideoRef.current;
+							if (video) {
+								video.pause();
+								video.currentTime = next;
+							}
+							setPreviewTime(next);
+						}}
+					/>
+				</div>
+			) : null}
 
 			<div style={{ flexShrink: 0 }}>
 				<div
@@ -1125,6 +1232,17 @@ export function EditClipModal({
 					borderTop: "1px solid var(--border-soft)",
 				}}
 			>
+				<ChoiceRow<AnnotationTextAnimation>
+					label={ts("mediaAnimation.title")}
+					options={TEXT_ANIMATION_VALUES.filter((v) => v !== "typewriter").map((value) => ({
+						value,
+						label: ts(`textAnimation.${value === "slide-left" ? "slideLeft" : value}`),
+					}))}
+					value={mediaAnimation}
+					onChange={(value) => {
+						if (value !== "typewriter") setMediaAnimation(value);
+					}}
+				/>
 				<div style={{ display: "flex", alignItems: "center", gap: 12 }}>
 					<span className={styles.fieldLabel}>{ts("crop.ratio")}</span>
 					<div style={{ flex: 1, minWidth: 0 }}>

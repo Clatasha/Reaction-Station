@@ -278,7 +278,8 @@
 		"slipHint": "{{modifier}} halten und ziehen, um das Audio in der Spur zu verschieben",
 		"help": "Lautstärke, Blenden und Wiederholung für diese Audiospur. Sie wird in der Vorschau und im Export über die Aufnahme gemischt. Eine Musikspur wird automatisch leiser, während jemand spricht. Zieh die Spur auf der Timeline, um sie zu verschieben oder ihre Länge zu ändern, oder halte Alt und zieh, um das Audio darin zu verschieben.",
 		"add": "Audiospur hinzufügen",
-		"mute": "Stumm"
+		"mute": "Stumm",
+		"noRoomToDuplicate": "No room for a duplicate in this lane. Shorten the item or move it first."
 	},
 	"layout": {
 		"help": "Wie die Webcam mit dem Bildschirm komponiert wird: Bild in Bild, vertikal gestapelt, Doppelrahmen, Form, Rundung, Größe, Position und Spiegelung.",
@@ -319,7 +320,9 @@
 		"webcamBackground": "Kamera-Hintergrund",
 		"helpNoWebcam": "Dieses Projekt hat keine Kamera, deshalb sind die Layout-Regler aus und die Vorgabe zeigt „Keine Webcam“. Dein gespeichertes Layout bleibt erhalten, falls später eine Kamera dazukommt.",
 		"title": "Kamera-Layout",
-		"noWebcam": "Keine Webcam"
+		"noWebcam": "Keine Webcam",
+		"selectedClipScope": "Layout for selected clip only",
+		"projectScope": "Default layout for the project"
 	},
 	"textAnimation": {
 		"slideLeft": "Nach links schieben",
@@ -450,5 +453,8 @@
 		"dark": "Dunkel",
 		"light": "Hell",
 		"custom": "Eigene"
+	},
+	"mediaAnimation": {
+		"title": "Animation"
 	}
 }

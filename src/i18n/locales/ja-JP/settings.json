@@ -278,7 +278,8 @@
 		"slipHint": "{{modifier}} を押しながらドラッグすると、トラック内で音声をずらせます",
 		"help": "このオーディオトラックの音量・フェード・ループ。プレビューでも書き出しでも録画に重ねてミックスされます。音楽トラックは話している間、自動で音量が下がります。タイムライン上でドラッグすると移動やサイズ変更、Alt を押しながらドラッグすると中の音声がずれます。",
 		"add": "オーディオトラックを追加",
-		"mute": "ミュート"
+		"mute": "ミュート",
+		"noRoomToDuplicate": "No room for a duplicate in this lane. Shorten the item or move it first."
 	},
 	"layout": {
 		"help": "ウェブカメラと画面の合成方法: ピクチャインピクチャ、縦積み、デュアルフレーム、形状、丸み、サイズ、位置、左右反転。",
@@ -319,7 +320,9 @@
 		"webcamBackground": "カメラ背景",
 		"helpNoWebcam": "このプロジェクトにはカメラがないため、レイアウトの設定は無効で、プリセットは「Webカメラなし」と表示されます。保存されたレイアウトは、カメラを追加したときのために保持されます。",
 		"title": "カメラレイアウト",
-		"noWebcam": "Webカメラなし"
+		"noWebcam": "Webカメラなし",
+		"selectedClipScope": "Layout for selected clip only",
+		"projectScope": "Default layout for the project"
 	},
 	"textAnimation": {
 		"slideLeft": "左へスライド",
@@ -450,5 +453,8 @@
 		"dark": "ダーク",
 		"light": "ライト",
 		"custom": "カスタム"
+	},
+	"mediaAnimation": {
+		"title": "Animation"
 	}
 }

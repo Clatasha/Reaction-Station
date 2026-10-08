@@ -3863,6 +3863,7 @@ float4 ps_main(VSOut i) : SV_Target
             // La lampe de la caméra réelle : le côté proche un peu plus clair.
             rgb = saturate(rgb * (1.0 + color.x * (rs.x - 0.5) + color.y * (rs.y - 0.5)));
         }
+        tilt_a *= 1.0 - trail_mb.z;
         return float4(rgb * tilt_a, tilt_a); // prémultiplié, comme les autres modes
     }
 

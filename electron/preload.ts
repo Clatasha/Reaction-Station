@@ -285,6 +285,21 @@ contextBridge.exposeInMainWorld("electronAPI", {
 	stopNativeWindowsRecording: (discard?: boolean) => {
 		return ipcRenderer.invoke("stop-native-windows-recording", discard);
 	},
+	setLiveAudioMix: (mix: import("../src/lib/recorderControls").LiveAudioMix) =>
+		ipcRenderer.invoke("set-live-audio-mix", mix),
+	getRecordingShortcuts: () => ipcRenderer.invoke("get-recording-shortcuts"),
+	saveRecordingShortcuts: (config: import("../src/lib/recorderControls").RecordingShortcuts) =>
+		ipcRenderer.invoke("save-recording-shortcuts", config),
+	onRecordingShortcut: (
+		callback: (action: import("../src/lib/recorderControls").RecordingAction) => void,
+	) => {
+		const listener = (
+			_: Electron.IpcRendererEvent,
+			action: import("../src/lib/recorderControls").RecordingAction,
+		) => callback(action);
+		ipcRenderer.on("recording-shortcut", listener);
+		return () => ipcRenderer.removeListener("recording-shortcut", listener);
+	},
 	pauseNativeWindowsRecording: () => {
 		return ipcRenderer.invoke("pause-native-windows-recording");
 	},
@@ -448,6 +463,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
 	// renderer: AppKit matches the menu's key equivalent before the key event is
 	// delivered to the web contents, so the document-level keydown handler never
 	// runs. See `electron/edit-menu.ts`.
+	onMenuClipboard: (callback: (action: "cutSelected" | "copySelected" | "paste") => void) => {
+		const listener = (
+			_event: Electron.IpcRendererEvent,
+			action: "cutSelected" | "copySelected" | "paste",
+		) => callback(action);
+		ipcRenderer.on("menu-clipboard", listener);
+		return () => ipcRenderer.removeListener("menu-clipboard", listener);
+	},
 	onMenuUndo: (callback: () => void) => {
 		const listener = () => callback();
 		ipcRenderer.on("menu-undo", listener);

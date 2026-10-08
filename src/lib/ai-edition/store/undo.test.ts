@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { DEFAULT_SHORTCUTS } from "@/lib/shortcuts";
 //
 // Regression cover for #433: undo/redo silently did nothing. `undo.ts` had no
 // test at all, which is exactly why CI stayed green while Ctrl+Z was dead —
@@ -321,6 +322,18 @@ describe("the Edit menu's undo/redo route", () => {
 		window.document.body.innerHTML = "";
 	});
 
+	it("uses rebound undo and leaves the old binding free", async () => {
+		const persist = vi.fn();
+		renderHook(() =>
+			useUndoRedoShortcuts(persist, { ...DEFAULT_SHORTCUTS, undo: { key: "u", alt: true } }),
+		);
+		await useProjectStore.getState().saveDocument(titled("Renamed"), { history: true });
+		act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "z", ctrlKey: true })));
+		expect(currentTitle()).toBe("Renamed");
+		act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "u", altKey: true })));
+		expect(currentTitle()).toBe("Original");
+		expect(persist).toHaveBeenCalledOnce();
+	});
 	it("undoes the document and persists the restore", async () => {
 		const persist = vi.fn();
 		const { result } = renderHook(() => useUndoRedoShortcuts(persist));

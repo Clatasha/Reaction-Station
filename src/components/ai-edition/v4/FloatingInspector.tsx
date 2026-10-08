@@ -165,7 +165,12 @@ export function FloatingInspector({
 					) : audioTrackSelected ? (
 						<AudioTrackPane tl={tl} onClose={() => tl.clearSelection()} />
 					) : (
-						<FacetBody facet={facet} onCollapse={onToggleOpen} transcriptProps={transcriptProps} />
+						<FacetBody
+							selectedClipId={tl.clipSelection}
+							facet={facet}
+							onCollapse={onToggleOpen}
+							transcriptProps={transcriptProps}
+						/>
 					)}
 				</div>
 			) : null}
@@ -1047,7 +1052,12 @@ function SelectionPane({ tl, onClose }: { tl: TimelineApi; onClose: () => void }
 									}
 									const reader = new FileReader();
 									reader.onload = () => {
-										tl.updateAnnotationLive(region.id, { content: String(reader.result) });
+										tl.updateAnnotationLive(region.id, {
+											content: String(reader.result),
+											mediaAssetId: undefined,
+											mediaOffsetMs: undefined,
+											mediaSourceStartSec: undefined,
+										});
 										void tl.commitAnnotationChange();
 										toast.success(ts("annotation.imageUploadSuccess"));
 									};
@@ -1232,16 +1242,18 @@ function SelectionPane({ tl, onClose }: { tl: TimelineApi; onClose: () => void }
 								/>,
 							)
 						: null}
-					{region.type === "text"
+					{region.type === "text" || region.type === "image"
 						? paneStack(
-								ts("textAnimation.title"),
+								region.type === "image" ? ts("mediaAnimation.title") : ts("textAnimation.title"),
 								// Les sept animations existaient : nommées dans le schéma, traduites dans les
 								// treize langues, transportées jusqu'au compositeur — et injouables, faute de
 								// ce sélecteur. Trois par rangée : « Typewriter » et ses traductions tiennent.
 								<ChoiceRow<AnnotationTextAnimation>
 									label={ts("textAnimation.selectAnimation")}
 									columns={3}
-									options={TEXT_ANIMATION_VALUES.map((value) => ({
+									options={TEXT_ANIMATION_VALUES.filter(
+										(value) => region.type === "text" || value !== "typewriter",
+									).map((value) => ({
 										value,
 										label: ts(`textAnimation.${value === "slide-left" ? "slideLeft" : value}`),
 									}))}
@@ -1321,11 +1333,13 @@ function SelectionPane({ tl, onClose }: { tl: TimelineApi; onClose: () => void }
 const PANE_BUTTON = `${shell.btn} ${shell.btnSecondary}`;
 
 function FacetBody({
+	selectedClipId,
 	facet,
 	onCollapse,
 	transcriptProps,
 }: {
 	facet: Facet;
+	selectedClipId?: string | null;
 	onCollapse: () => void;
 	transcriptProps: TranscriptProps;
 }) {
@@ -1357,7 +1371,7 @@ function FacetBody({
 		</button>
 	);
 
-	if (facet === "layout") return wrap(collapse, <LayoutPane />);
+	if (facet === "layout") return wrap(collapse, <LayoutPane selectedClipId={selectedClipId} />);
 	if (facet === "audio") return wrap(collapse, <AudioPane />);
 	if (facet === "cursor") return wrap(collapse, <CursorPane />);
 	if (facet === "transcript") return wrap(collapse, <TranscriptPane {...transcriptProps} />);

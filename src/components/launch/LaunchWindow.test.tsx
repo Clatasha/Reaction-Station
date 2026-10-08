@@ -41,6 +41,11 @@ class CapturingResizeObserver extends StubResizeObserver {
 
 const recorderState = vi.hoisted(() => ({
 	value: {
+		audioLevels: { microphone: 100, system: 100 },
+		audioMuted: { microphone: false, system: false },
+		liveAudioAvailable: false,
+		setAudioLevel: vi.fn(),
+		toggleAudioMute: vi.fn(),
 		recording: false,
 		paused: false,
 		saving: false,
@@ -347,6 +352,9 @@ function resetLaunchMocks() {
 	// next one starting on a vertical bar.
 	localStorage.clear();
 	recorderState.value.toggleRecording = vi.fn();
+	recorderState.value.audioMuted = { microphone: false, system: false };
+	recorderState.value.liveAudioAvailable = false;
+	recorderState.value.toggleAudioMute.mockClear();
 	recorderState.value.cursorCaptureMode = "editable-overlay";
 	recorderState.value.systemAudioEnabled = false;
 	recorderState.value.setSystemAudioEnabled.mockClear();
@@ -2205,4 +2213,53 @@ describe("LaunchWindow software encoder fallback notice", () => {
 		expect(recorderState.value.dismissSoftwareEncoderFallbackNotice).toHaveBeenCalledTimes(1);
 		expect(recorderState.value.dismissSoftwareEncoderFallbackNotice).toHaveBeenCalledWith(true);
 	});
+});
+
+describe("Reaction Station global recording actions", () => {
+	beforeEach(() => {
+		resetLaunchMocks();
+		stubElectronAPI(async () => displayOneSource);
+	});
+	it("routes actions from the main process, updates its state guards and unsubscribes on close", async () => {
+		let listener: ((action: import("@/lib/recorderControls").RecordingAction) => void) | undefined;
+		const unsubscribe = vi.fn();
+		window.electronAPI.onRecordingShortcut = vi.fn((callback) => {
+			listener = callback;
+			return unsubscribe;
+		});
+		recorderState.value.recording = true;
+		recorderState.value.canPauseRecording = true;
+		recorderState.value.microphoneEnabled = true;
+		recorderState.value.systemAudioEnabled = true;
+		recorderState.value.liveAudioAvailable = true;
+		const view = renderLaunchWindow();
+		await waitForSourceSelectionSubscription();
+		act(() => {
+			listener?.("pause");
+			listener?.("muteMicrophone");
+			listener?.("muteSystem");
+		});
+		expect(recorderState.value.togglePaused).toHaveBeenCalled();
+		expect(recorderState.value.toggleAudioMute).toHaveBeenCalledWith("microphone");
+		expect(recorderState.value.toggleAudioMute).toHaveBeenCalledWith("system");
+		recorderState.value.saving = true;
+		view.rerender(
+			<TooltipProvider>
+				<LaunchWindow />
+			</TooltipProvider>,
+		);
+		recorderState.value.toggleAudioMute.mockClear();
+		act(() => listener?.("muteMicrophone"));
+		expect(recorderState.value.toggleAudioMute).not.toHaveBeenCalled();
+		view.unmount();
+		expect(unsubscribe).toHaveBeenCalled();
+		delete window.electronAPI.onRecordingShortcut;
+	});
+});
+
+it("keeps Close inside the recorder header and outside the transport row", () => {
+	renderLaunchWindow();
+	const close = screen.getByRole("button", { name: "Close App" });
+	expect(close.closest('[class*="dockHeader"]')).toBeTruthy();
+	expect(close.closest('[class*="hudTransport"]')).toBeNull();
 });

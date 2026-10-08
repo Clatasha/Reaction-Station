@@ -443,7 +443,7 @@ export function audioLanePills(
 	kind: AxcutAudioTrack["kind"],
 ): AxcutAudioTrack[] {
 	return collapseTracksToPills(tracks)
-		.filter((pill) => pill.kind === kind)
+		.filter((pill) => pill.kind === kind && !pill.recordingSource)
 		.sort((a, b) => a.startMs - b.startMs);
 }
 

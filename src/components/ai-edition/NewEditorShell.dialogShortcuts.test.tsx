@@ -135,7 +135,7 @@ describe("NewEditorShell shortcuts, with a dialog over the editor", () => {
 	it("routes ? to the shortcuts dialog while nothing is open", () => {
 		renderShell();
 
-		pressOnBody({ key: "?" });
+		pressOnBody({ key: "?", shiftKey: true });
 
 		expect(openConfig).toHaveBeenCalledTimes(1);
 	});
@@ -158,7 +158,7 @@ describe("NewEditorShell shortcuts, with a dialog over the editor", () => {
 		renderShell();
 
 		await openShellModal();
-		pressOnBody({ key: "?" });
+		pressOnBody({ key: "?", shiftKey: true });
 		expect(openConfig).not.toHaveBeenCalled();
 
 		// ModalShell listens for Escape on `document`, so this closes the picker for real
@@ -166,7 +166,7 @@ describe("NewEditorShell shortcuts, with a dialog over the editor", () => {
 		fireEvent.keyDown(document, { key: "Escape" });
 		expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
-		pressOnBody({ key: "?" });
+		pressOnBody({ key: "?", shiftKey: true });
 		expect(openConfig).toHaveBeenCalledTimes(1);
 	});
 

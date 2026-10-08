@@ -278,7 +278,8 @@
 		"slipHint": "按住 {{modifier}} 並拖曳，可在音軌內滑動音訊",
 		"help": "此音訊軌道的音量、淡入淡出與循環。在預覽與匯出時都會混合到錄影之上。有人說話時，音樂軌道會自動降低音量。在時間軸上拖曳可移動或調整大小，按住 Alt 拖曳則可在其中滑動音訊。",
 		"add": "新增音訊軌道",
-		"mute": "靜音"
+		"mute": "靜音",
+		"noRoomToDuplicate": "No room for a duplicate in this lane. Shorten the item or move it first."
 	},
 	"layout": {
 		"help": "攝影機與螢幕的合成方式：子母畫面、垂直堆疊、雙畫面、形狀、圓角、大小、位置與鏡像。",
@@ -319,7 +320,9 @@
 		"webcamBackground": "攝影機背景",
 		"helpNoWebcam": "此專案沒有攝影機，因此版面配置控制項已停用，預設顯示為「無網路攝影機」。你儲存的版面配置會保留，以便新增攝影機後使用。",
 		"title": "攝影機版面",
-		"noWebcam": "無網路攝影機"
+		"noWebcam": "無網路攝影機",
+		"selectedClipScope": "Layout for selected clip only",
+		"projectScope": "Default layout for the project"
 	},
 	"textAnimation": {
 		"slideLeft": "向左滑動",
@@ -450,5 +453,8 @@
 		"dark": "深色",
 		"light": "淺色",
 		"custom": "自訂"
+	},
+	"mediaAnimation": {
+		"title": "Animation"
 	}
 }

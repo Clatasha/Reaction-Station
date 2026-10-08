@@ -111,6 +111,9 @@ const WRITER_NAMES = {
 // ---------------------------------------------------------------------------
 
 const DECLARED: WritePath[] = [
+	w("src/lib/ai-edition/store/useTimeline.ts", "separateClipAudio", "save", "gesture"),
+	w("src/lib/ai-edition/store/useTimeline.ts", "editWorkspace", "save", "gesture"),
+	w("src/lib/ai-edition/store/useTimeline.ts", "duplicateItem", "save", "gesture"),
 	// Dropping the legacy auto-caption annotations is a button in the captions pane.
 	w(
 		"src/components/ai-edition/CaptionsPane.tsx",
@@ -120,6 +123,8 @@ const DECLARED: WritePath[] = [
 	),
 
 	// The persist that follows an undo. Recording it would undo the undo.
+	// User assigns a camera layout to the selected recording section.
+	w("src/components/ai-edition/RightPanes.tsx", "LayoutPane", "save", "gesture"),
 	w("src/components/ai-edition/NewEditorShell.tsx", "NewEditorShell", "save", "automatic"),
 	// "Save" on the unsaved-changes prompt.
 	w("src/components/ai-edition/NewEditorShell.tsx", "handleConfirmUnsaved", "save", "gesture"),
@@ -136,6 +141,13 @@ const DECLARED: WritePath[] = [
 		"writeFreshRecordingAutoZooms",
 		"save",
 		"gesture",
+	),
+	// Independent sources attached automatically as part of a new recording import.
+	w(
+		"src/components/ai-edition/recordingAudioImport.ts",
+		"importRecordingAudioSources",
+		"save",
+		"automatic",
 	),
 	// Renaming the project from the title field.
 	w("src/components/ai-edition/NewEditorShell.tsx", "handleRenameProject", "save", "gesture"),
@@ -249,6 +261,7 @@ const DECLARED: WritePath[] = [
 	// where they used to be two writes that overwrote each other.
 	w("src/lib/ai-edition/store/useTimeline.ts", "applyClipEdit", "save", "gesture"),
 	w("src/lib/ai-edition/store/useTimeline.ts", "addAnnotation", "save", "gesture"),
+	w("src/lib/ai-edition/store/useTimeline.ts", "addMediaOverlay", "save", "gesture"),
 	w("src/lib/ai-edition/store/useTimeline.ts", "addCameraFullscreen", "save", "gesture"),
 	w("src/lib/ai-edition/store/useTimeline.ts", "addSpeed", "save", "gesture"),
 	w("src/lib/ai-edition/store/useTimeline.ts", "addTrim", "save", "gesture"),
@@ -288,6 +301,8 @@ const DECLARED: WritePath[] = [
 	w("src/lib/ai-edition/store/useTimeline.ts", "removeRegion", "save", "gesture"),
 	w("src/lib/ai-edition/store/useTimeline.ts", "removeRegions", "save", "gesture"),
 	w("src/lib/ai-edition/store/useTimeline.ts", "saveZoomPatch", "save", "gesture"),
+	// User splits the recording at the playhead; undo restores the original clip.
+	w("src/lib/ai-edition/store/useTimeline.ts", "splitClip", "save", "gesture"),
 	w("src/lib/ai-edition/store/useTimeline.ts", "setTrimEntries", "save", "gesture"),
 	// The live halves of the two drags.
 	w("src/lib/ai-edition/store/useTimeline.ts", "updateAnnotationLive", "set", "automatic"),

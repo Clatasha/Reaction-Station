@@ -278,7 +278,8 @@
 		"slipHint": "Segure {{modifier}} e arraste para deslizar o áudio dentro da faixa",
 		"help": "Volume, fades e repetição desta faixa de áudio. Ela é mixada sobre a gravação na visualização e na exportação. Uma faixa de música abaixa sozinha enquanto alguém fala. Arraste a faixa na linha do tempo para movê-la ou redimensioná-la, ou segure Alt e arraste para deslizar o áudio dentro dela.",
 		"add": "Adicionar faixa de áudio",
-		"mute": "Silenciar"
+		"mute": "Silenciar",
+		"noRoomToDuplicate": "No room for a duplicate in this lane. Shorten the item or move it first."
 	},
 	"layout": {
 		"help": "Como a webcam é composta com a tela: picture-in-picture, pilha vertical, quadro duplo, formato, arredondamento, tamanho, posição e espelhamento.",
@@ -319,7 +320,9 @@
 		"webcamBackground": "Plano de fundo da câmera",
 		"helpNoWebcam": "Este projeto não tem câmera, então os controles de layout estão desativados e a predefinição mostra “Sem Webcam”. Seu layout salvo é mantido para quando você adicionar uma câmera.",
 		"title": "Layout da câmera",
-		"noWebcam": "Sem Webcam"
+		"noWebcam": "Sem Webcam",
+		"selectedClipScope": "Layout for selected clip only",
+		"projectScope": "Default layout for the project"
 	},
 	"textAnimation": {
 		"slideLeft": "Deslizar à Esquerda",
@@ -450,5 +453,8 @@
 		"dark": "Escura",
 		"light": "Clara",
 		"custom": "Personalizada"
+	},
+	"mediaAnimation": {
+		"title": "Animation"
 	}
 }

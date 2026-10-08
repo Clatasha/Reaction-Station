@@ -1,12 +1,20 @@
 name: Reaction Station Windows test installer
+run-name: Reaction Station 0.8 timeline polish test (${{ github.ref_name }})
 
 on:
   workflow_dispatch:
   push:
     branches:
       - ci/windows-test-installer
+      - feat/reaction-recorder
+      - feat/separate-recording-audio
+      - feat/creator-workspace-build
+      - feat/timeline-media-drop
+      - fix/creator-editing-playback
+      - feat/library-linked-timeline
     paths:
       - .github/workflows/reaction-station-windows-test.yml
+      - scripts/test-reaction-recorder-ui.mjs
 
 permissions:
   contents: read
@@ -22,6 +30,9 @@ jobs:
     timeout-minutes: 90
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      REACTION_STATION_AUDIO_TESTS: "1"
+      REACTION_STATION_MEDIA_TESTS: "1"
+      REACTION_STATION_SCENE_TESTS: "1"
     steps:
       - name: Checkout Reaction Station
         uses: actions/checkout@v7
@@ -91,6 +102,7 @@ jobs:
             "resources/electron/native/bin/win32-x64/wgc-capture.exe",
             "resources/electron/native/bin/win32-x64/compositor_view.node",
             "resources/electron/native/bin/win32-x64/whisper-stt-server.exe",
+            "resources/electron/native/bin/win32-x64/cpu/whisper-stt-server.exe",
             "resources/electron/native/bin/win32-x64/onnxruntime.dll",
             "resources/electron/native/bin/win32-x64/vcomp140.dll",
             "resources/electron/native/bin/win32-x64/msvcp140.dll",
@@ -102,9 +114,12 @@ jobs:
           foreach ($pattern in @("avcodec-*.dll", "avformat-*.dll", "avutil-*.dll", "swresample-*.dll", "swscale-*.dll", "*ggml*.dll")) {
             if (!(Get-ChildItem $native -Filter $pattern)) { throw "Missing packaged native library: $pattern" }
           }
+          $cpuSpeech = Join-Path $native "cpu/whisper-stt-server.exe"
+          & $cpuSpeech --self-test
+          if ($LASTEXITCODE -ne 0) { throw "Packaged CPU speech runtime failed to load" }
           $feed = Get-Content (Join-Path $resources "app-update.yml") -Raw
-          if ($feed -notmatch '(?m)^owner:\s*Clatasha\s*$' -or $feed -notmatch '(?m)^repo:\s*openscreen\s*$') {
-            throw "Installer update source must point to Clatasha/openscreen"
+          if ($feed -notmatch '(?m)^owner:\s*Clatasha\s*$' -or $feed -notmatch '(?m)^repo:\s*Reaction-Station\s*$') {
+            throw "Installer update source must point to Clatasha/Reaction-Station"
           }
           $env:REACTION_STATION_ASAR = Join-Path $resources "app.asar"
           node --input-type=module -e "import { extractFile, listPackage } from '@electron/asar'; import assert from 'node:assert/strict'; import fs from 'node:fs'; import path from 'node:path'; const archive = process.env.REACTION_STATION_ASAR; const pkg = JSON.parse(extractFile(archive, 'package.json').toString()); const source = JSON.parse(fs.readFileSync('package.json', 'utf8')); assert.equal(pkg.name, 'reaction-station'); assert.equal(pkg.version, source.version); const paths = listPackage(archive); assert(paths.some(p => path.basename(p) === 'openscreen.png')); console.log('Packaged app identity, version, license and icon verified');"
@@ -124,6 +139,21 @@ jobs:
             "",
             "Download the reaction-station-windows-test artifact below. This is an unsigned test installer; real desktop recording and export testing are still required."
           ) | Add-Content $env:GITHUB_STEP_SUMMARY
+
+      - name: Smoke test the packaged recorder interface
+        run: |
+          $package = Get-ChildItem release -Directory -Recurse | Where-Object Name -eq "win-unpacked"
+          node scripts/test-reaction-recorder-ui.mjs (Join-Path $package.FullName "Reaction Station.exe")
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload recorder interface previews
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: reaction-station-recorder-preview
+          path: release/recorder-preview/*.png
+          if-no-files-found: warn
+          retention-days: 30
 
       - name: Upload Windows test installer
         uses: actions/upload-artifact@v7

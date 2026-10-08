@@ -194,6 +194,7 @@ export interface CompositorSharedFrameReceipt extends CompositorSharedFrameMeta 
 
 /** Un clip de la timeline pour l'export multiclip natif (fichiers screen+webcam + trim). */
 export interface CompositorClipInput {
+	screenHidden?: boolean;
 	screenPath: string;
 	webcamPath: string;
 	sourceStartSec: number;

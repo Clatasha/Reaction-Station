@@ -24,11 +24,15 @@
 // is not the editor at all.
 
 import type { MenuItemConstructorOptions } from "electron";
+import { bindingToAccelerator } from "../src/lib/shortcutAccelerator";
+import type { ShortcutsConfig } from "../src/lib/shortcuts";
 
 /** IPC channels the Edit menu forwards to the editor renderer. */
 export type EditorUndoRedoChannel = "menu-undo" | "menu-redo";
 
 export interface EditMenuOptions {
+	shortcuts?: ShortcutsConfig;
+	dispatchClipboard?: (action: "cutSelected" | "copySelected" | "paste") => void;
 	/** Localised label for `key`, falling back to `fallback` when untranslated. */
 	label: (key: string, fallback: string) => string;
 	/** Route an undo/redo request to whichever window should service it. */
@@ -83,25 +87,47 @@ export function routeEditorUndoRedo(
 export function buildEditMenuSubmenu({
 	label,
 	dispatch,
+	shortcuts,
+	dispatchClipboard,
 }: EditMenuOptions): MenuItemConstructorOptions[] {
 	return [
 		{
 			label: label("actions.undo", "Undo"),
-			accelerator: "CmdOrCtrl+Z",
+			accelerator: shortcuts ? bindingToAccelerator(shortcuts.undo) : "CmdOrCtrl+Z",
 			click: () => dispatch("menu-undo"),
 		},
 		{
 			label: label("actions.redo", "Redo"),
-			accelerator: "Shift+CmdOrCtrl+Z",
+			accelerator: shortcuts ? bindingToAccelerator(shortcuts.redo) : "Shift+CmdOrCtrl+Z",
 			click: () => dispatch("menu-redo"),
 		},
 		{ type: "separator" },
 		// The clipboard roles keep theirs: they act on the focused text selection,
 		// which is precisely what `webContents.cut/copy/paste` do, and the editor has
 		// no document-level meaning for them to shadow.
-		{ role: "cut", label: label("actions.cut", "Cut") },
-		{ role: "copy", label: label("actions.copy", "Copy") },
-		{ role: "paste", label: label("actions.paste", "Paste") },
+		...(dispatchClipboard && shortcuts
+			? [
+					{
+						label: label("actions.cut", "Cut"),
+						accelerator: bindingToAccelerator(shortcuts.cutSelected),
+						click: () => dispatchClipboard("cutSelected"),
+					},
+					{
+						label: label("actions.copy", "Copy"),
+						accelerator: bindingToAccelerator(shortcuts.copySelected),
+						click: () => dispatchClipboard("copySelected"),
+					},
+					{
+						label: label("actions.paste", "Paste"),
+						accelerator: bindingToAccelerator(shortcuts.paste),
+						click: () => dispatchClipboard("paste"),
+					},
+				]
+			: [
+					{ role: "cut" as const, label: label("actions.cut", "Cut") },
+					{ role: "copy" as const, label: label("actions.copy", "Copy") },
+					{ role: "paste" as const, label: label("actions.paste", "Paste") },
+				]),
 		{ role: "selectAll", label: label("actions.selectAll", "Select All") },
 	];
 }

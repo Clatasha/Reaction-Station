@@ -3,9 +3,11 @@ import { memo } from "react";
 import { Tooltip } from "@/components/ui/tooltip";
 import { useScopedT } from "@/contexts/I18nContext";
 import { useShortcuts } from "@/contexts/ShortcutsContext";
-import type { AxcutClip } from "@/lib/ai-edition/schema";
+import { resolvePlaybackSegments } from "@/lib/ai-edition/document/timeline";
+import type { AxcutClip, AxcutTrimRange } from "@/lib/ai-edition/schema";
 import { useProjectStore } from "@/lib/ai-edition/store/projectStore";
 import { formatSec } from "@/lib/ai-edition/timeline/format";
+import { getRawVirtualStartTime } from "@/lib/ai-edition/timeline/virtual-preview";
 import { formatBinding } from "@/lib/shortcuts";
 import styles from "./NewEditorShell.module.css";
 
@@ -14,6 +16,7 @@ interface TransportBarProps {
 	/** Live scrub position while a timeline drag is in flight; null = follow the store. */
 	overrideTimeSec: number | null;
 	clips: AxcutClip[];
+	trimRanges?: AxcutTrimRange[];
 	onTogglePlay: () => void;
 }
 
@@ -24,6 +27,7 @@ export const TransportBar = memo(function TransportBar({
 	playing,
 	overrideTimeSec,
 	clips,
+	trimRanges = [],
 	onTogglePlay,
 }: TransportBarProps) {
 	const te = useScopedT("editor");
@@ -33,11 +37,18 @@ export const TransportBar = memo(function TransportBar({
 	// V4Timeline — and the whole editor shell above it — to re-render once per frame
 	// to hand it down as a prop.
 	const storeTimeSec = useProjectStore((s) => s.currentTimeSec);
-	const currentTimeSec = overrideTimeSec ?? storeTimeSec;
-	const virtualDurationSec = clips.reduce(
-		(acc, c) => acc + (c.timelineEndSec - c.timelineStartSec),
+	const rawTimeSec = overrideTimeSec ?? storeTimeSec;
+	const kept = resolvePlaybackSegments(clips, trimRanges);
+	const virtualDurationSec = kept.reduce(
+		(sum, c) => sum + c.timelineEndSec - c.timelineStartSec,
 		0,
 	);
+	// Display the elapsed kept footage. The ruler retains source positions for editing cuts.
+	const currentTimeSec = kept.reduce((sum, segment) => {
+		const start = getRawVirtualStartTime(segment, clips);
+		const duration = segment.timelineEndSec - segment.timelineStartSec;
+		return sum + Math.min(duration, Math.max(0, rawTimeSec - start));
+	}, 0);
 
 	// The icon swaps, so the name swaps with it: an action button, not a toggle (no aria-pressed).
 	const playLabel = playing ? te("transport.pause") : te("transport.play");

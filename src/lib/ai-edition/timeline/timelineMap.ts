@@ -395,7 +395,9 @@ export function dropPillsByIds<T extends { id: string; startMs: number; endMs: n
  * The rebuilt region keeps `id`, whichever member it names: a click selects the region
  * under the pointer (#1017), and that selection has to outlive the move.
  */
-export function replacePillSpan<T extends { id: string; startMs: number; endMs: number }>(
+export function replacePillSpan<
+	T extends { id: string; startMs: number; endMs: number; type?: string; mediaOffsetMs?: number },
+>(
 	regions: T[],
 	id: string,
 	startMs: number,
@@ -412,17 +414,22 @@ export function replacePillSpan<T extends { id: string; startMs: number; endMs: 
 		{ start: Math.min(startMs, endMs) / 1000, end: Math.max(startMs, endMs) / 1000 },
 		pill.identity,
 		pills
-			.filter((p) => p !== pill)
+			.filter((p) => p !== pill && pill.member.type !== "image" && p.member.type !== "image")
 			.map((p) => ({ id: p.ids[0], start: p.start, end: p.end, identity: p.identity })),
 		pill,
 	);
 
 	const under = new Set(pill.ids);
 	const { startMs: _s, endMs: _e, ...payload } = pill.member;
+	const mediaOffsetMs = pill.member.mediaOffsetMs;
+	const moving = Math.abs(clamped.end - clamped.start - (pill.end - pill.start)) < 0.001;
 	const rebuilt = anchorRegionsWithDerivedMs(
 		[
 			{
 				...payload,
+				...(mediaOffsetMs === undefined
+					? {}
+					: { mediaOffsetMs: mediaOffsetMs + (moving ? (clamped.start - pill.start) * 1000 : 0) }),
 				id,
 				startMs: Math.round(clamped.start * 1000),
 				endMs: Math.round(clamped.end * 1000),
@@ -639,7 +646,14 @@ function cutRegionSourceSpan<T extends { startMs: number; endMs: number } & Regi
  * `document.timeline.clips`.
  */
 export function projectRegionsToSource<
-	T extends { id: string; startMs: number; endMs: number } & RegionClipAnchor,
+	T extends {
+		id: string;
+		startMs: number;
+		endMs: number;
+		mediaOffsetMs?: number;
+		mediaAssetId?: string;
+		mediaSourceStartSec?: number;
+	} & RegionClipAnchor,
 >(
 	regions: T[],
 	visibleSegments: AxcutClip[],
@@ -657,6 +671,15 @@ export function projectRegionsToSource<
 		const emit = (clipIndex: number, srcStartSec: number, srcEndSec: number, underTrim = false) => {
 			out.push({
 				...region,
+				...(region.mediaOffsetMs !== undefined
+					? {
+							mediaSourceStartSec:
+								(region.mediaSourceStartSec ?? 0) +
+								(region.startMs - (region.mediaOffsetMs ?? region.startMs)) / 1000 +
+								srcStartSec -
+								(region.sourceStartSec ?? srcStartSec),
+						}
+					: {}),
 				id: emitted === 0 ? region.id : makeId(),
 				startMs: Math.round(srcStartSec * 1000),
 				endMs: Math.round(srcEndSec * 1000),

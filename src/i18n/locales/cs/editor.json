@@ -86,7 +86,7 @@
 		}
 	},
 	"topbar": {
-		"toggleChatPanel": "Panel chatu",
+		"toggleChatPanel": "Library",
 		"openProject": "Otevřít projekt",
 		"newProject": "Nový projekt",
 		"saveProject": "Uložit projekt",
@@ -331,7 +331,11 @@
 		"reset": "Obnovit",
 		"apply": "Použít",
 		"pickClipTitle": "Vyberte klip k úpravě",
-		"clipLabel": "Klip {{index}}"
+		"clipLabel": "Klip {{index}}",
+		"setStart": "Set start here",
+		"setEnd": "Set end here",
+		"scrubPreview": "Scrub clip preview",
+		"previewFailed": "This video could not be played in the clip preview."
 	},
 	"insertSourceDialog": {
 		"title": "Vložit zdroj",
@@ -432,5 +436,40 @@
 	"cpuCompositor": {
 		"notice": "Běží bez kompatibilního GPU, takže renderování probíhá na CPU a přehrávání je pomalejší.",
 		"exportWarning": "Žádné kompatibilní GPU: tento export běží na CPU a bude trvat mnohem déle než obvykle."
+	},
+	"workspace": {
+		"title": "Workspace",
+		"snapping": "Enable snapping",
+		"showGuides": "Show alignment guides",
+		"snapToPlayhead": "Snap to playhead",
+		"snapToItems": "Snap to item edges",
+		"snapToClips": "Snap to clip boundaries",
+		"showWaveforms": "Show audio waveforms",
+		"fitTimeline": "Fit timeline to window",
+		"shortcuts": "Keyboard shortcuts",
+		"reset": "Reset workspace",
+		"snapHint": "Hold Shift while dragging to temporarily bypass snapping."
+	},
+	"library": {
+		"title": "Library",
+		"import": "Import media",
+		"media": "Media",
+		"stickers": "Stickers",
+		"search": "Search media",
+		"all": "All",
+		"video": "Video",
+		"image": "Images",
+		"audio": "Audio",
+		"locate": "Locate / replace file",
+		"missing": "Missing — locate file",
+		"aiChat": "AI chat",
+		"empty": "Import media, then drag it onto a track. Double-click to add an overlay.",
+		"stickerEmpty": "Import your sticker images, then drag them onto the timeline. A built-in collection can be added later.",
+		"unsupported": "Unsupported media type",
+		"unreadable": "Could not access the media file",
+		"wrongType": "Choose the same type of media for this replacement",
+		"tooShort": "This file is shorter than the edited source window",
+		"locateFile": "Locate file",
+		"replaceFile": "Replace file"
 	}
 }

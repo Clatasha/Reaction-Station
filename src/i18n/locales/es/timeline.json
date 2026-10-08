@@ -103,5 +103,42 @@
 		"recordingUnavailable": "La grabación no está disponible aquí",
 		"saveFailed": "No se pudo guardar la grabación",
 		"importFailed": "No se pudo importar el archivo de audio"
+	},
+	"context": {
+		"title": "Timeline actions",
+		"duplicate": "Duplicate",
+		"delete": "Delete",
+		"editClip": "Edit clip",
+		"mute": "Mute audio",
+		"unmute": "Unmute audio",
+		"fit": "Fit timeline to window",
+		"split": "Split at playhead",
+		"rename": "Rename item",
+		"disable": "Disable item",
+		"enable": "Enable item",
+		"link": "Link selected items",
+		"unlink": "Unlink audio / media",
+		"separate": "Separate audio"
+	},
+	"media": {
+		"video": "Video overlay",
+		"image": "Image overlay",
+		"dropOverlay": "Drop video or images here as overlays"
+	},
+	"tracks": {
+		"rename": "Rename",
+		"save": "Save",
+		"cancel": "Cancel",
+		"lock": "Lock track",
+		"unlock": "Unlock track",
+		"hide": "Hide track",
+		"show": "Show track",
+		"mute": "Mute track",
+		"unmute": "Unmute track",
+		"addVisual": "Add visual track",
+		"addAudio": "Add audio track",
+		"visual": "Visual",
+		"audio": "Audio",
+		"adjacent": "Select adjacent recording sections to move them together"
 	}
 }

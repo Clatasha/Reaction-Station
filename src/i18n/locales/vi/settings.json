@@ -278,7 +278,8 @@
 		"slipHint": "Giữ {{modifier}} và kéo để trượt âm thanh bên trong bản âm thanh",
 		"help": "Âm lượng, fade và lặp của rãnh âm thanh này. Nó được trộn lên trên bản ghi trong xem trước và khi xuất. Rãnh nhạc tự động nhỏ lại khi có người nói. Kéo rãnh trên dòng thời gian để di chuyển hoặc đổi kích thước, hoặc giữ Alt và kéo để trượt âm thanh bên trong.",
 		"add": "Thêm bản âm thanh",
-		"mute": "Tắt tiếng"
+		"mute": "Tắt tiếng",
+		"noRoomToDuplicate": "No room for a duplicate in this lane. Shorten the item or move it first."
 	},
 	"layout": {
 		"help": "Cách ghép webcam với màn hình: hình trong hình, xếp dọc, khung đôi, hình dạng, độ bo tròn, kích thước, vị trí và lật gương.",
@@ -319,7 +320,9 @@
 		"webcamBackground": "Nền máy ảnh",
 		"helpNoWebcam": "Dự án này không có camera nên các tùy chọn bố cục bị tắt và thiết lập sẵn hiển thị “Không có webcam”. Bố cục đã lưu của bạn vẫn được giữ lại cho khi bạn thêm camera.",
 		"title": "Bố cục camera",
-		"noWebcam": "Không có webcam"
+		"noWebcam": "Không có webcam",
+		"selectedClipScope": "Layout for selected clip only",
+		"projectScope": "Default layout for the project"
 	},
 	"textAnimation": {
 		"slideLeft": "Trượt sang trái",
@@ -450,5 +453,8 @@
 		"dark": "Tối",
 		"light": "Sáng",
 		"custom": "Tùy chỉnh"
+	},
+	"mediaAnimation": {
+		"title": "Animation"
 	}
 }

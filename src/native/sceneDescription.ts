@@ -1,3 +1,9 @@
+import {
+	editorTracks,
+	isItemEnabled,
+	itemTrackId,
+	visibleEditorDocument,
+} from "@/lib/ai-edition/document/editorTracks";
 /**
  * Scene contract — the flat description the app hands the native D3D compositor so it can
  * compute the composed frame itself (preview AND export) with **no POC-fixture logic**.
@@ -46,6 +52,7 @@ import { resolveClipSourceEndSec } from "@/lib/ai-edition/timeline/clipDuration"
 import { removedRawSpans } from "@/lib/ai-edition/timeline/programme-time";
 import { takeProgramme } from "@/lib/ai-edition/timeline/take-programme";
 import { projectRegionsToSource } from "@/lib/ai-edition/timeline/timelineMap";
+import { findRawClipForSegment } from "@/lib/ai-edition/timeline/virtual-preview";
 import {
 	MAGNIFICATION_REFERENCE_PX,
 	MAX_ZOOM_SCALE,
@@ -216,6 +223,10 @@ export interface SceneAnnotation {
 	};
 	/** Present for `kind: "image"` — the authored `imageContent` (path or data URI). */
 	imagePath?: string;
+	videoPath?: string;
+	videoSourceStartSec?: number;
+	mediaAnimation?: string;
+	mediaAnimationOffsetSec?: number;
 	/** Present for `kind: "figure"`. */
 	figure?: {
 		direction:
@@ -367,6 +378,7 @@ export interface SceneLayout {
  * pixels, per-clip or not.
  */
 export interface ResolvedClipLayout {
+	preset?: string;
 	screenRect: SceneRect;
 	webcamRect: SceneRect | null;
 	screenRadiusFrac: number | null;
@@ -455,9 +467,13 @@ export interface SceneCursor {
 }
 
 /** Everything native needs to compose the scene, serialized from one document. */
+export interface SceneClipInput extends CompositorClipInput {
+	mediaAnimation?: { name: string; startSec: number };
+}
+
 export interface SceneDescription {
 	/** Ordered clips (multiclip) with source trims — same shape the export already uses. */
-	clips: CompositorClipInput[];
+	clips: SceneClipInput[];
 	layout: SceneLayout;
 	effects: SceneEffects;
 	background: SceneBackground;
@@ -531,6 +547,8 @@ export interface SceneDescription {
 		 *  start and end, so it fades once rather than at every cut or repeat. */
 		fadeInSec: number;
 		fadeOutSec: number;
+		recordedSource?: boolean;
+		outputDurationSec?: number;
 		/** A voiceover is voice: the export levels it like the recording's own audio. */
 		kind: AxcutAudioTrack["kind"];
 	}>;
@@ -771,6 +789,7 @@ export function buildSceneDescription(
 	document: AxcutDocument,
 	webcamSourceSize: { width: number; height: number } | null = null,
 ): SceneDescription {
+	document = visibleEditorDocument(document);
 	const settings = getEditorSettings(document);
 
 	const assetById = new Map(document.assets.map((a) => [a.id, a]));
@@ -852,6 +871,7 @@ export function buildSceneDescription(
 			fadeInSec: track.fadeInMs / 1000,
 			fadeOutSec: track.fadeOutMs / 1000,
 			kind: track.kind,
+			...(track.recordingSource ? { recordedSource: true } : {}),
 		};
 		// The window the file has left after the offset. Without a probed duration
 		// there is nothing to loop over and nothing to cap the tail with, so the
@@ -879,6 +899,50 @@ export function buildSceneDescription(
 			// file the take covers, which is the honest fallback once the cuts are taken out.
 			const voWindowSec =
 				sourceDurationSec > 0 ? Math.max(0, sourceDurationSec - offsetSec) : rawSpanSec;
+			if (track.recordingSource) {
+				const entries = takeProgramme(pill, removed)
+					.filter((piece) => piece.kind === "play")
+					.flatMap((piece) => {
+						const boundaries = new Set([piece.rawStartSec, piece.rawEndSec]);
+						for (const speed of rawSpeedRegions) {
+							for (const time of [speed.startMs / 1000, speed.endMs / 1000]) {
+								if (time > piece.rawStartSec && time < piece.rawEndSec) boundaries.add(time);
+							}
+						}
+						const times = [...boundaries].sort((a, b) => a - b);
+						return times.slice(0, -1).flatMap((rawStart, index) => {
+							const sourceStart = piece.sourceStartSec + rawStart - piece.rawStartSec;
+							const rawEnd = Math.min(
+								times[index + 1],
+								rawStart + voWindowSec + offsetSec - sourceStart,
+							);
+							if (rawEnd <= rawStart) return [];
+							const project = (time: number) =>
+								projectRawTimelineSecToPlayback(
+									projectedClips,
+									document.timeline.trimRanges,
+									time,
+									rawSpeedRegions,
+								);
+							const outputDurationSec = project(rawEnd) - project(rawStart);
+							if (outputDurationSec <= 0) return [];
+							return [
+								{
+									...base,
+									startSec: project(rawStart),
+									trimStartSec: sourceStart,
+									trimEndSec: sourceStart + rawEnd - rawStart,
+									outputDurationSec,
+								},
+							];
+						});
+					});
+				return entries.map((entry, index) => ({
+					...entry,
+					fadeInSec: index === 0 ? base.fadeInSec : 0,
+					fadeOutSec: index === entries.length - 1 ? base.fadeOutSec : 0,
+				}));
+			}
 			const kept = takeProgramme(pill, removed)
 				.filter((piece) => piece.kind === "play")
 				.map((piece) => ({
@@ -931,7 +995,7 @@ export function buildSceneDescription(
 		return entries;
 	});
 	const visibleClips = resolveVisibleClips(document);
-	const clips: CompositorClipInput[] = visibleClips.flatMap((clip) => {
+	const clips: SceneClipInput[] = visibleClips.flatMap((clip) => {
 		const asset = assetById.get(clip.assetId);
 		if (!asset?.originalPath) return [];
 		const camera = assetCameraSource(asset);
@@ -945,11 +1009,26 @@ export function buildSceneDescription(
 		return [
 			{
 				screenPath: asset.originalPath,
-				webcamPath: camera.path,
+				...(!isItemEnabled(document, clip, "clip") ? { screenHidden: true } : {}),
+				...(clip.mediaAnimation && clip.mediaAnimation !== "none"
+					? {
+							mediaAnimation: {
+								name: clip.mediaAnimation,
+								startSec:
+									findRawClipForSegment(clip, document.timeline.clips)?.sourceStartSec ??
+									clip.sourceStartSec,
+							},
+						}
+					: {}),
+				webcamPath: clip.webcamLayoutPreset === "no-webcam" ? "" : camera.path,
 				sourceStartSec: clip.sourceStartSec,
 				sourceEndSec: resolveClipSourceEndSec(clip, asset),
 				webcamOffsetSec: camera.offsetSec,
-				hasAudio: true,
+				hasAudio:
+					!asset.sourceAudioMuted &&
+					!clip.embeddedAudioMuted &&
+					!clip.disabled &&
+					!editorTracks(document).find((track) => track.id === itemTrackId(clip, "clip"))?.muted,
 				// A held segment has an empty source window and exists only for the frames it
 				// holds; every other clip holds nothing.
 			},
@@ -1131,8 +1210,12 @@ export function buildSceneDescription(
 		screenSize: { width: number; height: number },
 		hasCamera: boolean,
 		camSize: { width: number; height: number },
+		presetOverride?: AxcutClip["webcamLayoutPreset"],
 	) => {
-		const preset = resolveWebcamLayoutPreset(settings.webcamLayoutPreset, hasCamera);
+		const preset = resolveWebcamLayoutPreset(
+			presetOverride ?? settings.webcamLayoutPreset,
+			hasCamera,
+		);
 		return computeCompositeLayout({
 			canvasSize: outputDims,
 			maxContentSize,
@@ -1175,11 +1258,25 @@ export function buildSceneDescription(
 	// One resolved layout per visible clip, index-aligned with `clips` / `cropByClip`.
 	// `for_clip_window` (Rust) selects the entry for the clip being composed, so the
 	// draw path keeps reading a single `layout` and needs no per-clip branch of its own.
-	const layoutByClip = visibleClips.map((clip, index) =>
-		resolvedLayoutOf(
-			layoutForClip(screenSourceSizeOf(clip, index), clipHasCamera(clip), webcamSourceSizeOf(clip)),
-		),
-	);
+	const layoutByClip = visibleClips.map((clip, index) => {
+		const layout = resolvedLayoutOf(
+			layoutForClip(
+				screenSourceSizeOf(clip, index),
+				clipHasCamera(clip),
+				webcamSourceSizeOf(clip),
+				clip.webcamLayoutPreset,
+			),
+		);
+		return layout
+			? {
+					...layout,
+					preset: resolveWebcamLayoutPreset(
+						clip.webcamLayoutPreset ?? settings.webcamLayoutPreset,
+						clipHasCamera(clip),
+					),
+				}
+			: null;
+	});
 	// Scalar fields stay the FIRST clip's layout: they are the fallback for a payload
 	// without `layoutByClip`, and the value native starts from before any clip is active.
 	const computedLayout = visibleClips[0]
@@ -1187,6 +1284,7 @@ export function buildSceneDescription(
 				screenSourceSizeOf(visibleClips[0], 0),
 				clipHasCamera(visibleClips[0]),
 				webcamSourceSizeOf(visibleClips[0]),
+				visibleClips[0].webcamLayoutPreset,
 			)
 		: null;
 	const webcamRect = computedLayout?.webcamRect
@@ -1383,7 +1481,19 @@ export function buildSceneDescription(
 					// `content.startsWith("data:image")`), `imageContent` being the parallel slot
 					// older documents used. Reading them the other way round would render an image
 					// the preview isn't showing.
-					return { ...base, imagePath: region.content || region.imageContent || "" };
+					const media = region.mediaAssetId ? assetById.get(region.mediaAssetId) : undefined;
+					return {
+						...base,
+						imagePath: region.content || region.imageContent || "",
+						...(media
+							? {
+									videoPath: media.originalPath,
+									videoSourceStartSec: region.mediaSourceStartSec ?? 0,
+								}
+							: {}),
+						mediaAnimation: style.textAnimation ?? "none",
+						mediaAnimationOffsetSec: region.mediaSourceStartSec ?? 0,
+					};
 				}
 				if (region.type === "figure") {
 					const figure = region.figureData;

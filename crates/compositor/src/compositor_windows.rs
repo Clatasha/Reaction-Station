@@ -9,7 +9,7 @@ use crate::config::Cfg;
 pub use crate::frame_geometry::{live_params_from_scene, webcam_shape_code, LayerCB,
     LiveParams, FIXTURE_FRAMES, HALF_H, HALF_W, OUT_H, OUT_W};
 use crate::frame_geometry::{
-    cover_crop_uv, cover_uv_rect, decode_data_uri, ease_in_out_cubic, lerp,
+    cover_crop_uv, cover_uv_rect, ease_in_out_cubic, lerp,
     lerp4, parse_hex, preset_placements, remap_box, screen_source_rect, timeline, CursorPlacement,
     FrameParams, Placement, ShadowCaster, SpriteShape, CURSOR_BASE_SIZE_FRAC, FPS,
     SCREEN_SHADOW_SPREAD_FRAC, SHADOW_TUNING_REF_PX, WEBCAM_SHADOW_OFFSET_FRAC,
@@ -1341,15 +1341,7 @@ impl Compositor {
         // Les annotations image stockent une data URL (cf. `types.ts` : « Separate storage for
         // image data URL »), pas un chemin : on décode alors depuis la mémoire. Les wallpapers
         // continuent de passer par le disque.
-        let img = if let Some(bytes) = decode_data_uri(path) {
-            image::load_from_memory(&bytes)
-                .map_err(|e| anyhow::anyhow!("data URI image ({} octets): {}", bytes.len(), e))?
-                .to_rgba8()
-        } else {
-            image::open(path)
-                .map_err(|e| anyhow::anyhow!("wallpaper {}: {}", path, e))?
-                .to_rgba8()
-        };
+        let img = crate::media_image::load(path)?;
         let (w, h) = (img.width(), img.height());
         let pixels = img.into_raw();
         let td = D3D11_TEXTURE2D_DESC {
@@ -2202,7 +2194,7 @@ impl Compositor {
             self.ctx.OMSetRenderTargets(Some(&[Some(self.trail_rtv.clone())]), None);
             self.ctx.ClearRenderTargetView(&self.trail_rtv, &[0.0, 0.0, 0.0, 0.0]);
         }
-        if cfg.shadow {
+        if cfg.shadow && !g.screen_hidden {
             let spread = SCREEN_SHADOW_SPREAD_FRAC * g.screen_unit_px;
             let offset = g.screen_shadow_offset();
             let opacity = 0.45 * lp.shadow_scale;
@@ -2239,7 +2231,7 @@ impl Compositor {
             // l'effet est coupé : `k = 0`, le shader n'y lit rien.
             self.ctx.PSSetShaderResources(5, Some(&[dof_srv.clone()]));
             self.draw_video(
-                &crate::frame_geometry::tilted_screen_cb(
+                &g.animated_screen_layer(crate::frame_geometry::tilted_screen_cb(
                     &quad,
                     s_px,
                     quad_center_px,
@@ -2251,7 +2243,7 @@ impl Compositor {
                     render_px,
                     g.screen_mask,
                     g.tilt_pixel_trail(render_px),
-                ),
+                )),
                 &sy,
                 &suv,
             );
@@ -2266,7 +2258,7 @@ impl Compositor {
                 render_px,
             );
             self.draw_video(
-                &LayerCB {
+                &g.animated_screen_layer(LayerCB {
                     dst,
                     src,
                     quad_px,
@@ -2277,7 +2269,7 @@ impl Compositor {
                     dst_prev: s_dst_prev,
                     mb: [g.screen_pixel_taps(render_px), mb_amount, top_lift, square_top],
                     ..Default::default()
-                },
+                }),
                 &sy,
                 &suv,
             );
@@ -2445,7 +2437,7 @@ impl Compositor {
         );
         // miroir = échanger les bornes u du rect source (flip horizontal).
         let (u0, u1) = if lp.webcam_mirror { (su1, su0) } else { (su0, su1) };
-        if lp.has_webcam {
+        if lp.has_webcam && !g.screen_hidden {
             // L'ombre portée appartient à la bulle flottante PiP : elle se retire avec elle
             // (`shape_fade`), pour qu'au plein écran plus rien n'encadre la caméra. C'est une
             // ombre légère NON paramétrable — indépendante du slider Shadow, qui ne pilote plus
@@ -2601,6 +2593,7 @@ impl Compositor {
                 annotation.w,
                 annotation.h,
             );
+            let (dst, media_opacity) = if annotation.kind == "image" { crate::media_image::animated_rect(dst, annotation.media_animation.as_deref(), t - annotation.start_sec as f32 + annotation.media_animation_offset_sec, anchor[3]) } else { (dst, 1.0) };
             let quad_px = [dst[2] * self.rw(), dst[3] * self.rh()];
             if quad_px[0] <= 0.0 || quad_px[1] <= 0.0 {
                 continue;
@@ -2673,7 +2666,8 @@ impl Compositor {
                     });
                 }
                 "image" => {
-                    let Some(src) = annotation.image_path.as_ref() else { continue };
+                    let Some(frame_source) = annotation.frame_source(t) else { continue };
+                    let src = &frame_source;
                     if src.is_empty() {
                         continue;
                     }
@@ -2685,7 +2679,7 @@ impl Compositor {
                     let key = annotation.id.clone();
                     let cached = {
                         let cache = self.ann_img_cache.borrow();
-                        cache.get(&key).filter(|(_, _, _, len)| *len == src.len()).cloned()
+                        cache.get(&key).filter(|(_, _, _, len)| annotation.video_path.is_none() && *len == src.len()).cloned()
                     };
                     let Some((srv, iw, ih, _)) = cached.or_else(|| {
                         match self.load_image_srv(src) {
@@ -2730,7 +2724,7 @@ impl Compositor {
                         // exactement ce qu'il faut ici, donc aucun shader de plus. `fx` est son
                         // rect de clip — plein cadre, pour ne rien découper.
                         mode: 7.0,
-                        color: [1.0, 1.0, 1.0, 1.0],
+                        color: [1.0, 1.0, 1.0, media_opacity],
                         fx: [0.0, 0.0, 1.0, 1.0],
                         ..Default::default()
                     });

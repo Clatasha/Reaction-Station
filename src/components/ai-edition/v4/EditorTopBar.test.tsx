@@ -16,9 +16,10 @@ vi.mock("@/contexts/I18nContext", () => ({
 
 // The platform decides whether the chips read Ctrl or ⌘.
 const platform = vi.hoisted(() => ({ isMac: false }));
-vi.mock("@/contexts/ShortcutsContext", () => ({
-	useShortcuts: () => ({ isMac: platform.isMac }),
-}));
+vi.mock("@/contexts/ShortcutsContext", async () => {
+	const { DEFAULT_SHORTCUTS } = await import("@/lib/shortcuts");
+	return { useShortcuts: () => ({ isMac: platform.isMac, shortcuts: DEFAULT_SHORTCUTS }) };
+});
 
 class StubResizeObserver {
 	observe = vi.fn();

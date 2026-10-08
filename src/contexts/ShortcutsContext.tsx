@@ -59,7 +59,8 @@ export function ShortcutsProvider({ children }: { children: ReactNode }) {
 	const persistShortcuts = useCallback(
 		async (config?: ShortcutsConfig) => {
 			const configToSave = config ?? shortcuts;
-			await window.electronAPI?.saveShortcuts?.(configToSave);
+			const saved = await window.electronAPI?.saveShortcuts?.(configToSave);
+			if (saved && !saved.success) return false;
 
 			const result = await window.electronAPI?.updateGlobalShortcut?.(configToSave.openApp);
 			return result ? result.success : true;

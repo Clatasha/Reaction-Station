@@ -580,6 +580,19 @@ void AudioMixer::setPaused(bool paused) {
     cv_.notify_all();
 }
 
+void AudioMixer::setSeparateOutput(OutputCallback system, OutputCallback microphone) {
+    // Configured before start(); callbacks run only on the mixer thread.
+    systemOutput_ = std::move(system);
+    microphoneOutput_ = std::move(microphone);
+}
+
+void AudioMixer::setGains(double microphone, double system) {
+    if (!std::isfinite(microphone) || !std::isfinite(system)) return;
+    std::scoped_lock lock(mutex_);
+    microphoneGain_ = std::clamp(microphone, 0.0, 2.0);
+    systemGain_ = std::clamp(system, 0.0, 2.0);
+}
+
 void AudioMixer::stop() {
     stopRequested_ = true;
     cv_.notify_all();
@@ -712,6 +725,8 @@ void AudioMixer::mixLoop() {
     const uint64_t cushionFrames = static_cast<uint64_t>(format_.sampleRate) * MixerCushionMs / 1000;
     std::vector<BYTE> mixedChunk;
     std::vector<BYTE> sourceChunk;
+    std::vector<BYTE> systemChunk;
+    std::vector<BYTE> microphoneChunk;
     // This loop's copy of `clockStart_`, taken under the lock at the top of each
     // pass: beginTimeline and a resume move it from other threads.
     std::chrono::steady_clock::time_point clockStart;
@@ -736,13 +751,15 @@ void AudioMixer::mixLoop() {
                 mixedChunk.assign(chunkBytes, 0);
                 if (includeSystem_) {
                     pop(systemQueue_, systemStarved_, sourceChunk, chunkBytes);
-                    mixAudioInPlace(mixedChunk, sourceChunk.data(), static_cast<DWORD>(sourceChunk.size()), format_);
+                    mixAudioInPlace(mixedChunk, sourceChunk.data(), static_cast<DWORD>(sourceChunk.size()), format_, systemGain_);
+                    if (systemOutput_) copyAudioWithGain(sourceChunk.data(), static_cast<DWORD>(sourceChunk.size()), format_, systemGain_, systemChunk);
                 }
                 if (includeMicrophone_) {
                     pop(microphoneQueue_, microphoneStarved_, sourceChunk, chunkBytes);
                     mixAudioInPlace(
                         mixedChunk, sourceChunk.data(), static_cast<DWORD>(sourceChunk.size()), format_,
                         microphoneGain_);
+                    if (microphoneOutput_) copyAudioWithGain(sourceChunk.data(), static_cast<DWORD>(sourceChunk.size()), format_, microphoneGain_, microphoneChunk);
                 }
                 mixedFrames_ = emittedFrames_ + chunkFrames;
             }
@@ -751,6 +768,11 @@ void AudioMixer::mixLoop() {
                 static_cast<int64_t>((emittedFrames_ * HnsPerSecond) / format_.sampleRate);
             const int64_t durationHns =
                 static_cast<int64_t>((static_cast<uint64_t>(chunkFrames) * HnsPerSecond) / format_.sampleRate);
+            if ((systemOutput_ && !systemOutput_(systemChunk.data(), static_cast<DWORD>(systemChunk.size()), timestampHns, durationHns)) ||
+                (microphoneOutput_ && !microphoneOutput_(microphoneChunk.data(), static_cast<DWORD>(microphoneChunk.size()), timestampHns, durationHns))) {
+                stopRequested_ = true;
+                return false;
+            }
             if (!output_(mixedChunk.data(), static_cast<DWORD>(mixedChunk.size()), timestampHns, durationHns)) {
                 stopRequested_ = true;
                 return false;

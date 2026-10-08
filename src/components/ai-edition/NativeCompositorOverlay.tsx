@@ -58,6 +58,7 @@ import {
 export function NativeCompositorOverlay() {
 	const canvasRef = useRef<HTMLCanvasElement>(null);
 	const previousActiveClipIdRef = useRef<string | null>(null);
+	const previousActiveClipIndexRef = useRef<number | null>(null);
 	const document = useProjectStore((s) => s.document);
 	const currentTimeSec = useProjectStore((s) => s.currentTimeSec);
 	// ponytail: re-render whenever the webcam dim cache changes (the WebcamOverlay
@@ -138,6 +139,7 @@ export function NativeCompositorOverlay() {
 	// via setNativeParam sans connaître cet overlay.
 	useEffect(() => {
 		previousActiveClipIdRef.current = null;
+		previousActiveClipIndexRef.current = null;
 		setCurrentNativeViewId(viewId);
 		return () => setCurrentNativeViewId(null);
 	}, [viewId]);
@@ -225,7 +227,10 @@ export function NativeCompositorOverlay() {
 			return;
 		}
 		const native = getNativePosition();
-		const clipChanged = previousActiveClipIdRef.current !== activeClipId;
+		const indexChanged =
+			previousActiveClipIdRef.current === activeClipId &&
+			previousActiveClipIndexRef.current !== activeClipIndex;
+		const clipChanged = previousActiveClipIdRef.current !== activeClipId || indexChanged;
 		// Mise en pause pendant que la vue était sur un autre clip que la tête de lecture : elle
 		// y retourne, sans quoi le recalage en temps (`setNativeTime`) chercherait dans le
 		// mauvais fichier.
@@ -246,7 +251,8 @@ export function NativeCompositorOverlay() {
 		}
 		pendingTargetClipIdRef.current = targetClipId;
 		previousActiveClipIdRef.current = targetClipId;
-		if (playing && native !== null) {
+		previousActiveClipIndexRef.current = activeClipIndex;
+		if (playing && native !== null && !indexChanged) {
 			const lead = nativeLeadSec(
 				native,
 				{ clipIndex: activeClipIndex, sourceTimeSec: activeSourceTimeSec },

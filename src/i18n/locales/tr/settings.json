@@ -278,7 +278,8 @@
 		"slipHint": "{{modifier}} tuşunu basılı tutup sürükleyerek sesi parça içinde kaydırın",
 		"help": "Bu ses kanalının seviyesi, geçişleri ve döngüsü. Önizlemede ve dışa aktarımda kaydın üzerine miksleniyor. Müzik kanalı, biri konuşurken kendiliğinden kısılır. Kanalı taşımak veya yeniden boyutlandırmak için zaman çizelgesinde sürükleyin; içindeki sesi kaydırmak için Alt tuşunu basılı tutarak sürükleyin.",
 		"add": "Ses parçası ekle",
-		"mute": "Sessiz"
+		"mute": "Sessiz",
+		"noRoomToDuplicate": "No room for a duplicate in this lane. Shorten the item or move it first."
 	},
 	"layout": {
 		"help": "Web kamerasının ekranla birleştirilme biçimi: resim içinde resim, dikey yığın, çift çerçeve, şekil, yuvarlaklık, boyut, konum ve aynalama.",
@@ -319,7 +320,9 @@
 		"webcamBackground": "Kamera Arka Planı",
 		"helpNoWebcam": "Bu projede kamera yok; bu yüzden yerleşim denetimleri kapalı ve ön ayar “Web kamerası yok” gösteriyor. Kaydettiğiniz yerleşim, bir kamera eklediğinizde kullanılmak üzere korunur.",
 		"title": "Kamera düzeni",
-		"noWebcam": "Web kamerası yok"
+		"noWebcam": "Web kamerası yok",
+		"selectedClipScope": "Layout for selected clip only",
+		"projectScope": "Default layout for the project"
 	},
 	"textAnimation": {
 		"slideLeft": "Sola Kaydırma",
@@ -450,5 +453,8 @@
 		"dark": "Koyu",
 		"light": "Açık",
 		"custom": "Özel"
+	},
+	"mediaAnimation": {
+		"title": "Animation"
 	}
 }

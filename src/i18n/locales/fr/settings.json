@@ -278,7 +278,8 @@
 		"slipHint": "Maintenez {{modifier}} et faites glisser pour déplacer l'audio dans la piste",
 		"help": "Volume, fondus et boucle de cette piste audio. Elle se mixe par-dessus l’enregistrement dans l’aperçu et à l’export. Une piste de musique baisse d’elle-même quand quelqu’un parle. Faites glisser la piste sur la timeline pour la déplacer ou la redimensionner, ou maintenez Alt en glissant pour déplacer l’audio à l’intérieur.",
 		"add": "Ajouter une piste audio",
-		"mute": "Muet"
+		"mute": "Muet",
+		"noRoomToDuplicate": "No room for a duplicate in this lane. Shorten the item or move it first."
 	},
 	"layout": {
 		"help": "Composition de la webcam avec l'écran : incrustation, empilement vertical, double cadre, forme, arrondi, taille, position et effet miroir.",
@@ -319,7 +320,9 @@
 		"webcamBackground": "Arrière-plan de la caméra",
 		"helpNoWebcam": "Ce projet n’a pas de caméra : les réglages de disposition sont désactivés et le préréglage affiche « Sans webcam ». Votre disposition enregistrée est conservée pour le jour où une caméra sera ajoutée.",
 		"title": "Disposition caméra",
-		"noWebcam": "Sans webcam"
+		"noWebcam": "Sans webcam",
+		"selectedClipScope": "Layout for selected clip only",
+		"projectScope": "Default layout for the project"
 	},
 	"textAnimation": {
 		"slideLeft": "Glisser à gauche",
@@ -450,5 +453,8 @@
 		"dark": "Sombre",
 		"light": "Claire",
 		"custom": "Personnalisée"
+	},
+	"mediaAnimation": {
+		"title": "Animation"
 	}
 }

@@ -1431,15 +1431,7 @@ impl Compositor {
     /// wgpu du `load_image_texture` macOS, memes chemins (`decode_data_uri`
     /// partage, crate `image`). Sert aux sprites de curseur (mode 7).
     fn load_image_texture(&self, path: &str) -> Result<(wgpu::Texture, u32, u32)> {
-        let img = if let Some(bytes) = crate::frame_geometry::decode_data_uri(path) {
-            image::load_from_memory(&bytes)
-                .map_err(|e| anyhow::anyhow!("data URI image ({} octets) : {e}", bytes.len()))?
-                .to_rgba8()
-        } else {
-            image::open(path)
-                .map_err(|e| anyhow::anyhow!("sprite {path} : {e}"))?
-                .to_rgba8()
-        };
+        let img = crate::media_image::load(path)?;
         let (w, h) = (img.width(), img.height());
         let pixels = img.into_raw();
         let tex = self.gpu.device.create_texture(&wgpu::TextureDescriptor {
@@ -2296,6 +2288,7 @@ impl Compositor {
                 g.tilt_pixel_trail([rw, rh]),
             ),
         };
+        let screen_layer = g.animated_screen_layer(screen_layer);
         // Bind group construit AVANT le pass (doit vivre pendant tout le pass) ; `LayerBind`
         // garde le buffer uniforme en vie (reference par le bind).
         let dummy = self.dummy_view();
@@ -2339,7 +2332,7 @@ impl Compositor {
         // quand l'ecran est droit, quadrilatere projete (mode 12) quand il penche. Avec un
         // cadre de fenetre, c'est le CADRE qui la porte (`shadow_caster`), sinon la barre de
         // titre flotterait au-dessus de l'ombre.
-        let screen_shadow = cfg.shadow.then(|| {
+        let screen_shadow = (cfg.shadow && !g.screen_hidden).then(|| {
             let spread = crate::frame_geometry::SCREEN_SHADOW_SPREAD_FRAC * g.screen_unit_px;
             let offset = g.screen_shadow_offset();
             let opacity = 0.45 * lp.shadow_scale;
@@ -2417,7 +2410,7 @@ impl Compositor {
         // the SCREEN video, because `open_and_seek_clip` falls back to it rather
         // than leave the pair half-open. Without this check a recording with no
         // camera drew its own screen picture inside the PiP box.
-        let webcam_planes = if lp.has_webcam && !webcam.is_null() {
+        let webcam_planes = if lp.has_webcam && !g.screen_hidden && !webcam.is_null() {
             self.nv12_srvs(webcam).ok()
         } else {
             None
@@ -2614,7 +2607,8 @@ impl Compositor {
                 // desormais exactement ces deux lignes.
                 let anchor = a.anchor_rect(g.s_ann);
                 let dst = crate::frame_geometry::annotation_dst_in(anchor, a.x, a.y, a.w, a.h);
-                let quad_px = [dst[2] * rw, dst[3] * rh];
+                let (dst, media_opacity) = if a.kind == "image" { crate::media_image::animated_rect(dst, a.media_animation.as_deref(), t - a.start_sec as f32 + a.media_animation_offset_sec, anchor[3]) } else { (dst, 1.0) };
+            let quad_px = [dst[2] * rw, dst[3] * rh];
                 // Une boite degeneree ferait un atlas 0x0 et un draw invisible ;
                 // macOS l'ecarte de la meme facon.
                 if quad_px[0] <= 0.0 || quad_px[1] <= 0.0 {
@@ -2690,12 +2684,13 @@ impl Compositor {
                         privacy_draws.push(AnnDraw::plain(layer));
                     }
                     "image" => {
-                        let Some(src) = a.image_path.as_ref().filter(|s| !s.is_empty()) else {
+                        let Some(frame_source) = a.frame_source(t) else {
                             continue;
                         };
+                        let src = &frame_source;
                         let cached = {
                             let c = self.ann_img_cache.borrow();
-                            c.get(&a.id).filter(|(_, _, _, len)| *len == src.len()).cloned()
+                            c.get(&a.id).filter(|(_, _, _, len)| a.video_path.is_none() && *len == src.len()).cloned()
                         };
                         let Some((tex, iw, ih, _)) = cached.or_else(|| {
                             match self.load_image_texture(src) {
@@ -2738,7 +2733,7 @@ impl Compositor {
                             src: [0.0, 0.0, 1.0, 1.0],
                             quad_px: [fit_w * rw, fit_h * rh],
                             mode: 7.0,
-                            color: [1.0, 1.0, 1.0, 1.0],
+                            color: [1.0, 1.0, 1.0, media_opacity],
                             // Mode 7 clippe sur `fx` : un rect qui couvre tout le
                             // cadre = pas de clip.
                             fx: [0.0, 0.0, 1.0, 1.0],

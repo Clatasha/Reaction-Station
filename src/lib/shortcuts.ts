@@ -1,4 +1,25 @@
 export const SHORTCUT_ACTIONS = [
+	"toggleSnapping",
+	"toggleGuides",
+	"fitTimeline",
+	"cutSelected",
+	"splitClip",
+	"undo",
+	"redo",
+	"redoAlternate",
+	"deleteAlternate",
+	"deleteBackspace",
+	"cycleAnnotationsForward",
+	"cycleAnnotationsBackward",
+	"frameBack",
+	"frameForward",
+	"saveProject",
+	"saveProjectAs",
+	"newProject",
+	"openProject",
+	"openShortcuts",
+	"exportProject",
+
 	"openApp",
 	"addZoom",
 	"addTrim",
@@ -95,11 +116,7 @@ export function findConflict(
 	forAction: ShortcutAction,
 	config: ShortcutsConfig,
 ): ShortcutConflict | null {
-	for (const fixed of FIXED_SHORTCUTS) {
-		if (fixed.bindings.some((b) => bindingsEqual(b, binding))) {
-			return { type: "fixed", label: fixed.label };
-		}
-	}
+	if (!binding.key) return null;
 	for (const action of SHORTCUT_ACTIONS) {
 		if (action !== forAction && bindingsEqual(config[action], binding)) {
 			return { type: "configurable", action };
@@ -109,6 +126,27 @@ export function findConflict(
 }
 
 export const DEFAULT_SHORTCUTS: ShortcutsConfig = {
+	toggleSnapping: { key: "g" },
+	toggleGuides: { key: "g", ctrl: true, shift: true },
+	fitTimeline: { key: "home" },
+	cutSelected: { key: "x", ctrl: true },
+	splitClip: { key: "b", ctrl: true },
+	undo: { key: "z", ctrl: true },
+	redo: { key: "z", ctrl: true, shift: true },
+	redoAlternate: { key: "y", ctrl: true },
+	deleteAlternate: { key: "delete" },
+	deleteBackspace: { key: "backspace" },
+	cycleAnnotationsForward: { key: "tab" },
+	cycleAnnotationsBackward: { key: "tab", shift: true },
+	frameBack: { key: "arrowleft" },
+	frameForward: { key: "arrowright" },
+	saveProject: { key: "s", ctrl: true },
+	saveProjectAs: { key: "s", ctrl: true, shift: true },
+	newProject: { key: "n", ctrl: true },
+	openProject: { key: "o", ctrl: true },
+	openShortcuts: { key: "?", shift: true },
+	exportProject: { key: "e", ctrl: true },
+
 	openApp: { key: "o", ctrl: true, shift: true },
 	addZoom: { key: "z" },
 	addTrim: { key: "t" },
@@ -125,6 +163,27 @@ export const DEFAULT_SHORTCUTS: ShortcutsConfig = {
 };
 
 export const SHORTCUT_LABELS: Record<ShortcutAction, string> = {
+	toggleSnapping: "Toggle snapping",
+	toggleGuides: "Toggle alignment guides",
+	fitTimeline: "Fit timeline to window",
+	cutSelected: "Cut Selected",
+	splitClip: "Split clip at playhead",
+	undo: "Undo",
+	redo: "Redo",
+	redoAlternate: "Redo (alternate)",
+	deleteAlternate: "Delete Selected (Delete)",
+	deleteBackspace: "Delete Selected (Backspace)",
+	cycleAnnotationsForward: "Next Annotation",
+	cycleAnnotationsBackward: "Previous Annotation",
+	frameBack: "Previous Frame",
+	frameForward: "Next Frame",
+	saveProject: "Save Project",
+	saveProjectAs: "Save Project As",
+	newProject: "New Project",
+	openProject: "Open Project",
+	openShortcuts: "Keyboard Shortcuts",
+	exportProject: "Export",
+
 	openApp: "Open App",
 	addZoom: "Add Zoom",
 	addTrim: "Add Trim",
@@ -144,7 +203,7 @@ export function matchesShortcut(
 	binding: ShortcutBinding | undefined,
 	isMacPlatform: boolean,
 ): boolean {
-	if (!binding) return false;
+	if (!binding?.key) return false;
 	if (e.key.toLowerCase() !== binding.key.toLowerCase()) return false;
 
 	const primaryMod = isMacPlatform ? e.metaKey : e.ctrlKey;
@@ -176,6 +235,7 @@ const KEY_LABELS: Record<string, string> = {
 };
 
 export function formatBinding(binding: ShortcutBinding, isMac: boolean): string {
+	if (!binding.key) return "Unassigned";
 	const parts: string[] = [];
 	if (binding.ctrl) parts.push(isMac ? "⌘" : "Ctrl");
 	if (binding.shift) parts.push(isMac ? "⇧" : "Shift");
@@ -205,10 +265,28 @@ export function formatFirstFixedBinding(i18nKey: string, isMac: boolean): string
 
 export function mergeWithDefaults(partial: Partial<ShortcutsConfig>): ShortcutsConfig {
 	const merged = { ...DEFAULT_SHORTCUTS };
+	const stored = partial && typeof partial === "object" ? partial : {};
+	const valid = (binding: ShortcutBinding | undefined): binding is ShortcutBinding =>
+		!!binding &&
+		typeof binding.key === "string" &&
+		[binding.ctrl, binding.shift, binding.alt].every(
+			(value) => value === undefined || typeof value === "boolean",
+		);
 	for (const action of SHORTCUT_ACTIONS) {
-		if (partial[action]) {
-			merged[action] = partial[action] as ShortcutBinding;
-		}
+		if (valid(stored[action])) merged[action] = { ...stored[action] };
+	}
+	for (const action of SHORTCUT_ACTIONS) {
+		if (valid(stored[action]) || !merged[action].key) continue;
+		if (
+			SHORTCUT_ACTIONS.some(
+				(other) =>
+					other !== action &&
+					valid(stored[other]) &&
+					stored[other]?.key &&
+					bindingsEqual(merged[action], stored[other]!),
+			)
+		)
+			merged[action] = { key: "" };
 	}
 	return merged;
 }

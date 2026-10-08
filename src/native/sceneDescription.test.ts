@@ -17,7 +17,8 @@ import type {
 	AxcutDocument,
 	AxcutZoomRegion,
 } from "@/lib/ai-edition/schema";
-import { axcutSchemaVersion } from "@/lib/ai-edition/schema";
+import { annotationRegionSchema, axcutSchemaVersion } from "@/lib/ai-edition/schema";
+import { anchorRegionsWithDerivedMs } from "@/lib/ai-edition/timeline/timelineMap";
 import { CURSOR_KIND_IDS, DEFAULT_CURSOR_THEME_ID } from "@/lib/cursor/cursorThemes";
 import { DEVICE_FRAMES } from "@/lib/projectDefaults";
 import { getFocusBoundsForScale } from "@/lib/zoomMath/focusUtils";
@@ -2872,5 +2873,133 @@ describe("buildSceneDescription.audioTracks", () => {
 	it("is empty for a project with no imported audio", () => {
 		const doc = makeDoc({ assets: [makeAsset({ id: "a", originalPath: "/a.mp4" })] });
 		expect(buildSceneDescription(doc).audioTracks).toEqual([]);
+	});
+});
+
+describe("media animation scene contract", () => {
+	it("keeps a clip entrance anchored to the original head through trim splits", () => {
+		const doc = makeDoc({
+			assets: [makeAsset({ id: "video", originalPath: "/video.mp4", durationSec: 10 })],
+			clips: [
+				makeClip({
+					id: "clip",
+					assetId: "video",
+					sourceStartSec: 0,
+					sourceEndSec: 10,
+					timelineStartSec: 0,
+					timelineEndSec: 10,
+					mediaAnimation: "fade",
+				}),
+			],
+			timeline: {
+				trimRanges: [
+					{
+						id: "cut",
+						assetId: "video",
+						clipId: "clip",
+						startSec: 2,
+						endSec: 4,
+						reason: "test",
+						origin: "user",
+					},
+				],
+			},
+		});
+		const scene = buildSceneDescription(doc);
+		expect(scene.clips).toHaveLength(2);
+		expect(scene.clips.map((c) => c.mediaAnimation)).toEqual([
+			{ name: "fade", startSec: 0 },
+			{ name: "fade", startSec: 0 },
+		]);
+	});
+	it("serializes video overlay paths and continuous animation/source clocks", () => {
+		const clips = [
+			makeClip({
+				id: "a",
+				assetId: "main",
+				sourceStartSec: 100,
+				sourceEndSec: 105,
+				timelineStartSec: 0,
+				timelineEndSec: 5,
+			}),
+			makeClip({
+				id: "b",
+				assetId: "main",
+				sourceStartSec: 200,
+				sourceEndSec: 205,
+				timelineStartSec: 5,
+				timelineEndSec: 10,
+			}),
+		];
+		const annotation = annotationRegionSchema.parse({
+			id: "overlay",
+			type: "image",
+			content: "reaction",
+			startMs: 3000,
+			endMs: 8000,
+			mediaOffsetMs: 3000,
+			mediaLayerId: "layer",
+			mediaAssetId: "reaction",
+			position: { x: 25, y: 25 },
+			size: { width: 50, height: 50 },
+			style: { textAnimation: "rise" },
+			zIndex: 1,
+		});
+		const doc = makeDoc({
+			clips,
+			assets: [
+				makeAsset({ id: "main", originalPath: "/main.mp4", durationSec: 205 }),
+				makeAsset({ id: "reaction", originalPath: "/reaction.mp4", durationSec: 5 }),
+			],
+			annotations: anchorRegionsWithDerivedMs([annotation], clips, () => "fragment"),
+		});
+		const scene = buildSceneDescription(doc);
+		expect(
+			scene.annotations.map((a) => [
+				a.videoPath,
+				a.videoSourceStartSec,
+				a.mediaAnimation,
+				a.mediaAnimationOffsetSec,
+			]),
+		).toEqual([
+			["/reaction.mp4", 0, "rise", 0],
+			["/reaction.mp4", 2, "rise", 2],
+		]);
+	});
+});
+
+describe("independent layouts on split recording clips", () => {
+	it("sends each preset to preview/export and omits the disabled webcam", () => {
+		const asset = makeAsset({
+			id: "take",
+			originalPath: "/take.webm",
+			video: { codec: "h264", width: 1920, height: 1080, fps: 30 },
+			cameraTrack: { sourcePath: "/cam.webm", startMs: 0, offsetMs: 0, visible: true },
+		});
+		const clips = [
+			makeClip({
+				id: "left",
+				assetId: "take",
+				sourceStartSec: 0,
+				sourceEndSec: 5,
+				timelineStartSec: 0,
+				timelineEndSec: 5,
+				webcamLayoutPreset: "dual-frame",
+			}),
+			makeClip({
+				id: "right",
+				assetId: "take",
+				sourceStartSec: 5,
+				sourceEndSec: 10,
+				timelineStartSec: 5,
+				timelineEndSec: 10,
+				webcamLayoutPreset: "no-webcam",
+			}),
+		];
+		const scene = buildSceneDescription(makeDoc({ assets: [asset], clips }));
+		expect(scene.layout.layoutByClip?.map((l) => l?.preset)).toEqual(["dual-frame", "no-webcam"]);
+		expect(scene.clips.map((c) => c.webcamPath)).toEqual(["/cam.webm", ""]);
+		expect(scene.layout.layoutByClip?.[0]?.webcamRect).not.toBeNull();
+		expect(scene.layout.layoutByClip?.[1]?.webcamRect).toBeNull();
 	});
 });

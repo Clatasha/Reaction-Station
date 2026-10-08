@@ -86,7 +86,7 @@
 		}
 	},
 	"topbar": {
-		"toggleChatPanel": "聊天面板",
+		"toggleChatPanel": "Library",
 		"openProject": "打开项目",
 		"newProject": "新建项目",
 		"saveProject": "保存项目",
@@ -331,7 +331,11 @@
 		"reset": "重置",
 		"apply": "应用",
 		"pickClipTitle": "选择要编辑的片段",
-		"clipLabel": "片段 {{index}}"
+		"clipLabel": "片段 {{index}}",
+		"setStart": "Set start here",
+		"setEnd": "Set end here",
+		"scrubPreview": "Scrub clip preview",
+		"previewFailed": "This video could not be played in the clip preview."
 	},
 	"insertSourceDialog": {
 		"title": "插入源",
@@ -432,5 +436,40 @@
 	"cpuCompositor": {
 		"notice": "没有兼容的 GPU，正在使用 CPU 渲染，因此播放较慢。",
 		"exportWarning": "没有兼容的 GPU：本次导出将在 CPU 上运行，耗时会比平常长很多。"
+	},
+	"workspace": {
+		"title": "Workspace",
+		"snapping": "Enable snapping",
+		"showGuides": "Show alignment guides",
+		"snapToPlayhead": "Snap to playhead",
+		"snapToItems": "Snap to item edges",
+		"snapToClips": "Snap to clip boundaries",
+		"showWaveforms": "Show audio waveforms",
+		"fitTimeline": "Fit timeline to window",
+		"shortcuts": "Keyboard shortcuts",
+		"reset": "Reset workspace",
+		"snapHint": "Hold Shift while dragging to temporarily bypass snapping."
+	},
+	"library": {
+		"title": "Library",
+		"import": "Import media",
+		"media": "Media",
+		"stickers": "Stickers",
+		"search": "Search media",
+		"all": "All",
+		"video": "Video",
+		"image": "Images",
+		"audio": "Audio",
+		"locate": "Locate / replace file",
+		"missing": "Missing — locate file",
+		"aiChat": "AI chat",
+		"empty": "Import media, then drag it onto a track. Double-click to add an overlay.",
+		"stickerEmpty": "Import your sticker images, then drag them onto the timeline. A built-in collection can be added later.",
+		"unsupported": "Unsupported media type",
+		"unreadable": "Could not access the media file",
+		"wrongType": "Choose the same type of media for this replacement",
+		"tooShort": "This file is shorter than the edited source window",
+		"locateFile": "Locate file",
+		"replaceFile": "Replace file"
 	}
 }

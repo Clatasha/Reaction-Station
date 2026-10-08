@@ -2554,7 +2554,8 @@ fn fs_main(i: VsOut) -> @location(0) vec4<f32> {
         }
         // L'alpha est cette couverture, pas `color.a` : les draws du mode 8 laissent
         // `color` a zero, donc s'en servir rendrait un plan totalement transparent.
-        return vec4<f32>(tilt_rgb * tilt_a, tilt_a);
+        let media_alpha = tilt_a * (1.0 - layer.trail_mb.z);
+        return vec4<f32>(tilt_rgb * media_alpha, media_alpha);
     } else if layer.mode > 11.5 && layer.mode < 12.5 {
         // Mode 12 -- ombre du quad projete. La penombre suit le QUADRILATERE, pas son
         // rect englobant : un rect droit derriere un ecran incline se lit comme une

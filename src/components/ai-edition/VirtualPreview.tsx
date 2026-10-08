@@ -53,6 +53,7 @@ import {
 import styles from "./VirtualPreview.module.css";
 
 export interface VideoSource {
+	sourceAudioMuted?: boolean;
 	id: string;
 	src: string;
 	/** Original filesystem path, used by the main process to expose the second audio track. */
@@ -541,6 +542,8 @@ export function VirtualPreview({
 	const isProgrammaticSeekRef = useRef(false);
 	// The seek that arrived while another was still running (see applySourceTime).
 	const pendingScrubTargetRef = useRef<number | null>(null);
+	const stalledSeekAtRef = useRef<number | null>(null);
+	const reloadClockRef = useRef<((play: boolean, delayMs: number) => void) | null>(null);
 	const pendingSeekRef = useRef<{ sourceTimeSec: number; play: boolean } | null>(null);
 	// When each AUTOMATIC reload happened. The budget is "reloads inside
 	// RELOAD_WINDOW_MS", so it expires by itself: a dead file burns it in
@@ -569,7 +572,12 @@ export function VirtualPreview({
 	const activeClipIdRef = useRef<string | null>(null);
 	const [virtualTimeSec, setVirtualTimeSec] = useState(0);
 	const [loadState, setLoadState] = useState<"idle" | "loading" | "ready" | "error">("idle");
-	const [sourceIndex, setSourceIndex] = useState(0);
+	const [sourceId, setSourceId] = useState<string | null>(() => videoSources[0]?.id ?? null);
+	// Imports and reorders change list indices, not the identity of the playing media.
+	const sourceIndex = Math.max(
+		0,
+		videoSources.findIndex((source) => source.id === sourceId),
+	);
 
 	const virtualDurationSec = useMemo(() => totalVirtualDuration(clips), [clips]);
 	const activeSource = videoSources[sourceIndex] ?? null;
@@ -616,7 +624,7 @@ export function VirtualPreview({
 	const voicePathsKey = [
 		activeSource?.filePath,
 		...audioTracks
-			.filter((track) => track.kind === "voiceover")
+			.filter((track) => track.kind === "voiceover" && !track.recordingSource)
 			.map((track) => audioSources.find((source) => source.id === track.assetId)?.filePath),
 	]
 		.filter((path): path is string => Boolean(path))
@@ -652,9 +660,13 @@ export function VirtualPreview({
 			);
 		}
 	}, [voicePathsKey, retryToken, activeVoicePath]);
-	const voiceGainDb = activeSource?.filePath
-		? (loudnessGainDbByPath.get(activeSource.filePath) ?? 0)
-		: 0;
+	const activeClip = clips.find((clip) => clip.id === activeClipIdRef.current) ?? clips[0];
+	const voiceGainDb =
+		activeSource?.sourceAudioMuted || activeClip?.embeddedAudioMuted
+			? Number.NEGATIVE_INFINITY
+			: activeSource?.filePath
+				? (loudnessGainDbByPath.get(activeSource.filePath) ?? 0)
+				: 0;
 	const voiceGainDbRef = useRef(voiceGainDb);
 	voiceGainDbRef.current = voiceGainDb;
 
@@ -1086,17 +1098,18 @@ export function VirtualPreview({
 				// sums it into the programme at 1× — speed regions stretch clip PCM only,
 				// never the imported track — so following `v.playbackRate` would pitch a
 				// voiceover up under a 2× region and finish it early, diverging from export.
-				if (el.playbackRate !== 1) el.playbackRate = 1;
+				const trackRate = track.recordingSource ? v.playbackRate : 1;
+				if (el.playbackRate !== trackRate) el.playbackRate = trackRate;
 				// A voiceover is voice: levelled like the recording, its own gain trimming from
 				// there — the sum `mix_external_tracks` applies. A music bed is not levelled; it
 				// ducks under the voice instead.
 				let trackGainDb = track.gainDb;
-				if (track.kind === "voiceover") {
+				if (track.kind === "voiceover" && !track.recordingSource) {
 					const path = audioSourcesRef.current.find(
 						(source) => source.id === track.assetId,
 					)?.filePath;
 					trackGainDb += path ? (loudnessGainDbByPathRef.current.get(path) ?? 0) : 0;
-				} else {
+				} else if (track.kind === "music") {
 					trackGainDb += duck.db;
 				}
 				const trackGainNode = audioTrackGainNodesRef.current.get(track.id);
@@ -1149,9 +1162,25 @@ export function VirtualPreview({
 			// position rather than jumping. Note this cannot ride on `v.paused`,
 			// the gate the rest of the tick uses — an `error` does not fire
 			// `pause`, so a failure mid-playback leaves `paused` false.
-			if (recoveringRef.current) {
+			if (recoveringRef.current) return;
+			if (v.seeking || pendingScrubTargetRef.current !== null || v.readyState < 2) {
+				// A demuxer that never finishes a seek must recover without restarting the app.
+				const now = performance.now();
+				if (stalledSeekAtRef.current === null) stalledSeekAtRef.current = now;
+				else if (now - stalledSeekAtRef.current > 5000 && !gaveUpRef.current) {
+					stalledSeekAtRef.current = null;
+					const reloads = pruneReloads(reloadsRef.current, Date.now());
+					if (mediaErrorDisposition(null, reloads.length, false) === "retry") {
+						reloadsRef.current = [...reloads, Date.now()];
+						reloadClockRef.current?.(!v.paused, 0);
+					} else {
+						// Share the existing fatal-error card and its explicit Retry action.
+						v.dispatchEvent(new Event("error"));
+					}
+				}
 				return;
 			}
+			stalledSeekAtRef.current = null;
 			const activeSourceId = videoSourcesRef.current[sourceIndexRef.current]?.id;
 			// Trims only trim ahead during actual playback — scrubbing/paused seeks are
 			// intentionally NOT clamped, so the user can navigate freely into a trim while
@@ -1441,7 +1470,9 @@ export function VirtualPreview({
 			const shouldContinuePlayback = preservePlayback && (forceResume || !videoRef.current?.paused);
 
 			if (isAssetSwitch) {
-				setSourceIndex(targetIndex);
+				pendingScrubTargetRef.current = null;
+				isProgrammaticSeekRef.current = false;
+				setSourceId(videoSources[targetIndex].id);
 				setLoadState("loading");
 				updateVirtualTime(position.virtualTimeSec);
 				pendingSeekRef.current = {
@@ -1506,6 +1537,8 @@ export function VirtualPreview({
 			retryTimerRef.current = null;
 		}
 		recoveringRef.current = true;
+		pendingScrubTargetRef.current = null;
+		isProgrammaticSeekRef.current = false;
 		setLoadState("loading");
 		retryTimerRef.current = window.setTimeout(() => {
 			retryTimerRef.current = null;
@@ -1577,6 +1610,9 @@ export function VirtualPreview({
 		reloadsRef.current = [];
 		gaveUpRef.current = false;
 		recoveringRef.current = false;
+		stalledSeekAtRef.current = null;
+		pendingScrubTargetRef.current = null;
+		isProgrammaticSeekRef.current = false;
 		return () => {
 			if (retryTimerRef.current !== null) {
 				window.clearTimeout(retryTimerRef.current);
@@ -1611,6 +1647,7 @@ export function VirtualPreview({
 	// tenues à jour à chaque rendu, pour ne jamais rejouer un ancien seek par accident.
 	// (`seekToVirtualTimeRef` is declared above the rAF effect — see the comment there — so
 	// the boundary-advance path reads the same always-fresh closure this effect does.)
+	reloadClockRef.current = reloadActiveSource;
 	seekToVirtualTimeRef.current = seekToVirtualTime;
 	const seekToSourceTimeRef = useRef(seekToSourceTime);
 	seekToSourceTimeRef.current = seekToSourceTime;
@@ -1619,7 +1656,7 @@ export function VirtualPreview({
 		if (seekTarget.isSource) {
 			seekToSourceTimeRef.current(seekTarget.timeSec);
 		} else {
-			seekToVirtualTimeRef.current?.(seekTarget.timeSec);
+			seekToVirtualTimeRef.current?.(seekTarget.timeSec, true);
 		}
 	}, [seekTarget]);
 

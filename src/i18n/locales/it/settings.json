@@ -278,7 +278,8 @@
 		"slipHint": "Tieni premuto {{modifier}} e trascina per far scorrere l'audio nella traccia",
 		"help": "Volume, dissolvenze e loop di questa traccia audio. Viene mixata sopra la registrazione nell’anteprima e nell’esportazione. Una traccia musicale si abbassa da sola mentre qualcuno parla. Trascina la traccia sulla timeline per spostarla o ridimensionarla, oppure tieni premuto Alt e trascina per far scorrere l’audio all’interno.",
 		"add": "Aggiungi traccia audio",
-		"mute": "Muto"
+		"mute": "Muto",
+		"noRoomToDuplicate": "No room for a duplicate in this lane. Shorten the item or move it first."
 	},
 	"layout": {
 		"help": "Come la webcam viene composta con lo schermo: picture-in-picture, pila verticale, doppio riquadro, forma, arrotondamento, dimensione, posizione e effetto specchio.",
@@ -319,7 +320,9 @@
 		"webcamBackground": "Sfondo della fotocamera",
 		"helpNoWebcam": "Questo progetto non ha una webcam, quindi i controlli di layout sono disattivati e il preset mostra «Nessuna webcam». Il layout salvato viene conservato per quando aggiungerai una webcam.",
 		"title": "Disposizione camera",
-		"noWebcam": "Nessuna webcam"
+		"noWebcam": "Nessuna webcam",
+		"selectedClipScope": "Layout for selected clip only",
+		"projectScope": "Default layout for the project"
 	},
 	"textAnimation": {
 		"slideLeft": "Scivola a sinistra",
@@ -450,5 +453,8 @@
 		"dark": "Scura",
 		"light": "Chiara",
 		"custom": "Personalizzata"
+	},
+	"mediaAnimation": {
+		"title": "Animation"
 	}
 }

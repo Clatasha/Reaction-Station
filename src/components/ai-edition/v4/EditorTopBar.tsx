@@ -24,9 +24,10 @@ import { useShortcuts } from "@/contexts/ShortcutsContext";
 import { useTheme } from "@/hooks/useTheme";
 import { getAvailableLocales, getLocaleName } from "@/i18n/loader";
 import { moveMenuFocus } from "@/lib/menuKeyboard";
-import { formatFirstFixedBinding } from "@/lib/shortcuts";
+import { formatBinding } from "@/lib/shortcuts";
 import { StylePresetsMenu } from "../StylePresetsMenu";
 import styles from "./EditorShellV4.module.css";
+import { WorkspaceMenu } from "./WorkspaceMenu";
 
 export type EditorMode = "media" | "edit" | "rec";
 
@@ -76,7 +77,7 @@ export function EditorTopBar({
 }: EditorTopBarProps) {
 	const t = useScopedT("editor");
 	const tShortcuts = useScopedT("shortcuts");
-	const { isMac } = useShortcuts();
+	const { isMac, shortcuts } = useShortcuts();
 	const savedLabel = dirty ? t("topbar.unsaved") : t("topbar.saved");
 
 	// ponytail: the left side panel only renders in "edit" mode (see
@@ -106,6 +107,7 @@ export function EditorTopBar({
 				) : null}
 			</span>
 			<AppMenu actions={actions} />
+			<WorkspaceMenu />
 			<span className={styles.sep} aria-hidden />
 			<span className={styles.projectSlot}>
 				<ProjectNameField title={projectTitle} onRename={actions.renameProject} />
@@ -148,7 +150,7 @@ export function EditorTopBar({
 			    so the tooltip could never open on it. The click does nothing while it is set. */}
 			<Tooltip
 				content={tShortcuts("fixedActions.undo")}
-				shortcut={formatFirstFixedBinding("undo", isMac)}
+				shortcut={formatBinding(shortcuts.undo, isMac)}
 			>
 				<button
 					type="button"
@@ -162,7 +164,7 @@ export function EditorTopBar({
 			</Tooltip>
 			<Tooltip
 				content={tShortcuts("fixedActions.redo")}
-				shortcut={formatFirstFixedBinding("redo", isMac)}
+				shortcut={formatBinding(shortcuts.redo, isMac)}
 			>
 				<button
 					type="button"

@@ -151,6 +151,9 @@ for (const name of DLLS) {
 	const source = copies.get(name).sort(newestFirst)[0];
 	const dest = path.join(DEST_DIR, name);
 	fs.copyFileSync(source, dest);
+	// The CPU speech executable resolves its DLLs from its own directory.
+	const cpuDir = path.join(DEST_DIR, "cpu");
+	if (fs.existsSync(cpuDir)) fs.copyFileSync(source, path.join(cpuDir, name));
 	console.log(`Staged ${name} from ${source}`);
 	console.log(`  -> ${path.relative(ROOT, dest)}`);
 }

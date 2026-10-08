@@ -215,6 +215,26 @@ describe("axcut-schema v8", () => {
 		expect(at("text", -17)).toThrow("position must be at least 0");
 	});
 
+	it.each([
+		{ x: -20, y: 40 },
+		{ x: 120, y: 40 },
+		{ x: 40, y: -20 },
+		{ x: 40, y: 120 },
+	])("persists an image across a frame edge (%s)", (position) => {
+		const image = annotationRegionSchema.parse({
+			id: "image",
+			startMs: 0,
+			endMs: 1000,
+			type: "image",
+			content: "file:///image.png",
+			position,
+			size: { width: 30, height: 30 },
+			style: {},
+			zIndex: 1,
+		});
+		expect(image.position).toEqual(position);
+	});
+
 	it("zoomRegionSchema rejects unknown depths", () => {
 		expect(() =>
 			zoomRegionSchema.parse({

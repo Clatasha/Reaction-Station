@@ -278,6 +278,8 @@ export class WhisperServerManager {
 			throw new Error(`Whisper GGML model not found at ${options.modelPath}`);
 		}
 
+		const cpuBinaryPath = path.join(path.dirname(binaryPath), "cpu", path.basename(binaryPath));
+		const hasCpuBinary = process.platform === "win32" && existsSync(cpuBinaryPath);
 		const launch = async (forceCpu: boolean): Promise<{ port: number; backend: SttBackend }> => {
 			const port = await WhisperServerManager.pickFreePort();
 			if (this.shuttingDown) {
@@ -297,7 +299,9 @@ export class WhisperServerManager {
 				args.push("--vad-model", options.vadModelPath);
 			}
 			if (forceCpu) args.push("--cpu");
-			const child = spawn(binaryPath, args, { stdio: ["ignore", "pipe", "pipe"] });
+			const child = spawn(forceCpu && hasCpuBinary ? cpuBinaryPath : binaryPath, args, {
+				stdio: ["ignore", "pipe", "pipe"],
+			});
 			const activeBackend: SttBackend = forceCpu ? "whispercpp-cpu" : resolved.backend;
 
 			this.process = child;
@@ -359,7 +363,7 @@ export class WhisperServerManager {
 				await Promise.race([
 					WhisperServerManager.pollUntilReady(
 						`http://127.0.0.1:${port}`,
-						30_000,
+						forceCpu ? 120_000 : 60_000,
 						() => this.process === child,
 					),
 					exitedBeforeReady,
@@ -391,7 +395,8 @@ export class WhisperServerManager {
 				/(?:fail|error|allocat)/i.test(line),
 			);
 			const gpuStartupFailed =
-				resolved.backend !== "whispercpp-cpu" && mentionsGpuBackend && mentionsStartupFailure;
+				resolved.backend !== "whispercpp-cpu" &&
+				(hasCpuBinary || (mentionsGpuBackend && mentionsStartupFailure));
 			if (!gpuStartupFailed) throw err;
 			process.stderr.write(
 				"[whisper-stt-server] GPU startup failed; retrying with CPU inference\n",

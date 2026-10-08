@@ -125,7 +125,7 @@ export function generatedTranscript(
  * straddling the cut survives on both, which is what a zoom drawn across the moment a word
  * was typed into actually means.
  */
-function fanOutAnchors(document: AxcutDocument, from: string, to: string): AxcutDocument {
+export function fanOutAnchors(document: AxcutDocument, from: string, to: string): AxcutDocument {
 	// `?? []` for the reason every other collection walk here has one: these keys are
 	// additive, so a document written before one of them — or hand-built, never through the
 	// schema — simply has none, and the schema defaults it back to an empty array anyway.

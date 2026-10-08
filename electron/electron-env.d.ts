@@ -178,6 +178,16 @@ interface Window {
 			 */
 			webcamDropped?: boolean;
 		}>;
+		setLiveAudioMix?: (
+			mix: import("../src/lib/recorderControls").LiveAudioMix,
+		) => Promise<{ success: boolean; error?: string }>;
+		getRecordingShortcuts?: () => Promise<import("../src/lib/recorderControls").RecordingShortcuts>;
+		saveRecordingShortcuts?: (
+			config: import("../src/lib/recorderControls").RecordingShortcuts,
+		) => Promise<{ success: boolean; error?: string }>;
+		onRecordingShortcut?: (
+			callback: (action: import("../src/lib/recorderControls").RecordingAction) => void,
+		) => () => void;
 		pauseNativeWindowsRecording: () => Promise<{
 			success: boolean;
 			error?: string;
@@ -444,6 +454,9 @@ interface Window {
 		onMenuSaveProjectAs: (callback: () => void) => () => void;
 		/** Edit > Undo / Redo. On macOS the menu is the only route Cmd+Z has to the
 		 *  renderer at all — see `electron/edit-menu.ts`. */
+		onMenuClipboard: (
+			callback: (action: "cutSelected" | "copySelected" | "paste") => void,
+		) => () => void;
 		onMenuUndo: (callback: () => void) => () => void;
 		onMenuRedo: (callback: () => void) => () => void;
 		quitApp: () => void;

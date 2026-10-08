@@ -235,3 +235,59 @@ describe("EditClipModal crop from the keyboard", () => {
 		);
 	});
 });
+
+it("applies a visual animation with the clip edit and omits text-only typewriter", () => {
+	const onApply = vi.fn();
+	renderWithI18n(
+		<EditClipModal
+			open
+			onClose={vi.fn()}
+			clip={CLIP}
+			assetMeta={ASSET}
+			videoSources={[]}
+			onApply={onApply}
+		/>,
+	);
+	fireEvent.click(screen.getByRole("button", { name: "Fade" }));
+	expect(screen.queryByRole("button", { name: "Typewriter" })).not.toBeInTheDocument();
+	fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+	expect(onApply).toHaveBeenCalledWith(20, 105, undefined, "fade");
+});
+
+describe("Edit Clip playable preview", () => {
+	it("plays, scrubs and sets an in point without saving until Apply", async () => {
+		const pause = vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => undefined);
+		const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue();
+		const onApply = vi.fn();
+		try {
+			const { container } = renderWithI18n(
+				<EditClipModal
+					open
+					onClose={vi.fn()}
+					clip={CLIP}
+					assetMeta={ASSET}
+					videoSources={[{ id: "asset_1", src: "file:///take.mp4", label: "take" }]}
+					onApply={onApply}
+				/>,
+			);
+			const video = container.querySelector("video")!;
+			fireEvent.loadedMetadata(video);
+			expect(video.currentTime).toBe(20);
+			fireEvent.click(screen.getByRole("button", { name: /^Play$/ }));
+			expect(play).toHaveBeenCalled();
+			fireEvent.change(screen.getByRole("slider", { name: "Scrub clip preview" }), {
+				target: { value: "40" },
+			});
+			expect(video.currentTime).toBe(40);
+			fireEvent.click(screen.getByRole("button", { name: "Set start here" }));
+			expect(screen.getByTestId("edit-clip-trim-range")).toHaveTextContent("0:40.0–1:45.0");
+			expect(onApply).not.toHaveBeenCalled();
+			fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+			expect(onApply).toHaveBeenCalled();
+		} finally {
+			cleanup();
+			pause.mockRestore();
+			play.mockRestore();
+		}
+	});
+});

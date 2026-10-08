@@ -3522,6 +3522,7 @@ fragment float4 ps_main(VSOut i [[stage_in]],
         }
         // L'alpha est cette couverture, pas `color.a` : les draws du mode 8 laissent `color`
         // à zéro, donc le port rendait de toute façon un plan totalement transparent.
+        tilt_a *= 1.0 - layer.trail_mb.z;
         return float4(rgb * tilt_a, tilt_a);
     }
 

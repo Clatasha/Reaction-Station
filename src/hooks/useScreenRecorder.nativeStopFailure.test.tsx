@@ -138,3 +138,49 @@ describe("useScreenRecorder native Windows stop failure", () => {
 		expect(view.result.current.recording).toBe(false);
 	});
 });
+
+describe("native live audio controls", () => {
+	it("changes both recorded channels while recording, and unmute restores the slider level", async () => {
+		const setLiveAudioMix = vi.fn(async () => ({ success: true }));
+		stubElectronAPI({ setLiveAudioMix });
+		const view = renderHook(() => useScreenRecorder());
+		await act(async () => {
+			view.result.current.setMicrophoneEnabled(true);
+			view.result.current.setSystemAudioEnabled(true);
+		});
+		await startNativeRecording(view);
+		await act(async () => {
+			view.result.current.setAudioLevel("microphone", 50);
+			view.result.current.setAudioLevel("system", 25);
+		});
+		expect(setLiveAudioMix).toHaveBeenLastCalledWith({ microphone: 0.7, system: 0.25 });
+		await act(async () => view.result.current.toggleAudioMute("microphone"));
+		expect(setLiveAudioMix).toHaveBeenLastCalledWith({ microphone: 0, system: 0.25 });
+		await act(async () => view.result.current.toggleAudioMute("microphone"));
+		expect(setLiveAudioMix).toHaveBeenLastCalledWith({ microphone: 0.7, system: 0.25 });
+		expect(api.stopNativeWindowsRecording).not.toHaveBeenCalled();
+	});
+	it("starts pre-muted without capturing an initial burst of unmuted voice", async () => {
+		stubElectronAPI({ setLiveAudioMix: vi.fn(async () => ({ success: true })) });
+		const view = renderHook(() => useScreenRecorder());
+		await act(async () => {
+			view.result.current.setMicrophoneEnabled(true);
+			view.result.current.toggleAudioMute("microphone");
+			view.result.current.setAudioLevel("system", 30);
+		});
+		await startNativeRecording(view);
+		expect(
+			vi.mocked(window.electronAPI.startNativeWindowsRecording).mock.calls[0][0],
+		).toMatchObject({ audio: { microphone: { gain: 0 }, system: { gain: 0.3 } } });
+	});
+});
+
+it("disables live controls when the recording command channel fails", async () => {
+	stubElectronAPI({
+		setLiveAudioMix: vi.fn(async () => ({ success: false, error: "Channel closed" })),
+	});
+	const view = renderHook(() => useScreenRecorder());
+	await startNativeRecording(view);
+	expect(view.result.current.liveAudioAvailable).toBe(false);
+	expect(toast.error).toHaveBeenCalledWith("Error: Channel closed");
+});

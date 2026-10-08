@@ -85,6 +85,30 @@ if (pinMatch) {
 
 const cargoExeQuoted = `"%USERPROFILE%\\.cargo\\bin\\cargo.exe"`;
 await runInVsEnv(`${cargoExeQuoted} build -p compositor-view-napi --release`);
+if (process.env.REACTION_STATION_AUDIO_TESTS === "1") {
+	// Reuse the release dependencies from the addon build. This validates the
+	// actual decoder/mixer/stretch path before the one combined installer ships.
+	const sdk = pinMatch ? path.join(CRATES_DIR, pinMatch[1], "bin") : "";
+	await runInVsEnv(
+		`set "PATH=${sdk};%PATH%"\r\n${cargoExeQuoted} test -p openscreen-compositor --lib --release audio::tests::`,
+	);
+}
+if (process.env.REACTION_STATION_SCENE_TESTS === "1") {
+	const sdk = pinMatch ? path.join(CRATES_DIR, pinMatch[1], "bin") : "";
+	await runInVsEnv(
+		`set "PATH=${sdk};%PATH%"\r\n${cargoExeQuoted} test -p openscreen-compositor --lib --release scene::tests::`,
+	);
+	await runInVsEnv(
+		`set "PATH=${sdk};%PATH%"\r\n${cargoExeQuoted} test -p openscreen-compositor --lib --release frame_geometry::tests::hidden_recording_keeps_geometry_but_suppresses_screen_chrome`,
+	);
+}
+
+if (process.env.REACTION_STATION_MEDIA_TESTS === "1") {
+	const sdk = pinMatch ? path.join(CRATES_DIR, pinMatch[1], "bin") : "";
+	await runInVsEnv(
+		`set "PATH=${sdk};%PATH%"\r\n${cargoExeQuoted} test -p openscreen-compositor --lib --release media_image::tests::`,
+	);
+}
 
 const builtDll = path.join(CRATES_DIR, "target", "release", "compositor_view.dll");
 if (!fs.existsSync(builtDll)) {
