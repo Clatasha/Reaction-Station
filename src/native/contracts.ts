@@ -228,6 +228,8 @@ export interface CompositorExportParams {
 	/** Débit vidéo visé (bits/s), d'après la taille ET la cadence
 	 *  (`calculateMp4ExportSettings`). Omis → 8 Mb/s à 1080p quelle que soit la cadence. */
 	bitrate?: number;
+	/** AAC audio bitrate in bits/s (64000–320000). Omitted uses 128000. */
+	audioBitrate?: number;
 }
 
 /** Sortie GIF native (le seul chemin GIF de l'app).

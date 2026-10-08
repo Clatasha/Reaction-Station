@@ -209,7 +209,8 @@
 		"exportFailed": "Échec de l'export",
 		"failedToWriteFile": "Échec de l'écriture du fichier",
 		"qualityUpscaleWarning": "Upscaling",
-		"nothingToExport": "Rien à exporter — la timeline est vide."
+		"nothingToExport": "Rien à exporter — la timeline est vide.",
+		"audioQuality": "Audio quality"
 	},
 	"inspector": {
 		"resetFocusPoint": "Réinitialiser le point de focus",
@@ -470,6 +471,7 @@
 		"wrongType": "Choose the same type of media for this replacement",
 		"tooShort": "This file is shorter than the edited source window",
 		"locateFile": "Locate file",
-		"replaceFile": "Replace file"
+		"replaceFile": "Replace file",
+		"delete": "Delete"
 	}
 }

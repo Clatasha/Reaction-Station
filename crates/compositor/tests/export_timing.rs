@@ -138,6 +138,7 @@ fn mp4_export_frame_count_follows_output_fps() {
         fps: Some(30),
         codec: ExportCodec::H264,
         bit_rate: None,
+        audio_bit_rate: None,
     };
     let comp = Compositor::new_sized(&gpu, params.width, params.height).expect("compositor");
     let out = dir.join("out_timing.mp4");
@@ -184,6 +185,7 @@ fn mp4_export_cancelled_mid_render_publishes_nothing() {
         fps: Some(30),
         codec: ExportCodec::H264,
         bit_rate: None,
+        audio_bit_rate: None,
     };
     let comp = Compositor::new_sized(&gpu, params.width, params.height).expect("compositor");
     let control = ExportControl::default();

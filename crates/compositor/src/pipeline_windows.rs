@@ -1670,11 +1670,19 @@ pub struct ExportParams {
     pub fps: Option<u32>,
     pub codec: ExportCodec,
     pub bit_rate: Option<i64>,
+    pub audio_bit_rate: Option<i64>,
 }
 
 impl Default for ExportParams {
     fn default() -> Self {
-        Self { width: OUT_W, height: OUT_H, fps: None, codec: ExportCodec::H264, bit_rate: None }
+        Self {
+            width: OUT_W,
+            height: OUT_H,
+            fps: None,
+            codec: ExportCodec::H264,
+            bit_rate: None,
+            audio_bit_rate: None,
+        }
     }
 }
 
@@ -1761,7 +1769,7 @@ unsafe fn run_multi_inner(
     (*ostream).time_base = (*ectx).time_base;
     // Les deux streams doivent exister avant le header MP4 ; l'AAC reste ouvert pendant le
     // rendu puis reçoit le PCM assemblé à partir des comptes de frames réellement produits.
-    let mut audio_encoder = AacEncoder::open(octx)?;
+    let mut audio_encoder = AacEncoder::open(octx, params.audio_bit_rate)?;
     let mut pb: *mut AVIOContext = ptr::null_mut();
     averr(avio_open(&mut pb, outc.as_ptr(), AVIO_FLAG_WRITE as i32), "avio_open")?;
     sn_fmt_set_pb(octx, pb);

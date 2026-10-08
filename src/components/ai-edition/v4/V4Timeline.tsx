@@ -52,8 +52,10 @@ import {
 	slipAudioOffsetMs,
 } from "@/lib/ai-edition/document/audioTracks";
 import {
+	canRemoveEditorTrack,
 	type EditorItemRef,
 	type EditorTrack,
+	editorTrackItems,
 	editorTracks,
 	isItemLocked,
 	itemRows,
@@ -63,6 +65,7 @@ import {
 	moveEditorItems,
 	patchEditorItem,
 	patchEditorTrack,
+	removeEditorTrack,
 	unlinkEditorItems,
 } from "@/lib/ai-edition/document/editorTracks";
 import { createId } from "@/lib/ai-edition/document/ids";
@@ -1107,13 +1110,17 @@ export function V4Timeline({
 		delta: number;
 		trackId?: string;
 		preview: AxcutDocument;
+		settling?: boolean;
 	} | null>(null);
+	const groupDragRun = useRef(0);
 	const tracks = doc ? editorTracks(groupDrag?.preview ?? doc) : [];
 	const [dropPreview, setDropPreview] = useState<{ time: number; trackId?: string } | null>(null);
 	const [renameTarget, setRenameTarget] = useState<EditorItemRef | null>(null);
 	const [renameValue, setRenameValue] = useState("");
 	useEffect(() => {
 		if (doc?.project.id) setItemSelection([]);
+		groupDragRun.current += 1;
+		setGroupDrag(null);
 	}, [doc?.project.id]);
 	const trackAt = useCallback(
 		(x: number, y: number) =>
@@ -1126,6 +1133,7 @@ export function V4Timeline({
 			event.preventDefault();
 			event.stopPropagation();
 			if (!doc || event.button !== 0) return;
+			const dragRun = ++groupDragRun.current;
 			const canonical = linkedItemRefs(doc, [ref]);
 			const has = itemSelection.some(
 				(item) =>
@@ -1204,22 +1212,32 @@ export function V4Timeline({
 				});
 				setSnapPct(prefs.showGuides && snap.guide !== null ? pctOf(snap.guide) : null);
 			};
-			const cleanup = () => {
+			const cleanup = (clearPreview = true) => {
 				window.removeEventListener("pointermove", move);
 				window.removeEventListener("pointerup", up);
 				window.removeEventListener("pointercancel", cancel);
 				window.removeEventListener("blur", cancel);
-				setGroupDrag(null);
+				if (clearPreview && groupDragRun.current === dragRun) setGroupDrag(null);
 				setSnapPct(null);
 			};
-			const up = () => {
-				cleanup();
-				if (moved)
-					void tl.editWorkspace((current) =>
+			const up = async () => {
+				cleanup(false);
+				if (!moved) {
+					setGroupDrag(null);
+					return;
+				}
+				setGroupDrag((current) => (current ? { ...current, settling: true } : null));
+				try {
+					await tl.editWorkspace((current) =>
 						current.project.id === doc.project.id
 							? moveEditorItems(current, refs, delta, target)
 							: current,
 					);
+				} catch (error) {
+					toast.error(error instanceof Error ? error.message : String(error));
+				} finally {
+					if (groupDragRun.current === dragRun) setGroupDrag(null);
+				}
 			};
 			const cancel = () => cleanup();
 			window.addEventListener("pointermove", move);
@@ -1349,6 +1367,27 @@ export function V4Timeline({
 					<Eye size={12} />
 				)}
 			</button>
+			{track.kind === "visual" || track.kind === "audio" ? (
+				<button
+					type="button"
+					aria-label={t("tracks.remove")}
+					title={t(
+						doc && canRemoveEditorTrack(doc, track.id) ? "tracks.remove" : "tracks.removeProtected",
+					)}
+					disabled={!doc || !canRemoveEditorTrack(doc, track.id)}
+					onClick={() => {
+						if (
+							doc &&
+							editorTrackItems(doc, track.id).length &&
+							!window.confirm(t("tracks.confirmRemove", { name: track.label }))
+						)
+							return;
+						void tl.editWorkspace((current) => removeEditorTrack(current, track.id));
+					}}
+				>
+					<Trash2 size={12} />
+				</button>
+			) : null}
 		</div>
 	);
 	const startPillDrag = useCallback(
@@ -2092,6 +2131,12 @@ export function V4Timeline({
 		suppressRightSeam: boolean;
 	}) => {
 		const { pill: p } = seg;
+		if (
+			groupDrag?.settling &&
+			p.kind === "annotation" &&
+			isSelectedItem({ kind: "annotation", id: p.id })
+		)
+			return null;
 		const durSec = seg.segEnd - seg.segStart;
 		// The box is exactly as long as the effect is; only what fits INSIDE it
 		// varies with the zoom.
@@ -2279,6 +2324,7 @@ export function V4Timeline({
 	};
 
 	const renderAudioPill = (track: AxcutAudioTrack, row = 0) => {
+		if (groupDrag?.settling && isSelectedItem({ kind: "audio", id: track.id })) return null;
 		const asset = tl.assets.find((a) => a.id === track.assetId);
 		const duration = asset?.durationSec ?? track.durationSec;
 		// While this track is being dragged, lay it out from the live
@@ -2432,6 +2478,161 @@ export function V4Timeline({
 			if (action === "mute") void tl.updateAudioTrack(target.id, { muted: !target.muted });
 		} else if (action === "delete") void tl.removeRegion(target.kind, target.id);
 	};
+
+	const renderRecordingTrack = () => (
+		<div
+			key="main-video"
+			ref={clipsRef}
+			data-editor-track-id="main-video"
+			className={`${styles.tlClips}${dragOver ? ` ${styles.tlClipsDrag}` : ""}`}
+		>
+			{tracks.find((track) => track.id === "main-video")
+				? renderTrackControls(tracks.find((track) => track.id === "main-video")!)
+				: null}
+			{renderDragGhosts("main-video")}
+			{clips.map((c, i) => {
+				if (groupDrag?.settling && isSelectedItem({ kind: "clip", id: c.id })) return null;
+				const dur = c.timelineEndSec - c.timelineStartSec;
+				// On the expanded ruler the box also carries whatever pauses fall
+				// inside it — the film really does stay on this clip's frame for
+				// them, so they belong to its box rather than between boxes.
+				const boxStart = c.timelineStartSec;
+				const boxEnd = c.timelineEndSec;
+				const boxLen = boxEnd - boxStart;
+				const asset = tl.assets.find((a) => a.id === c.assetId);
+				const clipVideoUrl = videoSources.find((v) => v.id === c.assetId)?.src;
+				const selected = tl.clipSelection === c.id || isSelectedItem({ kind: "clip", id: c.id });
+				const dragging = clipDrag?.id === c.id;
+				// Siblings between the dragged clip's origin and its live
+				// target slide sideways (via the base .tlClip transition) to
+				// open a gap at the drop point; the dragged clip itself
+				// follows the pointer directly (see .tlClipDragging's
+				// transition:none override).
+				let clipTransform: string | undefined;
+				if (dragging) {
+					clipTransform = `translateX(${clipDrag.pointerDeltaX}px)`;
+				} else if (clipDrag) {
+					const { from, target, shiftPx } = clipDrag;
+					if (target > from && i > from && i <= target) clipTransform = `translateX(${-shiftPx}px)`;
+					else if (target < from && i >= target && i < from)
+						clipTransform = `translateX(${shiftPx}px)`;
+				}
+				// Too narrow to hold its own controls. An insertion of a few tenths
+				// of a second on a half-minute timeline is a handful of pixels, and
+				// there is no arrangement that fits a button inside that — so while
+				// it is selected the controls step outside the box instead.
+				const narrow = boxLen * pxPerSec < NARROW_CLIP_PX;
+				// The gutter is taken out of the card's own width below, so the
+				// room the label actually has is that much less than the span.
+				const durText = formatSec(dur);
+				// The gutter separates two cards; the last one has nothing after it and
+				// reaches the end of the timeline.
+				const gutterPx = i === clips.length - 1 ? 0 : CLIP_GUTTER_PX;
+				return (
+					<div
+						key={c.id}
+						data-clip-id={c.id}
+						data-timeline-kind="clip"
+						data-timeline-id={c.id}
+						tabIndex={0}
+						className={`${styles.tlClip}${narrow ? ` ${styles.tlClipNarrow}` : ""}${
+							// Amber, because nobody shot it. Same token the mark it replaces
+							// used, so an insertion still reads as one at a glance.
+							isGeneratedAssetId(c.assetId) ? ` ${styles.tlClipGenerated}` : ""
+						}${selected ? ` ${styles.tlClipSel}` : ""}${
+							dragging ? ` ${styles.tlClipDragging}` : ""
+						}`}
+						style={{
+							left: `${pctOf(boxStart)}%`,
+							// Minus the gutter that separates two cards (it used to be the
+							// flex row's `gap`). A clip shorter than the gutter lands on
+							// .tlClip's 1px min-width instead of collapsing — same rule as
+							// the lane pills above.
+							width: gutterPx ? `calc(${pctOf(boxLen)}% - ${gutterPx}px)` : `${pctOf(boxLen)}%`,
+							transform: clipTransform,
+						}}
+						onPointerDown={(e) => startClipDrag(e, c)}
+						onClick={(e) => {
+							e.stopPropagation();
+							// A completed reorder-drag also fires a click; don't let it
+							// double as a selection.
+							if (didClipDragRef.current) {
+								didClipDragRef.current = false;
+								return;
+							}
+							tl.selectClip(c.id);
+						}}
+						onDoubleClick={(e) => {
+							e.stopPropagation();
+							onEditClip(c);
+						}}
+						// The file name is here rather than on the card: which file a clip
+						// comes from matters less than what can be done with it.
+						title={`${c.editorLabel || asset?.label || c.assetId}\n${t("toolbar.dragToReorderHint")}`}
+					>
+						{asset ? (
+							<div className={styles.clipMediaName}>
+								<span className={styles.timelineThumb}>
+									<MediaThumbnail asset={asset} />
+								</span>
+								<span>{c.editorLabel || asset.label}</span>
+							</div>
+						) : null}
+						{workspace.showWaveforms ? (
+							<ClipWaveform
+								videoUrl={clipVideoUrl}
+								assetDurationSec={asset?.durationSec}
+								sourceStartSec={c.sourceStartSec}
+								sourceEndSec={c.sourceEndSec ?? c.sourceStartSec + dur}
+								gain={audioGainScalar(settings.audioGainDb)}
+							/>
+						) : null}
+						<div className={styles.tlClipLabel}>
+							<button
+								type="button"
+								className={styles.tlClipEdit}
+								data-no-clip-drag
+								title={t("toolbar.editInOutPoints")}
+								aria-label={t("toolbar.editInOutPoints")}
+								onClick={(e) => {
+									e.stopPropagation();
+									onEditClip(c);
+								}}
+								onKeyDown={keepActivationKey}
+							>
+								<Pencil size={15} />
+							</button>
+							{cardFitsDuration(boxLen * pxPerSec - gutterPx, durText) ? (
+								<span className={styles.tlClipDuration}>{durText}</span>
+							) : null}
+						</div>
+						{selected ? (
+							<button
+								type="button"
+								data-no-clip-drag
+								className={styles.tlClipDelete}
+								data-narrow={narrow ? "true" : undefined}
+								title={t("toolbar.deleteClip")}
+								aria-label={t("toolbar.deleteClip")}
+								onClick={(e) => {
+									e.stopPropagation();
+									void tl.removeClip(c.id);
+								}}
+								onKeyDown={keepActivationKey}
+							>
+								<Trash2 size={15} />
+							</button>
+						) : null}
+					</div>
+				);
+			})}
+			{dragOver ? (
+				<div aria-hidden className={styles.tlDropHint}>
+					{t("toolbar.dropToAdd")}
+				</div>
+			) : null}
+		</div>
+	);
 
 	return (
 		<div
@@ -2939,257 +3140,101 @@ export function V4Timeline({
 							/>
 						) : null}
 
-						<div
-							ref={clipsRef}
-							data-editor-track-id="main-video"
-							className={`${styles.tlClips}${dragOver ? ` ${styles.tlClipsDrag}` : ""}`}
-						>
-							{tracks.find((track) => track.id === "main-video")
-								? renderTrackControls(tracks.find((track) => track.id === "main-video")!)
-								: null}
-							{renderDragGhosts("main-video")}
-							{clips.map((c, i) => {
-								const dur = c.timelineEndSec - c.timelineStartSec;
-								// On the expanded ruler the box also carries whatever pauses fall
-								// inside it — the film really does stay on this clip's frame for
-								// them, so they belong to its box rather than between boxes.
-								const boxStart = c.timelineStartSec;
-								const boxEnd = c.timelineEndSec;
-								const boxLen = boxEnd - boxStart;
-								const asset = tl.assets.find((a) => a.id === c.assetId);
-								const clipVideoUrl = videoSources.find((v) => v.id === c.assetId)?.src;
-								const selected =
-									tl.clipSelection === c.id || isSelectedItem({ kind: "clip", id: c.id });
-								const dragging = clipDrag?.id === c.id;
-								// Siblings between the dragged clip's origin and its live
-								// target slide sideways (via the base .tlClip transition) to
-								// open a gap at the drop point; the dragged clip itself
-								// follows the pointer directly (see .tlClipDragging's
-								// transition:none override).
-								let clipTransform: string | undefined;
-								if (dragging) {
-									clipTransform = `translateX(${clipDrag.pointerDeltaX}px)`;
-								} else if (clipDrag) {
-									const { from, target, shiftPx } = clipDrag;
-									if (target > from && i > from && i <= target)
-										clipTransform = `translateX(${-shiftPx}px)`;
-									else if (target < from && i >= target && i < from)
-										clipTransform = `translateX(${shiftPx}px)`;
-								}
-								// Too narrow to hold its own controls. An insertion of a few tenths
-								// of a second on a half-minute timeline is a handful of pixels, and
-								// there is no arrangement that fits a button inside that — so while
-								// it is selected the controls step outside the box instead.
-								const narrow = boxLen * pxPerSec < NARROW_CLIP_PX;
-								// The gutter is taken out of the card's own width below, so the
-								// room the label actually has is that much less than the span.
-								const durText = formatSec(dur);
-								// The gutter separates two cards; the last one has nothing after it and
-								// reaches the end of the timeline.
-								const gutterPx = i === clips.length - 1 ? 0 : CLIP_GUTTER_PX;
-								return (
-									<div
-										key={c.id}
-										data-clip-id={c.id}
-										data-timeline-kind="clip"
-										data-timeline-id={c.id}
-										tabIndex={0}
-										className={`${styles.tlClip}${narrow ? ` ${styles.tlClipNarrow}` : ""}${
-											// Amber, because nobody shot it. Same token the mark it replaces
-											// used, so an insertion still reads as one at a glance.
-											isGeneratedAssetId(c.assetId) ? ` ${styles.tlClipGenerated}` : ""
-										}${selected ? ` ${styles.tlClipSel}` : ""}${
-											dragging ? ` ${styles.tlClipDragging}` : ""
-										}`}
-										style={{
-											left: `${pctOf(boxStart)}%`,
-											// Minus the gutter that separates two cards (it used to be the
-											// flex row's `gap`). A clip shorter than the gutter lands on
-											// .tlClip's 1px min-width instead of collapsing — same rule as
-											// the lane pills above.
-											width: gutterPx
-												? `calc(${pctOf(boxLen)}% - ${gutterPx}px)`
-												: `${pctOf(boxLen)}%`,
-											transform: clipTransform,
-										}}
-										onPointerDown={(e) => startClipDrag(e, c)}
-										onClick={(e) => {
-											e.stopPropagation();
-											// A completed reorder-drag also fires a click; don't let it
-											// double as a selection.
-											if (didClipDragRef.current) {
-												didClipDragRef.current = false;
-												return;
-											}
-											tl.selectClip(c.id);
-										}}
-										onDoubleClick={(e) => {
-											e.stopPropagation();
-											onEditClip(c);
-										}}
-										// The file name is here rather than on the card: which file a clip
-										// comes from matters less than what can be done with it.
-										title={`${c.editorLabel || asset?.label || c.assetId}\n${t("toolbar.dragToReorderHint")}`}
-									>
-										{asset ? (
-											<div className={styles.clipMediaName}>
-												<span className={styles.timelineThumb}>
-													<MediaThumbnail asset={asset} />
-												</span>
-												<span>{c.editorLabel || asset.label}</span>
-											</div>
-										) : null}
-										{workspace.showWaveforms ? (
-											<ClipWaveform
-												videoUrl={clipVideoUrl}
-												assetDurationSec={asset?.durationSec}
-												sourceStartSec={c.sourceStartSec}
-												sourceEndSec={c.sourceEndSec ?? c.sourceStartSec + dur}
-												gain={audioGainScalar(settings.audioGainDb)}
-											/>
-										) : null}
-										<div className={styles.tlClipLabel}>
-											<button
-												type="button"
-												className={styles.tlClipEdit}
-												data-no-clip-drag
-												title={t("toolbar.editInOutPoints")}
-												aria-label={t("toolbar.editInOutPoints")}
-												onClick={(e) => {
-													e.stopPropagation();
-													onEditClip(c);
-												}}
-												onKeyDown={keepActivationKey}
-											>
-												<Pencil size={15} />
-											</button>
-											{cardFitsDuration(boxLen * pxPerSec - gutterPx, durText) ? (
-												<span className={styles.tlClipDuration}>{durText}</span>
-											) : null}
-										</div>
-										{selected ? (
-											<button
-												type="button"
-												data-no-clip-drag
-												className={styles.tlClipDelete}
-												data-narrow={narrow ? "true" : undefined}
-												title={t("toolbar.deleteClip")}
-												aria-label={t("toolbar.deleteClip")}
-												onClick={(e) => {
-													e.stopPropagation();
-													void tl.removeClip(c.id);
-												}}
-												onKeyDown={keepActivationKey}
-											>
-												<Trash2 size={15} />
-											</button>
-										) : null}
-									</div>
-								);
-							})}
-							{dragOver ? (
-								<div aria-hidden className={styles.tlDropHint}>
-									{t("toolbar.dropToAdd")}
-								</div>
-							) : null}
-						</div>
+						{!showLanes ? renderRecordingTrack() : null}
 
 						{showLanes
-							? tracks
-									.filter((track) => track.id !== "main-video")
-									.map((track) => {
-										const regions =
-											track.kind === "effect"
-												? track.id === "effect:zoom"
-													? zoomPills
-													: track.id === "effect:speed"
-														? speedPills
-														: track.id === "effect:trim"
-															? trimPills
-															: cameraFullscreenPills
-												: annPills.filter((pill) => {
-														const row = doc?.annotations.find((item) => item.id === pill.id);
-														return row && itemTrackId(row, "annotation") === track.id;
-													});
-										const audio = audioPills.filter(
-											(item) => itemTrackId(item, "audio") === track.id,
-										);
-										const packed = packAudioTrackRows(
-											track.kind === "audio"
-												? audio
-												: regions.map((item) => ({
-														id: item.id,
-														startMs: item.start * 1000,
-														endMs: item.end * 1000,
-													})),
-										);
-										const hints: Record<string, string> = {
-											"effect:zoom": t("hints.pressZoom", {
-												key: formatBinding(shortcuts.addZoom, isMac),
-											}),
-											"effect:speed": t("hints.pressSpeed", {
-												key: formatBinding(shortcuts.addSpeed, isMac),
-											}),
-											"effect:trim": t("hints.pressTrim", {
-												key: formatBinding(shortcuts.addTrim, isMac),
-											}),
-											"effect:cameraFullscreen": hasAnyCamera
-												? t("hints.pressCameraFullscreen", {
-														key: formatBinding(shortcuts.addCameraFullscreen, isMac),
-													})
-												: ts("layout.noWebcam"),
-										};
-										return (
-											<div
-												key={track.id}
-												data-editor-track-id={track.id}
-												className={`${styles.tlLane} ${track.kind === "audio" ? styles.tlLaneAudio : ""}`}
-												style={{
-													height:
-														track.kind === "audio"
-															? Math.max(1, packed.rowCount) *
-																	(AUDIO_ROW_HEIGHT_PX + AUDIO_ROW_GAP_PX) +
-																AUDIO_LANE_PAD_PX * 2
-															: Math.max(1, packed.rowCount) * 32,
-													opacity: track.hidden || track.muted ? 0.6 : 1,
-												}}
-											>
-												{renderTrackControls(track)}
-												{renderDragGhosts(track.id)}
-												{track.kind === "audio" ? (
-													audio.length ? (
-														audio.map((item) =>
-															renderAudioPill(item, packed.rowOf.get(item.id) ?? 0),
-														)
-													) : (
-														<span
-															className={styles.laneEmpty}
-															style={{ left: `${nav.start * 100}%`, width: `${navSpan * 100}%` }}
-														>
-															{tracks.find((item) => item.kind === "audio")?.id === track.id
-																? t("hints.pressAudio", {
-																		audioKey: formatBinding(shortcuts.addAudio, isMac),
-																		voiceoverKey: formatBinding(shortcuts.addVoiceover, isMac),
-																	})
-																: track.label}
-														</span>
-													)
+							? tracks.map((track) => {
+									if (track.id === "main-video") return renderRecordingTrack();
+									const regions =
+										track.kind === "effect"
+											? track.id === "effect:zoom"
+												? zoomPills
+												: track.id === "effect:speed"
+													? speedPills
+													: track.id === "effect:trim"
+														? trimPills
+														: cameraFullscreenPills
+											: annPills.filter((pill) => {
+													const row = doc?.annotations.find((item) => item.id === pill.id);
+													return row && itemTrackId(row, "annotation") === track.id;
+												});
+									const audio = audioPills.filter(
+										(item) => itemTrackId(item, "audio") === track.id,
+									);
+									const packed = packAudioTrackRows(
+										track.kind === "audio"
+											? audio
+											: regions.map((item) => ({
+													id: item.id,
+													startMs: item.start * 1000,
+													endMs: item.end * 1000,
+												})),
+									);
+									const hints: Record<string, string> = {
+										"effect:zoom": t("hints.pressZoom", {
+											key: formatBinding(shortcuts.addZoom, isMac),
+										}),
+										"effect:speed": t("hints.pressSpeed", {
+											key: formatBinding(shortcuts.addSpeed, isMac),
+										}),
+										"effect:trim": t("hints.pressTrim", {
+											key: formatBinding(shortcuts.addTrim, isMac),
+										}),
+										"effect:cameraFullscreen": hasAnyCamera
+											? t("hints.pressCameraFullscreen", {
+													key: formatBinding(shortcuts.addCameraFullscreen, isMac),
+												})
+											: ts("layout.noWebcam"),
+									};
+									return (
+										<div
+											key={track.id}
+											data-editor-track-id={track.id}
+											className={`${styles.tlLane} ${track.kind === "audio" ? styles.tlLaneAudio : ""}`}
+											style={{
+												height:
+													track.kind === "audio"
+														? Math.max(1, packed.rowCount) *
+																(AUDIO_ROW_HEIGHT_PX + AUDIO_ROW_GAP_PX) +
+															AUDIO_LANE_PAD_PX * 2
+														: Math.max(1, packed.rowCount) * 32,
+												opacity: track.hidden || track.muted ? 0.6 : 1,
+											}}
+										>
+											{renderTrackControls(track)}
+											{renderDragGhosts(track.id)}
+											{track.kind === "audio" ? (
+												audio.length ? (
+													audio.map((item) => renderAudioPill(item, packed.rowOf.get(item.id) ?? 0))
 												) : (
-													Array.from({ length: Math.max(1, packed.rowCount) }, (_, row) => (
-														<div key={row} style={{ height: 32, position: "relative" }}>
-															{renderPills(
-																regions.filter((item) => (packed.rowOf.get(item.id) ?? 0) === row),
-																hints[track.id] ??
-																	t("hints.pressAnnotation", {
-																		key: formatBinding(shortcuts.addAnnotation, isMac),
-																	}),
-															)}
-														</div>
-													))
-												)}
-											</div>
-										);
-									})
+													<span
+														className={styles.laneEmpty}
+														style={{ left: `${nav.start * 100}%`, width: `${navSpan * 100}%` }}
+													>
+														{tracks.find((item) => item.kind === "audio")?.id === track.id
+															? t("hints.pressAudio", {
+																	audioKey: formatBinding(shortcuts.addAudio, isMac),
+																	voiceoverKey: formatBinding(shortcuts.addVoiceover, isMac),
+																})
+															: track.label}
+													</span>
+												)
+											) : (
+												Array.from({ length: Math.max(1, packed.rowCount) }, (_, row) => (
+													<div key={row} style={{ height: 32, position: "relative" }}>
+														{renderPills(
+															regions.filter((item) => (packed.rowOf.get(item.id) ?? 0) === row),
+															hints[track.id] ??
+																t("hints.pressAnnotation", {
+																	key: formatBinding(shortcuts.addAnnotation, isMac),
+																}),
+														)}
+													</div>
+												))
+											)}
+										</div>
+									);
+								})
 							: null}
 						{dropPreview ? (
 							<div className={styles.dropPreview} style={{ left: `${pctOf(dropPreview.time)}%` }}>

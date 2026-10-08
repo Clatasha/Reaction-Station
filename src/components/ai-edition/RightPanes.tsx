@@ -1,3 +1,4 @@
+import { useLiveAudioGains } from "@/lib/ai-edition/store/liveAudioGains";
 // Six right-rail panes matching design/openscreen-editor.html. Each control
 // reads from + writes to the project document via `useEditorSettings`, so the
 // design's UI is the canonical surface (no more "more options" link to a
@@ -3523,11 +3524,13 @@ export function AudioTrackPane({ tl, onClose }: { tl: TimelineApi; onClose?: () 
 	// Drop the live value when the selected track changes: a drag released outside
 	// the input never fires onCommit, so without this an uncommitted -10 dB from
 	// track A would show as track B's gain the moment B is selected.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: trackId is the trigger, not a read — the body only resets the live value.
 	useEffect(() => {
 		setLiveGain(null);
 		setLiveFadeIn(null);
 		setLiveFadeOut(null);
+		return () => {
+			if (trackId) useLiveAudioGains.getState().clearGain(trackId);
+		};
 	}, [trackId]);
 	if (!track) return null;
 	const fileName = track.label || asset?.label || asset?.originalPath?.split(/[\\/]/).pop() || "";
@@ -3578,13 +3581,17 @@ export function AudioTrackPane({ tl, onClose }: { tl: TimelineApi; onClose?: () 
 					step={0.5}
 					decimals={1}
 					suffix=" dB"
-					onChange={(value) => setLiveGain(value)}
+					onChange={(value) => {
+						setLiveGain(value);
+						if (trackId) useLiveAudioGains.getState().setGain(trackId, value);
+					}}
 					onCommit={async () => {
 						if (liveGain !== null) {
 							const target = liveGain;
 							try {
 								await tl.setAudioTrackGain(track.id, target);
 							} finally {
+								if (trackId) useLiveAudioGains.getState().clearGain(trackId, target);
 								setLiveGain((current) => (current === target ? null : current));
 							}
 						}

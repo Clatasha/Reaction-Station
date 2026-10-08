@@ -209,7 +209,8 @@
 		"failedToWriteFile": "فشلت كتابة الملف",
 		"qualityUpscaleWarning": "تكبير الدقة",
 		"exportedVideoOf": "من الفيديو تم تصديره في",
-		"nothingToExport": "لا يوجد شيء للتصدير — المخطط الزمني فارغ."
+		"nothingToExport": "لا يوجد شيء للتصدير — المخطط الزمني فارغ.",
+		"audioQuality": "Audio quality"
 	},
 	"inspector": {
 		"resetFocusPoint": "إعادة تعيين نقطة التركيز",
@@ -470,6 +471,7 @@
 		"wrongType": "Choose the same type of media for this replacement",
 		"tooShort": "This file is shorter than the edited source window",
 		"locateFile": "Locate file",
-		"replaceFile": "Replace file"
+		"replaceFile": "Replace file",
+		"delete": "Delete"
 	}
 }

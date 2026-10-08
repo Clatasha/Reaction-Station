@@ -209,7 +209,8 @@
 		"failedToWriteFile": "Không thể ghi tệp",
 		"qualityUpscaleWarning": "Upscale",
 		"exportedVideoOf": "video đã xuất trong",
-		"nothingToExport": "Không có gì để xuất — dòng thời gian trống."
+		"nothingToExport": "Không có gì để xuất — dòng thời gian trống.",
+		"audioQuality": "Audio quality"
 	},
 	"inspector": {
 		"resetFocusPoint": "Đặt lại điểm lấy nét",
@@ -470,6 +471,7 @@
 		"wrongType": "Choose the same type of media for this replacement",
 		"tooShort": "This file is shorter than the edited source window",
 		"locateFile": "Locate file",
-		"replaceFile": "Replace file"
+		"replaceFile": "Replace file",
+		"delete": "Delete"
 	}
 }

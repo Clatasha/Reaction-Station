@@ -209,7 +209,8 @@
 		"failedToWriteFile": "Dosya yazılamadı",
 		"qualityUpscaleWarning": "Upscale",
 		"exportedVideoOf": "video şu sürede dışa aktarıldı:",
-		"nothingToExport": "Dışa aktarılacak bir şey yok — zaman çizelgesi boş."
+		"nothingToExport": "Dışa aktarılacak bir şey yok — zaman çizelgesi boş.",
+		"audioQuality": "Audio quality"
 	},
 	"inspector": {
 		"resetFocusPoint": "Odak noktasını sıfırla",
@@ -470,6 +471,7 @@
 		"wrongType": "Choose the same type of media for this replacement",
 		"tooShort": "This file is shorter than the edited source window",
 		"locateFile": "Locate file",
-		"replaceFile": "Replace file"
+		"replaceFile": "Replace file",
+		"delete": "Delete"
 	}
 }

@@ -170,6 +170,100 @@ describe("useTimeline.insertClipAt background duration probe", () => {
 		vi.clearAllMocks();
 	});
 
+	it("appends linked audio to Desktop Audio using the known audio duration", async () => {
+		const original = useProjectStore.getState().document!;
+		const desktop = {
+			...createAudioTrack({ assetId: "desktop-file", durationSec: 10 }),
+			id: "desktop",
+			origin: "system" as const,
+			recordingSource: "desktop" as const,
+		};
+		useProjectStore.setState({
+			document: {
+				...original,
+				assets: [
+					...original.assets,
+					assetSchema.parse({
+						id: "desktop-file",
+						kind: "audio",
+						origin: "system",
+						label: "Desktop",
+						originalPath: "/desktop.wav",
+						durationSec: 10,
+					}),
+					assetSchema.parse({
+						id: "import-sound",
+						kind: "audio",
+						origin: "user",
+						label: "Imported sound",
+						originalPath: "/tmp/long.webm",
+						durationSec: 5,
+					}),
+				],
+				audioTracks: [desktop],
+			},
+		});
+		probeVideoDurationMock.mockResolvedValue(5);
+		const { result } = renderTimeline();
+		await act(async () => {
+			await result.current.insertClipAt("asset_2", 1, "import-sound");
+		});
+		const doc = useProjectStore.getState().document!;
+		const clip = doc.timeline.clips.find((row) => row.assetId === "asset_2")!;
+		expect(clip).toMatchObject({
+			timelineStartSec: 10,
+			timelineEndSec: 15,
+			embeddedAudioMuted: true,
+		});
+		expect(doc.audioTracks.find((row) => row.assetId === "import-sound")).toMatchObject({
+			clipId: clip.id,
+			editorTrackId: "audio:desktop",
+			startMs: 10000,
+			endMs: 15000,
+			offsetMs: 0,
+			linkGroupId: clip.linkGroupId,
+		});
+	});
+	it("corrects linked source audio anchors when an unknown imported duration resolves", async () => {
+		const original = useProjectStore.getState().document!;
+		useProjectStore.setState({
+			document: {
+				...original,
+				assets: [
+					...original.assets,
+					assetSchema.parse({
+						id: "import-sound",
+						kind: "audio",
+						origin: "user",
+						label: "Sound",
+						originalPath: "/tmp/long.webm",
+					}),
+				],
+			},
+		});
+		let finishProbe: (duration: number) => void = () => {};
+		probeVideoDurationMock.mockImplementation(
+			() =>
+				new Promise<number>((resolve) => {
+					finishProbe = resolve;
+				}),
+		);
+		const { result } = renderTimeline();
+		await act(async () => {
+			await result.current.insertClipAt("asset_2", 1, "import-sound");
+		});
+		expect(useProjectStore.getState().document!.audioTracks[0].endMs).toBe(70000);
+		await act(async () => {
+			finishProbe(5);
+		});
+		await waitFor(() =>
+			expect(useProjectStore.getState().document!.audioTracks[0]).toMatchObject({
+				startMs: 10000,
+				endMs: 15000,
+				sourceEndSec: 5,
+			}),
+		);
+	});
 	it("only resizes the probed clip and leaves earlier clips' positions untouched", async () => {
 		// clip_a already sits at 0..10 (a "short clip"). Insert a second clip
 		// for asset_2 after it — insertClipAt has no cached duration for
