@@ -660,11 +660,13 @@ export function VirtualPreview({
 			);
 		}
 	}, [voicePathsKey, retryToken, activeVoicePath]);
-	const voiceGainDb = activeSource?.sourceAudioMuted
-		? Number.NEGATIVE_INFINITY
-		: activeSource?.filePath
-			? (loudnessGainDbByPath.get(activeSource.filePath) ?? 0)
-			: 0;
+	const activeClip = clips.find((clip) => clip.id === activeClipIdRef.current) ?? clips[0];
+	const voiceGainDb =
+		activeSource?.sourceAudioMuted || activeClip?.embeddedAudioMuted
+			? Number.NEGATIVE_INFINITY
+			: activeSource?.filePath
+				? (loudnessGainDbByPath.get(activeSource.filePath) ?? 0)
+				: 0;
 	const voiceGainDbRef = useRef(voiceGainDb);
 	voiceGainDbRef.current = voiceGainDb;
 

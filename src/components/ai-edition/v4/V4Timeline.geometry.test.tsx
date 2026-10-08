@@ -790,13 +790,14 @@ describe("V4Timeline audio lane drag", () => {
 			{ ...makeTrack(), id: "b", label: "b", startMs: 10_000, endMs: 70_000 },
 			{ ...makeTrack(), id: "c", label: "c", startMs: 20_000, endMs: 80_000 },
 		]);
-		const tops = ["a", "b", "c"].map(
-			(l) => (screen.getByTitle((t) => t.startsWith(`${l} `)) as HTMLElement).style.top,
+		const lanes = ["a", "b", "c"].map(
+			(label) =>
+				screen
+					.getByTitle((title) => title.startsWith(`${label} `))
+					.closest<HTMLElement>("[data-editor-track-id]")?.dataset.editorTrackId,
 		);
-		expect(new Set(tops).size).toBe(3);
-		// ...and the lane grew to hold them rather than clipping.
-		const lane = container.querySelector('[class*="tlLaneAudio"]') as HTMLElement;
-		expect(Number.parseInt(lane.style.height, 10)).toBeGreaterThan(60);
+		expect(new Set(lanes).size).toBe(3);
+		expect(container.querySelectorAll("[data-editor-track-id]").length).toBeGreaterThanOrEqual(8);
 	});
 
 	it("keeps non-overlapping tracks on one row", () => {
@@ -1073,7 +1074,7 @@ describe("V4Timeline toolbar tooltips", () => {
 		for (const button of buttons) expect(button).not.toHaveAttribute("title");
 	});
 
-	it("names a pill on hover only when it cannot draw its own label", () => {
+	it("keeps a media name available on hover at every width", () => {
 		// A hairline pill draws nothing, so the title is the only place its name is.
 		renderTimeline();
 		const hairline = screen.getByTitle("toolbar.newAnnotation");
@@ -1084,7 +1085,7 @@ describe("V4Timeline toolbar tooltips", () => {
 		renderTimeline(undefined, { id: "ann1", startMs: 0, endMs: TOTAL_SEC * 1000 });
 		const wide = document.querySelector("[class*=lanePill]") as HTMLElement;
 		expect(wide).toHaveTextContent("toolbar.newAnnotation");
-		expect(wide).not.toHaveAttribute("title");
+		expect(wide).toHaveAttribute("title", "toolbar.newAnnotation");
 	});
 });
 
@@ -1170,13 +1171,13 @@ describe("external timeline drops", () => {
 		const mainDrop = createEvent.drop(clipEls[0], { dataTransfer });
 		Object.defineProperty(mainDrop, "clientX", { value: 450 });
 		fireEvent(clipEls[0], mainDrop);
-		expect(onDrop).toHaveBeenLastCalledWith([file], "sequence", 900);
+		expect(onDrop).toHaveBeenLastCalledWith([file], "sequence", 900, undefined);
 		const lane = document.querySelector<HTMLElement>("[class*=tlLane]");
 		expect(lane).not.toBeNull();
 		const overlayDrop = createEvent.drop(lane as HTMLElement, { dataTransfer });
 		Object.defineProperty(overlayDrop, "clientX", { value: 225 });
 		fireEvent(lane as HTMLElement, overlayDrop);
-		expect(onDrop).toHaveBeenLastCalledWith([file], "overlay", 450);
+		expect(onDrop).toHaveBeenLastCalledWith([file], "overlay", 450, undefined);
 	});
 });
 

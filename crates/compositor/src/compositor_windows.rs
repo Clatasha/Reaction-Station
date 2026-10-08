@@ -2194,7 +2194,7 @@ impl Compositor {
             self.ctx.OMSetRenderTargets(Some(&[Some(self.trail_rtv.clone())]), None);
             self.ctx.ClearRenderTargetView(&self.trail_rtv, &[0.0, 0.0, 0.0, 0.0]);
         }
-        if cfg.shadow {
+        if cfg.shadow && !g.screen_hidden {
             let spread = SCREEN_SHADOW_SPREAD_FRAC * g.screen_unit_px;
             let offset = g.screen_shadow_offset();
             let opacity = 0.45 * lp.shadow_scale;
@@ -2437,7 +2437,7 @@ impl Compositor {
         );
         // miroir = échanger les bornes u du rect source (flip horizontal).
         let (u0, u1) = if lp.webcam_mirror { (su1, su0) } else { (su0, su1) };
-        if lp.has_webcam {
+        if lp.has_webcam && !g.screen_hidden {
             // L'ombre portée appartient à la bulle flottante PiP : elle se retire avec elle
             // (`shape_fade`), pour qu'au plein écran plus rien n'encadre la caméra. C'est une
             // ombre légère NON paramétrable — indépendante du slider Shadow, qui ne pilote plus

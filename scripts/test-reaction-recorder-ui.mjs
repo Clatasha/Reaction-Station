@@ -236,6 +236,60 @@ try {
 	await editor.getByRole("menuitem", { name: "Delete", exact: true }).click();
 	await expect.poll(async () => (await getImportedDocument()).audioTracks.length).toBe(2);
 
+	const bin = editor.getByTestId("media-bin");
+	await expect(bin).toBeVisible();
+	await expect
+		.poll(() =>
+			bin.evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(" ").length),
+		)
+		.toBe(3);
+	const micRow = editor
+		.locator("[data-editor-track-id]")
+		.filter({
+			has: editor.locator('[data-timeline-kind="audio"]').filter({ hasText: "Microphone" }),
+		})
+		.first();
+	await micRow.getByRole("button", { name: "Lock track", exact: true }).click();
+	await expect
+		.poll(async () =>
+			(await getImportedDocument()).timeline.tracks.some(
+				(track) => track.locked && track.kind === "audio",
+			),
+		)
+		.toBe(true);
+	await micRow.getByRole("button", { name: "Unlock track", exact: true }).click();
+	await micRow.getByRole("button", { name: "Mute track", exact: true }).click();
+	await expect
+		.poll(async () =>
+			(await getImportedDocument()).timeline.tracks.some(
+				(track) => track.muted && track.kind === "audio",
+			),
+		)
+		.toBe(true);
+	await micRow.getByRole("button", { name: "Unmute track", exact: true }).click();
+	await microphone.click({ button: "right" });
+	await editor.getByRole("menuitem", { name: "Disable item", exact: true }).click();
+	await expect
+		.poll(async () =>
+			(await getImportedDocument()).audioTracks.some(
+				(track) => track.recordingSource === "microphone" && track.disabled,
+			),
+		)
+		.toBe(true);
+	await microphone.click({ button: "right" });
+	await editor.getByRole("menuitem", { name: "Enable item", exact: true }).click();
+	await expect
+		.poll(async () =>
+			(await getImportedDocument()).audioTracks.some(
+				(track) => track.recordingSource === "microphone" && track.disabled,
+			),
+		)
+		.toBe(false);
+	await editor.screenshot({ path: path.join(output, "library-track-controls.png") });
+	console.log(
+		"Packaged Library has three columns; lock, mute, disable, and enable persist correctly.",
+	);
+
 	console.log(
 		"Packaged editor imported and persisted both synchronized audio sources with the fallback mix suppressed.",
 	);

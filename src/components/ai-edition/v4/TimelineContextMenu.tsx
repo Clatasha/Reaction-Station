@@ -1,4 +1,14 @@
-import { Copy, Maximize2, Pencil, Scissors, Trash2, VolumeX } from "lucide-react";
+import {
+	Copy,
+	EyeOff,
+	Link2,
+	Maximize2,
+	Pencil,
+	Scissors,
+	Trash2,
+	Unlink,
+	VolumeX,
+} from "lucide-react";
 import { useRef } from "react";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { useScopedT } from "@/contexts/I18nContext";
@@ -12,8 +22,23 @@ export interface TimelineContextTarget {
 	id: string;
 	element?: HTMLElement;
 	muted?: boolean;
+	disabled?: boolean;
+	linked?: boolean;
+	locked?: boolean;
+	canSeparate?: boolean;
 }
-export type TimelineMenuAction = "duplicate" | "delete" | "edit" | "mute" | "fit" | "split";
+export type TimelineMenuAction =
+	| "duplicate"
+	| "delete"
+	| "edit"
+	| "mute"
+	| "fit"
+	| "split"
+	| "rename"
+	| "disable"
+	| "link"
+	| "unlink"
+	| "separate";
 export function TimelineContextMenu({
 	target,
 	onClose,
@@ -32,6 +57,7 @@ export function TimelineContextMenu({
 		<button
 			type="button"
 			role="menuitem"
+			disabled={target?.locked && action !== "fit"}
 			className={styles.appMenuRow}
 			onClick={() => {
 				// Exit animations can leave a menu button mounted after dismissal.
@@ -76,6 +102,28 @@ export function TimelineContextMenu({
 			>
 				{target?.kind !== "empty" ? (
 					<>
+						{target?.kind === "clip" ||
+						target?.kind === "annotation" ||
+						target?.kind === "audio" ? (
+							<>
+								{target.canSeparate
+									? item("separate", <Unlink size={14} />, t("context.separate"))
+									: null}
+								{item("rename", <Pencil size={14} />, t("context.rename"))}
+								{target.kind !== "clip"
+									? item(
+											"disable",
+											<EyeOff size={14} />,
+											t(target.disabled ? "context.enable" : "context.disable"),
+										)
+									: null}
+								{item(
+									target.linked ? "unlink" : "link",
+									target.linked ? <Unlink size={14} /> : <Link2 size={14} />,
+									t(target.linked ? "context.unlink" : "context.link"),
+								)}
+							</>
+						) : null}
 						{item("duplicate", <Copy size={14} />, t("context.duplicate"))}
 						{target?.kind === "clip"
 							? item("split", <Scissors size={14} />, t("context.split"))

@@ -2332,7 +2332,7 @@ impl Compositor {
         // quand l'ecran est droit, quadrilatere projete (mode 12) quand il penche. Avec un
         // cadre de fenetre, c'est le CADRE qui la porte (`shadow_caster`), sinon la barre de
         // titre flotterait au-dessus de l'ombre.
-        let screen_shadow = cfg.shadow.then(|| {
+        let screen_shadow = (cfg.shadow && !g.screen_hidden).then(|| {
             let spread = crate::frame_geometry::SCREEN_SHADOW_SPREAD_FRAC * g.screen_unit_px;
             let offset = g.screen_shadow_offset();
             let opacity = 0.45 * lp.shadow_scale;
@@ -2410,7 +2410,7 @@ impl Compositor {
         // the SCREEN video, because `open_and_seek_clip` falls back to it rather
         // than leave the pair half-open. Without this check a recording with no
         // camera drew its own screen picture inside the PiP box.
-        let webcam_planes = if lp.has_webcam && !webcam.is_null() {
+        let webcam_planes = if lp.has_webcam && !g.screen_hidden && !webcam.is_null() {
             self.nv12_srvs(webcam).ok()
         } else {
             None

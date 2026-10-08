@@ -3,15 +3,23 @@ import {
 	Clock,
 	Crosshair,
 	Eraser,
+	Eye,
+	EyeOff,
+	Film,
 	Loader2,
+	Lock,
 	Maximize2,
 	MessageSquare,
 	Mic,
 	Music,
 	Pencil,
+	Plus,
 	Scissors,
 	Sparkles,
 	Trash2,
+	Unlock,
+	Volume2,
+	VolumeX,
 	Wand2,
 	ZoomIn,
 } from "lucide-react";
@@ -43,10 +51,29 @@ import {
 	packAudioTrackRows,
 	slipAudioOffsetMs,
 } from "@/lib/ai-edition/document/audioTracks";
+import {
+	type EditorItemRef,
+	type EditorTrack,
+	editorTracks,
+	isItemLocked,
+	itemRows,
+	itemTrackId,
+	linkEditorItems,
+	linkedItemRefs,
+	moveEditorItems,
+	patchEditorItem,
+	patchEditorTrack,
+	unlinkEditorItems,
+} from "@/lib/ai-edition/document/editorTracks";
 import { createId } from "@/lib/ai-edition/document/ids";
 import { isGeneratedAssetId } from "@/lib/ai-edition/document/insertion";
 import { setUiProbeScrubbing } from "@/lib/ai-edition/perf/uiFrameProbe";
-import type { AxcutAudioTrack, AxcutClip } from "@/lib/ai-edition/schema";
+import {
+	type AxcutAudioTrack,
+	type AxcutClip,
+	type AxcutDocument,
+	createEmptyDocument,
+} from "@/lib/ai-edition/schema";
 import { audioGainScalar } from "@/lib/ai-edition/store/editorSettings";
 import { useProjectStore } from "@/lib/ai-edition/store/projectStore";
 import { useTimelineTranscriptGate } from "@/lib/ai-edition/store/transcriptionStore";
@@ -72,6 +99,7 @@ import {
 import { formatBinding } from "@/lib/shortcuts";
 import { fitTimelineToWindow, useWorkspace } from "@/lib/workspace";
 import { nativeBridgeClient } from "@/native/client";
+import { MediaThumbnail } from "../MediaThumbnail";
 import { TransportBar } from "../TransportBar";
 import type { VideoSource } from "../VirtualPreview";
 import styles from "./EditorShellV4.module.css";
@@ -541,6 +569,7 @@ const AudioLanePill = memo(function AudioLanePill({
 					left: `${leftPct}%`,
 					width: `${widthPct}%`,
 					minWidth: 3,
+					opacity: track.disabled ? 0.4 : 1,
 					top: AUDIO_LANE_PAD_PX + row * rowHeight,
 					height: AUDIO_ROW_HEIGHT_PX,
 				}}
@@ -632,8 +661,14 @@ export function V4Timeline({
 		assetId: string,
 		placement?: MediaDropPlacement,
 		dropTime?: number,
+		trackId?: string,
 	) => Promise<void>;
-	onDropFiles?: (files: File[], placement: MediaDropPlacement, dropTime: number) => Promise<void>;
+	onDropFiles?: (
+		files: File[],
+		placement: MediaDropPlacement,
+		dropTime: number,
+		trackId?: string,
+	) => Promise<void>;
 	videoSources?: VideoSource[];
 	playing: boolean;
 	onTogglePlay: () => void;
@@ -767,17 +802,15 @@ export function V4Timeline({
 		kind: "annotation",
 		start: p.start,
 		end: p.end,
-		label:
-			p.member.type === "image"
+		label: p.member.editorLabel
+			? p.member.editorLabel
+			: p.member.type === "image"
 				? p.member.mediaAssetId
 					? (tl.assets.find((a) => a.id === p.member.mediaAssetId)?.label ?? t("media.video"))
 					: t("media.image")
 				: t("toolbar.newAnnotation"),
 		sourceIds: p.ids,
 	}));
-	const annotationRows = packAudioTrackRows(
-		annPills.map((p) => ({ id: p.id, startMs: p.start * 1000, endMs: p.end * 1000 })),
-	);
 
 	const speedPills: LanePill[] = coalesceRegionsForRuler(tl.speedRegions).map((p) => ({
 		id: p.ids[0],
@@ -823,27 +856,39 @@ export function V4Timeline({
 		sourceIds: g.ids,
 	}));
 
-	const collectSnapTargets = (excludeIds: string[] = [], includePlayhead = true) => {
-		const prefs = useWorkspace.getState();
-		const targets = [0, total];
-		if (prefs.snapToClips)
-			targets.push(...clips.flatMap((c) => [c.timelineStartSec, c.timelineEndSec]));
-		if (includePlayhead && prefs.snapToPlayhead)
-			targets.push(useProjectStore.getState().currentTimeSec);
-		if (prefs.snapToItems) {
-			targets.push(
-				...[...annPills, ...speedPills, ...zoomPills, ...trimPills, ...cameraFullscreenPills]
-					.filter((p) => !p.sourceIds.some((id) => excludeIds.includes(id)))
-					.flatMap((p) => [p.start, p.end]),
-			);
-			targets.push(
-				...collapseTracksToPills(tl.audioTracks)
-					.filter((t) => !excludeIds.includes(t.id))
-					.flatMap((t) => [t.startMs / 1000, t.endMs / 1000]),
-			);
-		}
-		return [...new Set(targets)];
-	};
+	const collectSnapTargets = useCallback(
+		(excludeIds: string[] = [], includePlayhead = true) => {
+			const prefs = useWorkspace.getState();
+			const targets = [0, total];
+			if (prefs.snapToClips)
+				targets.push(...clips.flatMap((c) => [c.timelineStartSec, c.timelineEndSec]));
+			if (includePlayhead && prefs.snapToPlayhead)
+				targets.push(useProjectStore.getState().currentTimeSec);
+			if (prefs.snapToItems) {
+				targets.push(
+					...[...annPills, ...speedPills, ...zoomPills, ...trimPills, ...cameraFullscreenPills]
+						.filter((p) => !p.sourceIds.some((id) => excludeIds.includes(id)))
+						.flatMap((p) => [p.start, p.end]),
+				);
+				targets.push(
+					...collapseTracksToPills(tl.audioTracks)
+						.filter((t) => !excludeIds.includes(t.id))
+						.flatMap((t) => [t.startMs / 1000, t.endMs / 1000]),
+				);
+			}
+			return [...new Set(targets)];
+		},
+		[
+			total,
+			clips,
+			annPills,
+			speedPills,
+			zoomPills,
+			trimPills,
+			cameraFullscreenPills,
+			tl.audioTracks,
+		],
+	);
 
 	// Pointer listeners use the latest item edges without restarting an active scrub.
 	const collectSnapTargetsRef = useRef(collectSnapTargets);
@@ -1034,9 +1079,260 @@ export function V4Timeline({
 	// Drag a lane pill to move it (mode "move", keeps duration) or resize one
 	// edge (mode "l"/"r"). Zoom/speed/annotation are timeline-ms; trims map
 	// back to source-seconds through their carrying clip.
+	const storedDoc = useProjectStore((state) => state.document);
+	const doc = useMemo(() => {
+		if (storedDoc) return storedDoc;
+		const empty = createEmptyDocument({ projectId: "timeline", title: "Timeline" });
+		return {
+			...empty,
+			assets: tl.assets,
+			annotations: tl.annotationRegions as unknown as AxcutDocument["annotations"],
+			audioTracks: tl.audioTracks,
+			zoomRanges: tl.zoomRegions,
+			timeline: { ...empty.timeline, clips: tl.clips, trimRanges: tl.trimRanges },
+		};
+	}, [
+		storedDoc,
+		tl.assets,
+		tl.annotationRegions,
+		tl.audioTracks,
+		tl.zoomRegions,
+		tl.clips,
+		tl.trimRanges,
+	]);
+	const tracks = doc ? editorTracks(doc) : [];
+	const [itemSelection, setItemSelection] = useState<EditorItemRef[]>([]);
+	const [groupDrag, setGroupDrag] = useState<{
+		refs: EditorItemRef[];
+		delta: number;
+		trackId?: string;
+	} | null>(null);
+	const [dropPreview, setDropPreview] = useState<{ time: number; trackId?: string } | null>(null);
+	const [renameTarget, setRenameTarget] = useState<EditorItemRef | null>(null);
+	const [renameValue, setRenameValue] = useState("");
+	useEffect(() => {
+		if (doc?.project.id) setItemSelection([]);
+	}, [doc?.project.id]);
+	const trackAt = useCallback(
+		(x: number, y: number) =>
+			document.elementFromPoint?.(x, y)?.closest<HTMLElement>("[data-editor-track-id]")?.dataset
+				.editorTrackId,
+		[],
+	);
+	const startGroupDrag = useCallback(
+		(event: ReactPointerEvent, ref: EditorItemRef) => {
+			event.preventDefault();
+			event.stopPropagation();
+			if (!doc || event.button !== 0) return;
+			const canonical = linkedItemRefs(doc, [ref]);
+			const has = itemSelection.some(
+				(item) =>
+					item.kind === ref.kind &&
+					itemRows(doc, item).some((row) => itemRows(doc, ref).some((hit) => hit.id === row.id)),
+			);
+			const selected =
+				event.ctrlKey || event.metaKey || event.shiftKey
+					? has
+						? itemSelection.filter(
+								(item) => !canonical.some((c) => c.kind === item.kind && c.id === item.id),
+							)
+						: [...itemSelection, ...canonical]
+					: has
+						? itemSelection
+						: canonical;
+			setItemSelection(selected);
+			if (ref.kind === "audio") tl.selectAudioTrack(ref.id);
+			else if (ref.kind === "clip") tl.selectClip(ref.id);
+			else tl.selectRegion("annotation", ref.id);
+			const refs = linkedItemRefs(doc, selected);
+			const clipPositions = doc.timeline.clips.flatMap((clip, index) =>
+				refs.some((ref) => ref.kind === "clip" && ref.id === clip.id) ? [index] : [],
+			);
+			if (clipPositions.some((index, i) => i > 0 && index !== clipPositions[i - 1] + 1)) {
+				toast.info(t("tracks.adjacent"));
+				return;
+			}
+			if (!refs.length || refs.some((item) => isItemLocked(doc, item))) return;
+			const rect = canvasRef.current?.getBoundingClientRect();
+			if (!rect?.width) return;
+			const starts = refs.flatMap((item) =>
+				itemRows(doc, item).map((row) =>
+					item.kind === "clip"
+						? (row as AxcutClip).timelineStartSec
+						: (row as AxcutAudioTrack).startMs / 1000,
+				),
+			);
+			const ends = refs.flatMap((item) =>
+				itemRows(doc, item).map((row) =>
+					item.kind === "clip"
+						? (row as AxcutClip).timelineEndSec
+						: (row as AxcutAudioTrack).endMs / 1000,
+				),
+			);
+			const head = Math.min(...starts),
+				tail = Math.max(...ends);
+			const excluded = refs.flatMap((item) => [
+				item.id,
+				...itemRows(doc, item).map((row) => row.id),
+			]);
+			const targets = collectSnapTargets(excluded);
+			const origin = event.clientX;
+			let delta = 0;
+			let target: string | undefined;
+			let moved = false;
+			const move = (ev: PointerEvent) => {
+				if (!moved && Math.hypot(ev.clientX - origin, ev.clientY - event.clientY) < 4) return;
+				moved = true;
+				const prefs = useWorkspace.getState();
+				const snap = snapTimelineEdge(
+					head + ((ev.clientX - origin) / rect.width) * total,
+					targets,
+					prefs.snapping && !ev.shiftKey ? PILL_SNAP_PX / pxPerSec : 0,
+					tail - head,
+					0,
+					Math.max(0, total - (tail - head)),
+				);
+				delta = (snap.value - head) * 1000;
+				target = trackAt(ev.clientX, ev.clientY);
+				setGroupDrag({ refs, delta, trackId: target });
+				setSnapPct(prefs.showGuides && snap.guide !== null ? pctOf(snap.guide) : null);
+			};
+			const cleanup = () => {
+				window.removeEventListener("pointermove", move);
+				window.removeEventListener("pointerup", up);
+				window.removeEventListener("pointercancel", cancel);
+				window.removeEventListener("blur", cancel);
+				setGroupDrag(null);
+				setSnapPct(null);
+			};
+			const up = () => {
+				cleanup();
+				if (moved)
+					void tl.editWorkspace((current) =>
+						current.project.id === doc.project.id
+							? moveEditorItems(current, refs, delta, target)
+							: current,
+					);
+			};
+			const cancel = () => cleanup();
+			window.addEventListener("pointermove", move);
+			window.addEventListener("pointerup", up, { once: true });
+			window.addEventListener("pointercancel", cancel, { once: true });
+			window.addEventListener("blur", cancel, { once: true });
+		},
+		[doc, itemSelection, collectSnapTargets, total, pxPerSec, tl, pctOf, t, trackAt],
+	);
+	const isSelectedItem = useCallback(
+		(ref: EditorItemRef) =>
+			!!doc &&
+			itemSelection.some(
+				(item) =>
+					item.kind === ref.kind &&
+					itemRows(doc, item).some((row) => itemRows(doc, ref).some((hit) => hit.id === row.id)),
+			),
+		[doc, itemSelection],
+	);
+	const liveDelta = (ref: EditorItemRef) =>
+		doc &&
+		groupDrag?.refs.some(
+			(item) =>
+				item.kind === ref.kind &&
+				itemRows(doc, item).some((row) => itemRows(doc, ref).some((hit) => hit.id === row.id)),
+		)
+			? groupDrag.delta / 1000
+			: 0;
+	const renderTrackControls = (track: EditorTrack) => (
+		<div
+			className={styles.trackControls}
+			style={{ left: `calc(${nav.start * 100}% - 128px)` }}
+			onPointerDown={(event) => event.stopPropagation()}
+			onKeyDown={(event) => event.nativeEvent.stopPropagation()}
+		>
+			{track.kind === "audio" ? <AudioLines size={13} /> : <Film size={13} />}
+			<input
+				aria-label={t("tracks.rename")}
+				title={track.label}
+				defaultValue={track.label}
+				key={`${track.id}:${track.label}`}
+				onBlur={(event) => {
+					const label = event.currentTarget.value.trim();
+					if (label && label !== track.label)
+						void tl.editWorkspace((current) => patchEditorTrack(current, track.id, { label }));
+				}}
+				onKeyDown={(event) => {
+					event.nativeEvent.stopPropagation();
+					if (event.key === "Enter") event.currentTarget.blur();
+				}}
+			/>
+			<button
+				type="button"
+				aria-label={t(track.locked ? "tracks.unlock" : "tracks.lock")}
+				title={t(track.locked ? "tracks.unlock" : "tracks.lock")}
+				aria-pressed={track.locked}
+				onClick={() =>
+					void tl.editWorkspace((current) =>
+						patchEditorTrack(current, track.id, { locked: !track.locked }),
+					)
+				}
+			>
+				{track.locked ? <Lock size={12} /> : <Unlock size={12} />}
+			</button>
+			<button
+				type="button"
+				aria-label={t(
+					track.kind === "audio"
+						? track.muted
+							? "tracks.unmute"
+							: "tracks.mute"
+						: track.hidden
+							? "tracks.show"
+							: "tracks.hide",
+				)}
+				title={t(
+					track.kind === "audio"
+						? track.muted
+							? "tracks.unmute"
+							: "tracks.mute"
+						: track.hidden
+							? "tracks.show"
+							: "tracks.hide",
+				)}
+				aria-pressed={track.kind === "audio" ? track.muted : track.hidden}
+				onClick={() =>
+					void tl.editWorkspace((current) =>
+						patchEditorTrack(
+							current,
+							track.id,
+							track.kind === "audio" ? { muted: !track.muted } : { hidden: !track.hidden },
+						),
+					)
+				}
+			>
+				{track.kind === "audio" ? (
+					track.muted ? (
+						<VolumeX size={12} />
+					) : (
+						<Volume2 size={12} />
+					)
+				) : track.hidden ? (
+					<EyeOff size={12} />
+				) : (
+					<Eye size={12} />
+				)}
+			</button>
+		</div>
+	);
 	const startPillDrag = useCallback(
 		(e: ReactPointerEvent, pill: LanePill, dragMode: "move" | "l" | "r") => {
 			if (e.button !== 0) return;
+			if (
+				typeof tl.editWorkspace === "function" &&
+				pill.kind === "annotation" &&
+				dragMode === "move"
+			) {
+				startGroupDrag(e, { kind: "annotation", id: pill.id });
+				return;
+			}
 			e.preventDefault();
 			e.stopPropagation();
 			// Scale drag deltas against the canvas (full zoomed timeline) width, so a
@@ -1144,7 +1440,7 @@ export function V4Timeline({
 			window.addEventListener("pointermove", move);
 			window.addEventListener("pointerup", up);
 		},
-		[tl, selectPill, total, clips, pxPerSec, collectSnapTargets],
+		[startGroupDrag, tl, selectPill, total, clips, pxPerSec, collectSnapTargets],
 	);
 
 	// Live preview geometry for an audio track being dragged (issue #350), the
@@ -1176,20 +1472,6 @@ export function V4Timeline({
 	// it keeps a document written before that rule legible instead of stacking its pills on
 	// top of each other. A kind with no tracks takes no row, so the common single-bed
 	// project stays exactly as tall as it was.
-	const audioRows = useMemo(() => {
-		const voice = audioPills.filter((p) => p.kind === "voiceover");
-		const music = audioPills.filter((p) => p.kind !== "voiceover");
-		const voiceRows = packAudioTrackRows(voice);
-		const musicRows = packAudioTrackRows(music);
-		const rowOf = new Map<string, number>();
-		const base = voice.length > 0 ? voiceRows.rowCount : 0;
-		for (const pill of voice) rowOf.set(pill.id, voiceRows.rowOf.get(pill.id) ?? 0);
-		for (const pill of music) rowOf.set(pill.id, base + (musicRows.rowOf.get(pill.id) ?? 0));
-		return {
-			rowOf,
-			rowCount: Math.max(2, base + (music.length > 0 ? musicRows.rowCount : 0)),
-		};
-	}, [audioPills]);
 
 	// Whether Alt is held, so an audio pill can show that the next drag slips. Window
 	// listeners rather than per-pill handlers: the key is pressed BEFORE the pointer
@@ -1220,6 +1502,10 @@ export function V4Timeline({
 			if (e.button !== 0) return;
 			e.preventDefault();
 			e.stopPropagation();
+			if (typeof tl.editWorkspace === "function" && mode === "move" && !e.altKey) {
+				startGroupDrag(e, { kind: "audio", id: track.id });
+				return;
+			}
 			tl.selectAudioTrack(track.id);
 			// Start clean: a previous drag's commit may still be in flight (its ref is
 			// cleared only when `placeAudioTrack` resolves). Without this, a plain
@@ -1391,7 +1677,7 @@ export function V4Timeline({
 		// navSpan: the slip rate is derived from the VISIBLE width, so a zoom that
 		// leaves `total` alone still changes it. Left out, the rate froze at whatever
 		// the zoom was when the callback was last built.
-		[tl, total, clips, pxPerSec, navSpan, collectSnapTargets],
+		[startGroupDrag, tl, total, pxPerSec, navSpan, collectSnapTargets],
 	);
 
 	const startNavDrag = useCallback(
@@ -1556,10 +1842,20 @@ export function V4Timeline({
 	const startClipDrag = useCallback(
 		(e: ReactPointerEvent, clip: AxcutClip) => {
 			if (e.button !== 0) return;
+			if (
+				e.ctrlKey ||
+				e.metaKey ||
+				e.shiftKey ||
+				(itemSelection.length > 1 && isSelectedItem({ kind: "clip", id: clip.id }))
+			) {
+				startGroupDrag(e, { kind: "clip", id: clip.id });
+				return;
+			}
 			// Let the delete button (and any future in-clip control) handle its
 			// own pointer events instead of starting a drag.
 			if ((e.target as HTMLElement).closest("[data-no-clip-drag]")) return;
-			if (clips.length < 2) return;
+			setItemSelection([{ kind: "clip", id: clip.id }]);
+			if (clips.length < 2 || (doc && isItemLocked(doc, { kind: "clip", id: clip.id }))) return;
 			const container = clipsRef.current;
 			const clipEl = (e.currentTarget as HTMLElement) ?? null;
 			if (!container || !clipEl) return;
@@ -1638,7 +1934,7 @@ export function V4Timeline({
 			window.addEventListener("pointermove", move);
 			window.addEventListener("pointerup", up);
 		},
-		[clips, tl],
+		[clips, tl, doc, startGroupDrag, itemSelection, isSelectedItem],
 	);
 
 	// `shortcut` is the user's live binding, shown as the tooltip's chip. The strings carry no key:
@@ -1728,6 +2024,7 @@ export function V4Timeline({
 
 	// Any region under the pill: a click selects the one it lands on, not always the first.
 	const isPillSelected = (p: LanePill) =>
+		(p.kind === "annotation" && isSelectedItem({ kind: "annotation", id: p.id })) ||
 		p.sourceIds.some((id) => tl.selection?.id === id || tl.multiSelection.some((m) => m.id === id));
 	// Optimistic preview: during a clip-reorder drag, slide each region pill by
 	// the same amount as the clip it sits on — mirroring the clip transforms so
@@ -1791,6 +2088,10 @@ export function V4Timeline({
 						: seg.immediate
 							? "none"
 							: "transform 150ms cubic-bezier(0.2, 0, 0, 1)",
+					opacity:
+						p.kind === "annotation" && doc?.annotations.find((row) => row.id === p.id)?.disabled
+							? 0.4
+							: 1,
 					...(seg.suppressLeftSeam
 						? { borderTopLeftRadius: 0, borderBottomLeftRadius: 0, borderLeftWidth: 0 }
 						: {}),
@@ -1819,7 +2120,9 @@ export function V4Timeline({
 				}
 				// The name on hover only where the pill cannot show it: a pill that draws its own
 				// label would repeat it.
-				title={seg.showContent && roomForLabel ? undefined : p.label}
+				title={
+					p.kind === "annotation" ? p.label : seg.showContent && roomForLabel ? undefined : p.label
+				}
 			>
 				{seg.interactive ? (
 					<span
@@ -1830,7 +2133,21 @@ export function V4Timeline({
 				) : null}
 				{seg.showContent && roomForLabel ? (
 					<>
-						{pillIcon(p.kind)}
+						{p.kind === "annotation" &&
+						doc?.annotations.find((row) => row.id === p.id)?.mediaAssetId ? (
+							<span className={styles.timelineThumb}>
+								<MediaThumbnail
+									asset={
+										tl.assets.find(
+											(asset) =>
+												asset.id === doc.annotations.find((row) => row.id === p.id)?.mediaAssetId,
+										)!
+									}
+								/>
+							</span>
+						) : (
+							pillIcon(p.kind)
+						)}
 						<span className={styles.lanePillLabel}>{p.label}</span>
 					</>
 				) : null}
@@ -1847,6 +2164,10 @@ export function V4Timeline({
 
 	const renderPills = (pills: LanePill[], emptyLabel: string) => {
 		const effectivePills = pills.map((p) => {
+			if (p.kind === "annotation") {
+				const delta = liveDelta({ kind: "annotation", id: p.id });
+				if (delta) return { ...p, start: p.start + delta, end: p.end + delta };
+			}
 			if (activePillDrag && activePillDrag.id === p.id) {
 				return { ...p, start: activePillDrag.start, end: activePillDrag.end };
 			}
@@ -1928,6 +2249,64 @@ export function V4Timeline({
 		);
 	};
 
+	const renderAudioPill = (track: AxcutAudioTrack, row = 0) => {
+		const asset = tl.assets.find((a) => a.id === track.assetId);
+		const duration = asset?.durationSec ?? track.durationSec;
+		// While this track is being dragged, lay it out from the live
+		// preview geometry instead of the not-yet-written document.
+		const drag = audioDrag?.id === track.id ? audioDrag : null;
+		const start = drag
+			? drag.start
+			: track.startMs / 1000 + liveDelta({ kind: "audio", id: track.id });
+		// A drag carries its span as the trim window it is dragging
+		// the edges of; the pill's width is that window.
+		const widthSec = drag
+			? Math.max(0, drag.trimEnd - drag.trimStart)
+			: Math.max(0, (track.endMs - track.startMs) / 1000);
+		const trimStart = drag ? drag.trimStart : track.offsetMs / 1000;
+		const trimEnd = trimStart + widthSec;
+		return (
+			<AudioLanePill
+				key={track.id}
+				track={track}
+				url={asset ? toFileUrl(asset.originalPath) : undefined}
+				assetDurationSec={duration}
+				leftPct={pctOf(start)}
+				widthPct={pctOf(widthSec)}
+				row={row}
+				rowHeight={AUDIO_ROW_HEIGHT_PX + AUDIO_ROW_GAP_PX}
+				spanSec={widthSec}
+				loopWindowSec={Math.max(0, (duration || 0) - trimStart)}
+				sourceStartSec={trimStart}
+				// A looping pill can outrun its file; the waveform draws
+				// the source it actually has.
+				sourceEndSec={duration > 0 ? Math.min(trimEnd, duration) : trimEnd}
+				selected={
+					tl.selectedAudioTrackId === track.id || isSelectedItem({ kind: "audio", id: track.id })
+				}
+				onStartDrag={startAudioDrag}
+				onSelect={tl.selectAudioTrack}
+				label={track.editorLabel || track.label || asset?.label || ts("audioTrack.defaultLabel")}
+				slipHint={ts("audioTrack.slipHint", {
+					modifier: isMac ? "Option" : "Alt",
+				})}
+				slipArmed={slipArmed}
+				outputGain={audioGainScalar(settings.audioGainDb)}
+				ghost={((g) =>
+					g
+						? {
+								leftPct: pctOf(g.startT),
+								widthPct: pctOf(g.endT - g.startT),
+								sourceStartSec: g.sourceStartSec,
+								sourceEndSec: g.sourceEndSec,
+							}
+						: null)(
+					audioGhostExtent(trimStart, widthSec, duration, start, start + widthSec, total),
+				)}
+			/>
+		);
+	};
+
 	const liveTrimRanges =
 		activePillDrag?.kind === "trim"
 			? (() => {
@@ -1961,14 +2340,56 @@ export function V4Timeline({
 			kind === "audio"
 				? collapseTracksToPills(tl.audioTracks).find((track) => track.id === id)?.muted
 				: undefined;
-		setContextTarget({ kind, id, x, y, element: item ?? undefined, muted });
+		const ref = kind === "clip" || kind === "audio" || kind === "annotation" ? { kind, id } : null;
+		const row = doc && ref ? itemRows(doc, ref)[0] : undefined;
+		setContextTarget({
+			kind,
+			id,
+			x,
+			y,
+			element: item ?? undefined,
+			muted,
+			disabled: row?.disabled,
+			linked: !!row?.linkGroupId,
+			locked: doc && ref ? isItemLocked(doc, ref) : false,
+			canSeparate:
+				kind === "clip" &&
+				!(row as AxcutClip)?.embeddedAudioMuted &&
+				!tl.assets.find((asset) => asset.id === (row as AxcutClip)?.assetId)?.sourceAudioMuted,
+		});
 	};
 	const runContextAction = (action: TimelineMenuAction, target: TimelineContextTarget) => {
 		if (action === "fit") {
 			fitTimelineToWindow();
 			return;
 		}
-		if (target.kind === "empty") return;
+		if (target.kind === "empty" || target.locked) return;
+		if (target.kind === "clip" || target.kind === "audio" || target.kind === "annotation") {
+			const ref: EditorItemRef = { kind: target.kind, id: target.id };
+			if (action === "separate") {
+				void tl.separateClipAudio(target.id);
+				return;
+			}
+			if (action === "rename") {
+				setRenameTarget(ref);
+				setRenameValue(doc ? (itemRows(doc, ref)[0]?.editorLabel ?? "") : "");
+				return;
+			}
+			if (action === "disable") {
+				void tl.editWorkspace((current) =>
+					patchEditorItem(current, ref, { disabled: !target.disabled }),
+				);
+				return;
+			}
+			if (action === "unlink") {
+				void tl.editWorkspace((current) => unlinkEditorItems(current, ref));
+				return;
+			}
+			if (action === "link") {
+				void tl.editWorkspace((current) => linkEditorItems(current, [...itemSelection, ref]));
+				return;
+			}
+		}
 		if (target.kind === "clip") {
 			const clip = clips.find((clip) => clip.id === target.id);
 			if (!clip) return;
@@ -2002,6 +2423,86 @@ export function V4Timeline({
 				}
 			}}
 		>
+			{renameTarget ? (
+				<form
+					className={styles.renameClip}
+					role="dialog"
+					aria-label={t("tracks.rename")}
+					onSubmit={(event) => {
+						event.preventDefault();
+						if (renameValue.trim())
+							void tl.editWorkspace((current) =>
+								patchEditorItem(current, renameTarget, { editorLabel: renameValue.trim() }),
+							);
+						setRenameTarget(null);
+					}}
+				>
+					<input
+						autoFocus
+						aria-label={t("tracks.rename")}
+						value={renameValue}
+						onChange={(event) => setRenameValue(event.target.value)}
+					/>
+					<button type="submit">{t("tracks.save")}</button>
+					<button type="button" onClick={() => setRenameTarget(null)}>
+						{t("tracks.cancel")}
+					</button>
+				</form>
+			) : null}
+			<div className={styles.trackAdd}>
+				<button
+					type="button"
+					title={t("tracks.addVisual")}
+					onClick={() =>
+						void tl.editWorkspace((current) => ({
+							...current,
+							timeline: {
+								...current.timeline,
+								tracks: [
+									...editorTracks(current),
+									{
+										id: createId("visual-track"),
+										kind: "visual",
+										label: t("tracks.visual"),
+										locked: false,
+										hidden: false,
+										muted: false,
+									},
+								],
+							},
+						}))
+					}
+				>
+					<Plus size={12} />
+					{t("tracks.visual")}
+				</button>
+				<button
+					type="button"
+					title={t("tracks.addAudio")}
+					onClick={() =>
+						void tl.editWorkspace((current) => ({
+							...current,
+							timeline: {
+								...current.timeline,
+								tracks: [
+									...editorTracks(current),
+									{
+										id: createId("audio-track"),
+										kind: "audio",
+										label: t("tracks.audio"),
+										locked: false,
+										hidden: false,
+										muted: false,
+									},
+								],
+							},
+						}))
+					}
+				>
+					<Plus size={12} />
+					{t("tracks.audio")}
+				</button>
+			</div>
 			<TimelineContextMenu
 				target={contextTarget}
 				onClose={() => setContextTarget(null)}
@@ -2274,7 +2775,9 @@ export function V4Timeline({
 								playing={playing}
 								overrideTimeSec={scrubbingTimeSec}
 								clips={clips}
-								trimRanges={liveTrimRanges}
+								trimRanges={
+									tracks.find((track) => track.id === "effect:trim")?.hidden ? [] : liveTrimRanges
+								}
 								onTogglePlay={onTogglePlay}
 							/>
 						</TooltipProvider>
@@ -2298,7 +2801,14 @@ export function V4Timeline({
 				{/* Fixed ruler header: the ruler ticks stay pinned right below the toolbar
 			    so they don't scroll off when the panel is short — only the lanes/clips
 			    below scroll. Shares the tracks' zoom/pan transform so ticks line up. */}
-				<div className={styles.tlRulerRow} onPointerDown={startScrub}>
+				<div
+					className={styles.tlRulerRow}
+					onPointerDown={(event) => {
+						if ((event.target as HTMLElement).closest("[data-timeline-kind]")) return;
+						setItemSelection([]);
+						startScrub(event);
+					}}
+				>
 					<div className={styles.tlCanvas} style={canvasStyle}>
 						<div className={styles.tlRuler}>
 							{rulerTicks.ticks.map((tick) => (
@@ -2330,9 +2840,28 @@ export function V4Timeline({
 						e.preventDefault();
 						e.dataTransfer.dropEffect = "copy";
 						setDragOver(true);
+						const rect = canvasRef.current?.getBoundingClientRect();
+						if (rect?.width) {
+							const raw = Math.max(
+								0,
+								Math.min(total, ((e.clientX - rect.left) / rect.width) * total),
+							);
+							const snapped = snapTimelineEdge(
+								raw,
+								collectSnapTargets([]),
+								workspace.snapping ? PILL_SNAP_PX / pxPerSec : 0,
+								0,
+								0,
+								total,
+							);
+							setDropPreview({ time: snapped.value, trackId: trackAt(e.clientX, e.clientY) });
+						}
 					}}
 					onDragLeave={(e) => {
-						if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragOver(false);
+						if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+							setDragOver(false);
+							setDropPreview(null);
+						}
 					}}
 					onDrop={(e) => {
 						e.preventDefault();
@@ -2347,13 +2876,17 @@ export function V4Timeline({
 						const time = rect?.width
 							? Math.max(0, Math.min(total, ((e.clientX - rect.left) / rect.width) * total))
 							: 0;
+						const dropTime = dropPreview?.time ?? time;
+						const targetTrack = dropPreview?.trackId;
+						setDropPreview(null);
 						const files = Array.from(e.dataTransfer.files);
 						if (files.length && onDropFiles) {
-							void onDropFiles(files, placement, time);
+							void onDropFiles(files, placement, dropTime, targetTrack);
 							return;
 						}
 						const id = e.dataTransfer.getData(ASSET_MIME);
-						if (id && onDropAsset) void onDropAsset(id, placement, time).catch(() => undefined);
+						if (id && onDropAsset)
+							void onDropAsset(id, placement, dropTime, targetTrack).catch(() => undefined);
 					}}
 				>
 					<div ref={canvasRef} className={styles.tlCanvas} style={canvasStyle}>
@@ -2375,153 +2908,124 @@ export function V4Timeline({
 							/>
 						) : null}
 
-						{showLanes ? (
-							<>
-								{/* An empty lane advertises the shortcut that fills it ("Press A to add
-								    annotation") rather than restating that it is empty — the same hint
-								    strings the pre-v4 timeline used, so the keys stay translated. The key
-								    is the live binding, formatted like the toolbar tooltip's chip, so a
-								    rebind in the shortcuts dialog moves the hint with it (#966). */}
-								{Array.from({ length: Math.max(1, annotationRows.rowCount) }, (_, row) => (
-									<div key={row} className={styles.tlLane}>
-										{renderPills(
-											annPills.filter((p) => (annotationRows.rowOf.get(p.id) ?? 0) === row),
-											t("hints.pressAnnotation", {
-												key: formatBinding(shortcuts.addAnnotation, isMac),
+						{showLanes
+							? tracks
+									.filter((track) => track.id !== "main-video")
+									.map((track) => {
+										const regions =
+											track.kind === "effect"
+												? track.id === "effect:zoom"
+													? zoomPills
+													: track.id === "effect:speed"
+														? speedPills
+														: track.id === "effect:trim"
+															? trimPills
+															: cameraFullscreenPills
+												: annPills.filter((pill) => {
+														const row = doc?.annotations.find((item) => item.id === pill.id);
+														return row && itemTrackId(row, "annotation") === track.id;
+													});
+										const audio = audioPills.filter(
+											(item) => itemTrackId(item, "audio") === track.id,
+										);
+										const packed = packAudioTrackRows(
+											track.kind === "audio"
+												? audio
+												: regions.map((item) => ({
+														id: item.id,
+														startMs: item.start * 1000,
+														endMs: item.end * 1000,
+													})),
+										);
+										const hints: Record<string, string> = {
+											"effect:zoom": t("hints.pressZoom", {
+												key: formatBinding(shortcuts.addZoom, isMac),
 											}),
-										)}
-									</div>
-								))}
-								<div className={styles.tlLane}>
-									{renderPills(
-										speedPills,
-										t("hints.pressSpeed", { key: formatBinding(shortcuts.addSpeed, isMac) }),
-									)}
-								</div>
-								<div className={styles.tlLane}>
-									{renderPills(
-										trimPills,
-										t("hints.pressTrim", { key: formatBinding(shortcuts.addTrim, isMac) }),
-									)}
-								</div>
-								<div className={styles.tlLane}>
-									{renderPills(
-										zoomPills,
-										t("hints.pressZoom", { key: formatBinding(shortcuts.addZoom, isMac) }),
-									)}
-								</div>
-								<div className={styles.tlLane}>
-									{/* Advertising "Press C" on a project with no webcam invites a keystroke
-									    that `addCameraFullscreen` now refuses (#353). The toolbar button is
-									    already disabled; this keeps the lane from contradicting it. */}
-									{renderPills(
-										cameraFullscreenPills,
-										hasAnyCamera
-											? t("hints.pressCameraFullscreen", {
-													key: formatBinding(shortcuts.addCameraFullscreen, isMac),
-												})
-											: ts("layout.noWebcam"),
-									)}
-								</div>
-								{/* Imported audio tracks (issue #350). Always shown, like every other
-								    lane — "Add audio" is a toolbar peer of the region tools now (and
-								    has a keyboard shortcut), so an empty lane advertises the shortcut
-								    that fills it rather than hiding until the first import. */}
-								<div
-									className={`${styles.tlLane} ${styles.tlLaneAudio}`}
-									// Grows a row per overlapping track, so three voiceovers over
-									// the same stretch are three legible pills rather than one
-									// pile nobody can aim at.
-									style={{
-										height:
-											audioRows.rowCount * AUDIO_ROW_HEIGHT_PX +
-											(audioRows.rowCount - 1) * AUDIO_ROW_GAP_PX +
-											AUDIO_LANE_PAD_PX * 2,
-									}}
-								>
-									{tl.audioTracks.length === 0 ? (
-										<span
-											className={styles.laneEmpty}
-											style={{ left: `${nav.start * 100}%`, width: `${navSpan * 100}%` }}
-										>
-											{t("hints.pressAudio", {
-												audioKey: formatBinding(shortcuts.addAudio, isMac),
-												voiceoverKey: formatBinding(shortcuts.addVoiceover, isMac),
-											})}
-										</span>
-									) : (
-										// One pill per user-visible track: the document stores one
-										// clip-anchored fragment per clip the track covers, and the
-										// lane must not show a split take as two pills.
-										audioPills.map((track) => {
-											const asset = tl.assets.find((a) => a.id === track.assetId);
-											const duration = asset?.durationSec ?? track.durationSec;
-											// While this track is being dragged, lay it out from the live
-											// preview geometry instead of the not-yet-written document.
-											const drag = audioDrag?.id === track.id ? audioDrag : null;
-											const start = drag ? drag.start : track.startMs / 1000;
-											// A drag carries its span as the trim window it is dragging
-											// the edges of; the pill's width is that window.
-											const widthSec = drag
-												? Math.max(0, drag.trimEnd - drag.trimStart)
-												: Math.max(0, (track.endMs - track.startMs) / 1000);
-											const trimStart = drag ? drag.trimStart : track.offsetMs / 1000;
-											const trimEnd = trimStart + widthSec;
-											return (
-												<AudioLanePill
-													key={track.id}
-													track={track}
-													url={asset ? toFileUrl(asset.originalPath) : undefined}
-													assetDurationSec={duration}
-													leftPct={pctOf(start)}
-													widthPct={pctOf(widthSec)}
-													row={audioRows.rowOf.get(track.id) ?? 0}
-													rowHeight={AUDIO_ROW_HEIGHT_PX + AUDIO_ROW_GAP_PX}
-													spanSec={widthSec}
-													loopWindowSec={Math.max(0, (duration || 0) - trimStart)}
-													sourceStartSec={trimStart}
-													// A looping pill can outrun its file; the waveform draws
-													// the source it actually has.
-													sourceEndSec={duration > 0 ? Math.min(trimEnd, duration) : trimEnd}
-													selected={tl.selectedAudioTrackId === track.id}
-													onStartDrag={startAudioDrag}
-													onSelect={tl.selectAudioTrack}
-													label={track.label || asset?.label || ts("audioTrack.defaultLabel")}
-													slipHint={ts("audioTrack.slipHint", {
-														modifier: isMac ? "Option" : "Alt",
-													})}
-													slipArmed={slipArmed}
-													outputGain={audioGainScalar(settings.audioGainDb)}
-													ghost={((g) =>
-														g
-															? {
-																	leftPct: pctOf(g.startT),
-																	widthPct: pctOf(g.endT - g.startT),
-																	sourceStartSec: g.sourceStartSec,
-																	sourceEndSec: g.sourceEndSec,
-																}
-															: null)(
-														audioGhostExtent(
-															trimStart,
-															widthSec,
-															duration,
-															start,
-															start + widthSec,
-															total,
-														),
-													)}
-												/>
-											);
-										})
-									)}
-								</div>
-							</>
+											"effect:speed": t("hints.pressSpeed", {
+												key: formatBinding(shortcuts.addSpeed, isMac),
+											}),
+											"effect:trim": t("hints.pressTrim", {
+												key: formatBinding(shortcuts.addTrim, isMac),
+											}),
+											"effect:cameraFullscreen": hasAnyCamera
+												? t("hints.pressCameraFullscreen", {
+														key: formatBinding(shortcuts.addCameraFullscreen, isMac),
+													})
+												: ts("layout.noWebcam"),
+										};
+										return (
+											<div
+												key={track.id}
+												data-editor-track-id={track.id}
+												className={`${styles.tlLane} ${track.kind === "audio" ? styles.tlLaneAudio : ""}`}
+												style={{
+													height:
+														track.kind === "audio"
+															? Math.max(1, packed.rowCount) *
+																	(AUDIO_ROW_HEIGHT_PX + AUDIO_ROW_GAP_PX) +
+																AUDIO_LANE_PAD_PX * 2
+															: Math.max(1, packed.rowCount) * 32,
+													opacity: track.hidden || track.muted ? 0.6 : 1,
+												}}
+											>
+												{renderTrackControls(track)}
+												{track.kind === "audio" ? (
+													audio.length ? (
+														audio.map((item) =>
+															renderAudioPill(item, packed.rowOf.get(item.id) ?? 0),
+														)
+													) : (
+														<span
+															className={styles.laneEmpty}
+															style={{ left: `${nav.start * 100}%`, width: `${navSpan * 100}%` }}
+														>
+															{tracks.find((item) => item.kind === "audio")?.id === track.id
+																? t("hints.pressAudio", {
+																		audioKey: formatBinding(shortcuts.addAudio, isMac),
+																		voiceoverKey: formatBinding(shortcuts.addVoiceover, isMac),
+																	})
+																: track.label}
+														</span>
+													)
+												) : (
+													Array.from({ length: Math.max(1, packed.rowCount) }, (_, row) => (
+														<div key={row} style={{ height: 32, position: "relative" }}>
+															{renderPills(
+																regions.filter((item) => (packed.rowOf.get(item.id) ?? 0) === row),
+																hints[track.id] ??
+																	t("hints.pressAnnotation", {
+																		key: formatBinding(shortcuts.addAnnotation, isMac),
+																	}),
+															)}
+														</div>
+													))
+												)}
+											</div>
+										);
+									})
+							: null}
+						{dropPreview ? (
+							<div className={styles.dropPreview} style={{ left: `${pctOf(dropPreview.time)}%` }}>
+								<span>
+									{tracks.find((track) => track.id === dropPreview.trackId)?.label} ·{" "}
+									{formatSec(dropPreview.time)}
+								</span>
+							</div>
+						) : null}
+						{groupDrag?.trackId ? (
+							<div className={styles.dropTrackLabel}>
+								{tracks.find((track) => track.id === groupDrag.trackId)?.label}
+							</div>
 						) : null}
 
 						<div
 							ref={clipsRef}
+							data-editor-track-id="main-video"
 							className={`${styles.tlClips}${dragOver ? ` ${styles.tlClipsDrag}` : ""}`}
 						>
+							{tracks.find((track) => track.id === "main-video")
+								? renderTrackControls(tracks.find((track) => track.id === "main-video")!)
+								: null}
 							{clips.map((c, i) => {
 								const dur = c.timelineEndSec - c.timelineStartSec;
 								// On the expanded ruler the box also carries whatever pauses fall
@@ -2532,7 +3036,8 @@ export function V4Timeline({
 								const boxLen = boxEnd - boxStart;
 								const asset = tl.assets.find((a) => a.id === c.assetId);
 								const clipVideoUrl = videoSources.find((v) => v.id === c.assetId)?.src;
-								const selected = tl.clipSelection === c.id;
+								const selected =
+									tl.clipSelection === c.id || isSelectedItem({ kind: "clip", id: c.id });
 								const dragging = clipDrag?.id === c.id;
 								// Siblings between the dragged clip's origin and its live
 								// target slide sideways (via the base .tlClip transition) to
@@ -2602,8 +3107,16 @@ export function V4Timeline({
 										}}
 										// The file name is here rather than on the card: which file a clip
 										// comes from matters less than what can be done with it.
-										title={`${asset?.label ?? c.assetId}\n${t("toolbar.dragToReorderHint")}`}
+										title={`${c.editorLabel || asset?.label || c.assetId}\n${t("toolbar.dragToReorderHint")}`}
 									>
+										{asset ? (
+											<div className={styles.clipMediaName}>
+												<span className={styles.timelineThumb}>
+													<MediaThumbnail asset={asset} />
+												</span>
+												<span>{c.editorLabel || asset.label}</span>
+											</div>
+										) : null}
 										{workspace.showWaveforms ? (
 											<ClipWaveform
 												videoUrl={clipVideoUrl}

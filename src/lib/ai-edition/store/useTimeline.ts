@@ -1,3 +1,12 @@
+import {
+	attachClipAudio,
+	duplicateLinkedClip,
+	duplicateLinkedItem,
+	editorTracks,
+	isItemLocked,
+	moveLinkedClip,
+	removeLinkedEditorItems,
+} from "../document/editorTracks";
 import { splitClipAtPlayhead } from "../document/splitClip";
 // Hook: region mutations for the new editor shell. Wraps the project store
 // with typed add/remove/select operations for zoom, trim, annotation, and
@@ -16,33 +25,32 @@ import { useScopedT } from "@/contexts/I18nContext";
 import { DEFAULT_TEXT_PLATE } from "../annotations/background";
 import { fitTextBox } from "../annotations/placement";
 import {
+	anchorAudioTrackFragments,
 	collapseTracksToPills,
 	patchAudioTrack,
 	placeAudioTrackInDocument,
-	removeAudioTrack as removeAudioTrackInDocument,
 	trackGroupId,
 } from "../document/audioTracks";
-import {
-	type DuplicableTimelineKind,
-	duplicateTimelineItem,
-} from "../document/duplicateTimelineItem";
+import { type DuplicableTimelineKind } from "../document/duplicateTimelineItem";
 import { createId } from "../document/ids";
 import { resolveAspectRatioValue } from "../document/outputFormat";
 import {
 	clearEditRegions,
 	countEditRegions,
-	duplicateClip as duplicateClipInDocument,
-	moveClip as moveClipInDocument,
 	PLACEHOLDER_DURATION_SEC,
 	type RegionKind,
 	readSpeedRegions,
-	removeClip as removeClipInDocument,
 	removeRegion as removeRegionInDocument,
 	resequenceClips,
 	setClipSourceRange,
 	withClipsChanged,
 } from "../document/timeline";
-import type { AxcutAudioTrack, AxcutClipCropRegion, AxcutDocument } from "../schema";
+import {
+	type AxcutAudioTrack,
+	type AxcutClipCropRegion,
+	type AxcutDocument,
+	createAudioTrack,
+} from "../schema";
 import { appendAutoZoomSuggestions } from "../timeline/apply-auto-zooms";
 import { hasAnyClipWithCamera } from "../timeline/camera";
 import { probeAudioDuration, probeVideoDimensions, probeVideoDuration } from "../timeline/duration";
@@ -507,7 +515,14 @@ export function useTimeline() {
 	);
 
 	const addMediaOverlay = useCallback(
-		async (input: { content: string; assetId?: string; startSec: number; durationSec: number }) => {
+		async (input: {
+			content: string;
+			assetId?: string;
+			startSec: number;
+			durationSec: number;
+			audioAssetId?: string;
+			trackId?: string;
+		}) => {
 			const state = useProjectStore.getState();
 			const doc = state.document;
 			if (!doc?.timeline.clips.length)
@@ -523,6 +538,10 @@ export function useTimeline() {
 				type: "image",
 				mediaOffsetMs: startMs,
 				mediaLayerId: createId("media"),
+				editorTrackId:
+					editorTracks(doc).find((track) => track.id === input.trackId && track.kind === "visual")
+						?.id ?? createId("visual-track"),
+				linkGroupId: input.audioAssetId ? createId("link") : undefined,
 				content: input.content,
 				space: "frame",
 				position: { x: 25, y: 25 },
@@ -543,13 +562,55 @@ export function useTimeline() {
 					? { mediaAssetId: input.assetId, mediaOffsetMs: startMs, mediaSourceStartSec: 0 }
 					: {}),
 			};
+			const sound = input.audioAssetId
+				? anchorAudioTrackFragments(
+						{
+							...createAudioTrack({
+								assetId: input.audioAssetId,
+								durationSec: input.durationSec,
+								kind: "voiceover",
+								timelineStartSec: input.startSec,
+								spanSec: (region.endMs - region.startMs) / 1000,
+							}),
+							editorTrackId: createId("audio-track"),
+							linkGroupId: region.linkGroupId,
+							label: input.content,
+						},
+						doc.timeline.clips,
+						() => createId("audio"),
+					)
+				: [];
+			const tracks = [...editorTracks(doc)];
+			if (!tracks.some((track) => track.id === region.editorTrackId))
+				tracks.unshift({
+					id: region.editorTrackId!,
+					kind: "visual",
+					label: input.content,
+					locked: false,
+					hidden: false,
+					muted: false,
+				});
+			if (sound[0])
+				tracks.splice(tracks.findIndex((track) => track.id === region.editorTrackId) + 1, 0, {
+					id: sound[0].editorTrackId!,
+					kind: "audio",
+					label: input.content,
+					locked: false,
+					hidden: false,
+					muted: false,
+				});
 			const created = anchorRegionsWithDerivedMs([region], doc.timeline.clips, () =>
 				createId("ann"),
 			);
 			if (!created.length) throw new Error("Drop the overlay within the main sequence");
 			if (
 				!(await state.saveDocument(
-					{ ...doc, annotations: [...doc.annotations, ...created] },
+					{
+						...doc,
+						timeline: { ...doc.timeline, tracks },
+						annotations: [...doc.annotations, ...created],
+						audioTracks: [...doc.audioTracks, ...sound],
+					},
 					{ history: true },
 				))
 			)
@@ -833,7 +894,7 @@ export function useTimeline() {
 	const updateZoomFocusLive = useCallback(
 		(id: string, focus: { cx: number; cy: number }) => {
 			const doc = useProjectStore.getState().document;
-			if (!doc) return;
+			if (!doc || editorTracks(doc).find((track) => track.id === "effect:zoom")?.locked) return;
 			// The first live write of a drag is the one editing a document this callback
 			// did not itself produce, so it is the pre-drag state — the one thing worth
 			// returning to. It is remembered, not recorded: `commitZoomFocus` hands it to
@@ -1006,7 +1067,7 @@ export function useTimeline() {
 	const updateAnnotationLive = useCallback(
 		(id: string, patch: Partial<AxcutDocument["annotations"][number]>) => {
 			const doc = useProjectStore.getState().document;
-			if (!doc) return;
+			if (!doc || isItemLocked(doc, { kind: "annotation", id })) return;
 			// One undo step per drag, recorded by the commit once it lands — same
 			// reasoning, and the same failed-commit hole, as `updateZoomFocusLive` above.
 			if (annotationLiveRef.current !== doc) annotationRollbackRef.current = doc;
@@ -1139,7 +1200,14 @@ export function useTimeline() {
 		async (kind: RegionKind, id: string) => {
 			if (!document) return;
 			// One shared mutator with the agent's removeTrim / removeModifier tools.
-			if (!(await saveDocument(removeRegionInDocument(document, kind, id), { history: true })))
+			if (
+				!(await saveDocument(
+					kind === "annotation" || kind === "audio"
+						? removeLinkedEditorItems(document, { kind, id })
+						: removeRegionInDocument(document, kind, id),
+					{ history: true },
+				))
+			)
 				return;
 			if (selection?.id === id) setSelection(null);
 			setMultiSelection((prev) => prev.filter((h) => h.id !== id));
@@ -1402,7 +1470,7 @@ export function useTimeline() {
 	// the probe resolves. If the user has since trimmed the clip, we leave it
 	// alone (same guard handleLoadedMetadata uses).
 	const insertClipAt = useCallback(
-		async (assetId: string, index: number) => {
+		async (assetId: string, index: number, audioAssetId?: string) => {
 			const currentDoc = useProjectStore.getState().document;
 			if (!currentDoc) return;
 			const asset = currentDoc.assets.find((a) => a.id === assetId);
@@ -1426,7 +1494,10 @@ export function useTimeline() {
 			const arr = [...oldClips];
 			const at = Math.max(0, Math.min(arr.length, index));
 			arr.splice(at, 0, newClip);
-			const finalDoc = withClipsChanged(currentDoc, arr);
+			const sequence = withClipsChanged(currentDoc, arr);
+			const finalDoc = audioAssetId
+				? attachClipAudio(sequence, newClip.id, audioAssetId)
+				: sequence;
 			if (!(await saveDocument(finalDoc, { history: true }))) return;
 			setClipSelection(newClip.id);
 
@@ -1456,7 +1527,7 @@ export function useTimeline() {
 		async (clipId: string, toIndex: number) => {
 			if (!document) return;
 			if (!document.timeline.clips.some((c) => c.id === clipId)) return;
-			await saveDocument(moveClipInDocument(document, clipId, toIndex), { history: true });
+			await saveDocument(moveLinkedClip(document, clipId, toIndex), { history: true });
 		},
 		[document, saveDocument],
 	);
@@ -1471,7 +1542,7 @@ export function useTimeline() {
 			// duplicateClipInDocument inserts the copy immediately after the
 			// original, so its index in the result is the original's index + 1.
 			const insertedIndex = document.timeline.clips.findIndex((c) => c.id === clipId) + 1;
-			const next = duplicateClipInDocument(document, clipId, "user", "Duplicated clip");
+			const next = duplicateLinkedClip(document, clipId, "user", "Duplicated clip");
 			if (!(await saveDocument(next, { history: true }))) return;
 			setClipSelection(next.timeline.clips[insertedIndex]?.id ?? null);
 		},
@@ -1482,7 +1553,12 @@ export function useTimeline() {
 		async (clipId: string) => {
 			if (!document) return;
 			// One shared mutator with the agent's removeClip tool: reflow survivors + rederive pills.
-			if (!(await saveDocument(removeClipInDocument(document, clipId), { history: true }))) return;
+			if (
+				!(await saveDocument(removeLinkedEditorItems(document, { kind: "clip", id: clipId }), {
+					history: true,
+				}))
+			)
+				return;
 			if (clipSelection === clipId) setClipSelection(null);
 		},
 		[document, clipSelection, saveDocument],
@@ -1539,7 +1615,12 @@ export function useTimeline() {
 		async (
 			assetId: string,
 			timelineStartSec?: number,
-			options?: { kind?: "voiceover" | "music"; durationSec?: number; spanSec?: number },
+			options?: {
+				kind?: "voiceover" | "music";
+				durationSec?: number;
+				spanSec?: number;
+				editorTrackId?: string;
+			},
 		): Promise<string | null> => {
 			const id = await storeAddAudioTrack(assetId, timelineStartSec ?? playheadSec(), options);
 			if (id) {
@@ -1586,9 +1667,12 @@ export function useTimeline() {
 			if (!document) return;
 			// Clear the inspector selection only AFTER the delete commits. A failed
 			// write leaves the track in the document, so it must keep its selection.
-			const ok = await saveDocument(removeAudioTrackInDocument(document, trackId), {
-				history: true,
-			});
+			const ok = await saveDocument(
+				removeLinkedEditorItems(document, { kind: "audio", id: trackId }),
+				{
+					history: true,
+				},
+			);
 			if (ok && selectedAudioTrackId === trackId) setSelectedAudioTrackId(null);
 		},
 		[document, saveDocument, selectedAudioTrackId, setSelectedAudioTrackId],
@@ -1703,7 +1787,7 @@ export function useTimeline() {
 		async (kind: DuplicableTimelineKind, id: string) => {
 			const current = useProjectStore.getState().document;
 			if (!current) return;
-			const next = duplicateTimelineItem(current, kind, id);
+			const next = duplicateLinkedItem(current, kind, id);
 			if (next === current) {
 				toast.info(ts("audioTrack.noRoomToDuplicate"));
 				return;
@@ -1723,7 +1807,42 @@ export function useTimeline() {
 		[saveDocument],
 	);
 
+	const separateClipAudio = useCallback(async (clipId: string) => {
+		const state = useProjectStore.getState();
+		const doc = state.document;
+		const clip = doc?.timeline.clips.find((item) => item.id === clipId);
+		const asset = doc?.assets.find((item) => item.id === clip?.assetId);
+		if (
+			!doc ||
+			!clip ||
+			!asset ||
+			asset.sourceAudioMuted ||
+			clip.embeddedAudioMuted ||
+			isItemLocked(doc, { kind: "clip", id: clipId })
+		)
+			return;
+		const audio = await state.addAudioAsset(asset.originalPath, asset.label);
+		const current = useProjectStore.getState();
+		if (!audio || current.projectId !== state.projectId || !current.document) return;
+		await current.saveDocument(attachClipAudio(current.document, clipId, audio.id), {
+			history: true,
+		});
+	}, []);
+
+	const editWorkspace = useCallback(
+		(edit: (doc: AxcutDocument) => AxcutDocument) =>
+			enqueueZoomWrite(async () => {
+				const state = useProjectStore.getState();
+				if (!state.document) return;
+				const next = edit(state.document);
+				if (next !== state.document) await state.saveDocument(next, { history: true });
+			}),
+		[enqueueZoomWrite],
+	);
+
 	return {
+		editWorkspace,
+		separateClipAudio,
 		zoomRegions: document?.zoomRanges ?? [],
 		trimRanges: document?.timeline.trimRanges ?? [],
 		audioTracks: document?.audioTracks ?? [],

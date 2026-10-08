@@ -19,6 +19,10 @@ Capture what you are watching alongside your webcam and voice, then edit the rec
 - **Frame your camera** — adjust the webcam position, shape, roundness and mirroring.
 - **Edit the recording** — trim sections, crop the picture and change the speed of individual segments.
 - **Build your timeline** — drop video, image and audio files into the sequence or overlay lanes, with a scrolling timeline and visual animation presets.
+- **Organize your media** — a three-column Library with search, reusable media, custom sticker imports and collapsible AI chat.
+- **Keep sound in sync** — imported video/audio pairs are linked by default; unlink them for independent edits.
+- **Control your tracks** — rename, lock, hide or mute tracks; move added media between compatible rows, and disable items without deleting them.
+- **Recover missing files** — locate a moved source while keeping your timeline edits.
 - **Add context** — use captions, text, arrows, images and zooms to support your commentary.
 - **Export your video** — save an MP4 in the aspect ratio and resolution that suit your channel.
 

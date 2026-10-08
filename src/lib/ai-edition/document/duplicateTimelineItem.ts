@@ -43,7 +43,14 @@ export function duplicateTimelineItem(
 		const track = collapseTracksToPills(doc.audioTracks).find((track) => track.id === id);
 		if (!track) return doc;
 		// Independent audio layers may overlap; keep the exact source window and mix settings.
-		const copy = { ...track, id: createId("audio"), trackId: undefined, origin: "user" as const };
+		const copy = {
+			...track,
+			id: createId("audio"),
+			trackId: undefined,
+			editorTrackId: createId("audio-track"),
+			linkGroupId: undefined,
+			origin: "user" as const,
+		};
 		return {
 			...doc,
 			audioTracks: [
@@ -85,6 +92,8 @@ export function duplicateTimelineItem(
 				...group.member,
 				id: createId("ann"),
 				mediaLayerId: createId("media"),
+				editorTrackId: createId("visual-track"),
+				linkGroupId: undefined,
 				startMs: Math.round(group.start * 1000),
 				endMs: Math.round(group.end * 1000),
 				zIndex: Math.max(0, ...doc.annotations.map((a) => a.zIndex)) + 1,

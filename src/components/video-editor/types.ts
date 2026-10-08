@@ -399,6 +399,7 @@ export interface AnnotationTextStyle {
 }
 
 export interface AnnotationRegion {
+	editorLabel?: string;
 	id: string;
 	startMs: number;
 	endMs: number;

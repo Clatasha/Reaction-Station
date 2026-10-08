@@ -3,7 +3,8 @@ import { create } from "zustand";
 import { toFileUrl } from "@/components/video-editor/projectPersistence";
 import { toastText } from "@/i18n/toastText";
 import { nativeBridgeClient } from "@/native/client";
-import { placeAudioTrackInDocument } from "../document/audioTracks";
+import { anchorAudioTrackFragments, placeAudioTrackInDocument } from "../document/audioTracks";
+import { changesLockedTracks } from "../document/editorTracks";
 import { createId } from "../document/ids";
 import { type Interval, replaceTimeline as replaceTimelineOp } from "../document/timeline";
 import { type AxcutAsset, type AxcutDocument, createAudioTrack, documentSchema } from "../schema";
@@ -183,6 +184,7 @@ export interface ProjectState {
 			durationSec?: number;
 			/** Timeline span, when it should differ from the source duration. */
 			spanSec?: number;
+			editorTrackId?: string;
 		},
 	) => Promise<string | null>;
 	setSelectedAudioTrackId: (id: string | null) => void;
@@ -512,7 +514,19 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 		// covers AND queues it behind whatever already occupies its kind's row, so two
 		// takes recorded from the same playhead no longer land on top of each other
 		// (issue #560).
-		const next = placeAudioTrackInDocument(document, track, () => createId("audio"), "create");
+		const next = options?.editorTrackId
+			? {
+					...document,
+					audioTracks: [
+						...document.audioTracks,
+						...anchorAudioTrackFragments(
+							{ ...track, editorTrackId: options.editorTrackId },
+							document.timeline.clips,
+							() => createId("audio"),
+						),
+					],
+				}
+			: placeAudioTrackInDocument(document, track, () => createId("audio"), "create");
 		if (next === document) return null;
 		if (!(await get().saveDocument(next, { history: true }))) return null;
 		set({ selectedAudioTrackId: track.id });
@@ -545,6 +559,11 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 	},
 
 	async saveDocument(document, opts) {
+		const previous = get().document;
+		if (opts?.history && previous && changesLockedTracks(previous, document)) {
+			toast.error("Unlock the track before editing its contents");
+			return false;
+		}
 		beginDocumentSave();
 		try {
 			// Read BEFORE the await, while `get().document` is still the pre-edit one.

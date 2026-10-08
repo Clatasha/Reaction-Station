@@ -86,7 +86,7 @@
 		}
 	},
 	"topbar": {
-		"toggleChatPanel": "Pannello chat",
+		"toggleChatPanel": "Library",
 		"openProject": "Apri progetto",
 		"newProject": "Nuovo progetto",
 		"saveProject": "Salva progetto",
@@ -449,5 +449,25 @@
 		"shortcuts": "Keyboard shortcuts",
 		"reset": "Reset workspace",
 		"snapHint": "Hold Shift while dragging to temporarily bypass snapping."
+	},
+	"library": {
+		"title": "Library",
+		"import": "Import media",
+		"media": "Media",
+		"stickers": "Stickers",
+		"search": "Search media",
+		"all": "All",
+		"video": "Video",
+		"image": "Images",
+		"audio": "Audio",
+		"locate": "Locate / replace file",
+		"missing": "Missing — locate file",
+		"aiChat": "AI chat",
+		"empty": "Import media, then drag it onto a track. Double-click to add an overlay.",
+		"stickerEmpty": "Import your sticker images, then drag them onto the timeline. A built-in collection can be added later.",
+		"unsupported": "Unsupported media type",
+		"unreadable": "Could not access the media file",
+		"wrongType": "Choose the same type of media for this replacement",
+		"tooShort": "This file is shorter than the edited source window"
 	}
 }

@@ -1,3 +1,9 @@
+import {
+	editorTracks,
+	isItemEnabled,
+	itemTrackId,
+	visibleEditorDocument,
+} from "@/lib/ai-edition/document/editorTracks";
 /**
  * Scene contract — the flat description the app hands the native D3D compositor so it can
  * compute the composed frame itself (preview AND export) with **no POC-fixture logic**.
@@ -783,6 +789,7 @@ export function buildSceneDescription(
 	document: AxcutDocument,
 	webcamSourceSize: { width: number; height: number } | null = null,
 ): SceneDescription {
+	document = visibleEditorDocument(document);
 	const settings = getEditorSettings(document);
 
 	const assetById = new Map(document.assets.map((a) => [a.id, a]));
@@ -1002,6 +1009,7 @@ export function buildSceneDescription(
 		return [
 			{
 				screenPath: asset.originalPath,
+				...(!isItemEnabled(document, clip, "clip") ? { screenHidden: true } : {}),
 				...(clip.mediaAnimation && clip.mediaAnimation !== "none"
 					? {
 							mediaAnimation: {
@@ -1016,7 +1024,11 @@ export function buildSceneDescription(
 				sourceStartSec: clip.sourceStartSec,
 				sourceEndSec: resolveClipSourceEndSec(clip, asset),
 				webcamOffsetSec: camera.offsetSec,
-				hasAudio: !asset.sourceAudioMuted,
+				hasAudio:
+					!asset.sourceAudioMuted &&
+					!clip.embeddedAudioMuted &&
+					!clip.disabled &&
+					!editorTracks(document).find((track) => track.id === itemTrackId(clip, "clip"))?.muted,
 				// A held segment has an empty source window and exists only for the frames it
 				// holds; every other clip holds nothing.
 			},

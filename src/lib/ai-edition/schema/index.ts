@@ -180,6 +180,7 @@ export const assetSchema = z.object({
 	label: z.string().min(1),
 	originalPath: z.string().min(1),
 	stillImagePath: z.string().optional(),
+	libraryCategory: z.enum(["media", "sticker"]).optional(),
 	// Suppress the embedded fallback mix once separate recording sources are imported.
 	sourceAudioMuted: z.boolean().optional(),
 	proxyPath: z.string().optional(),
@@ -209,8 +210,26 @@ export const clipCropRegionSchema = z.object({
 	height: z.number().min(0).max(1),
 });
 
+// Additive editor metadata, shared by footage, overlays and independent audio.
+const editorItemShape = {
+	editorTrackId: z.string().min(1).optional(),
+	linkGroupId: z.string().min(1).optional(),
+	disabled: z.boolean().optional(),
+	editorLabel: z.string().optional(),
+};
+export const editorTrackSchema = z.object({
+	id: z.string().min(1),
+	kind: z.enum(["video", "visual", "audio", "effect"]),
+	label: z.string(),
+	locked: z.boolean().default(false),
+	hidden: z.boolean().default(false),
+	muted: z.boolean().default(false),
+});
+
 export const clipSchema = z
 	.object({
+		...editorItemShape,
+		embeddedAudioMuted: z.boolean().optional(),
 		id: z.string().min(1),
 		assetId: z.string().min(1),
 		sourceStartSec: z.number().nonnegative(),
@@ -300,6 +319,7 @@ export const timelineSchema = z.preprocess(
 		return value;
 	},
 	z.object({
+		tracks: z.array(editorTrackSchema).optional(),
 		clips: z.array(clipSchema).default([]),
 		gaps: z.array(gapSchema).default([]),
 		trimRanges: z.array(trimRangeSchema).default([]),
@@ -460,6 +480,7 @@ const clipAnchorShape = {
 
 export const annotationRegionSchema = endGteStart(
 	z.object({
+		...editorItemShape,
 		id: z.string().min(1),
 		startMs: z.number().nonnegative(),
 		endMs: z.number().nonnegative(),
@@ -585,6 +606,7 @@ export const zoomRegionSchema = endGteStart(
 // audibly restart at the boundary.
 export const audioTrackSchema = endGteStart(
 	z.object({
+		...editorItemShape,
 		id: z.string().min(1),
 		// Shared by every fragment of one user-visible track: what the lane draws
 		// as a single pill, what the inspector edits, and what delete removes.

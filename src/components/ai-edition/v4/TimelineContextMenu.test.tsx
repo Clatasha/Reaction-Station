@@ -40,3 +40,27 @@ it("keeps the clicked item when dismissal occurs before an exiting menu's click"
 	fireEvent.click(screen.getByRole("menuitem", { name: "context.duplicate" }));
 	expect(onAction).toHaveBeenCalledWith("duplicate", target);
 });
+
+it("exposes disable and unlink for linked media and blocks edits on locked tracks", () => {
+	const onAction = vi.fn();
+	const view = render(
+		<TimelineContextMenu
+			target={{ ...target, linked: true }}
+			onClose={vi.fn()}
+			onAction={onAction}
+		/>,
+	);
+	fireEvent.click(screen.getByRole("menuitem", { name: "context.disable" }));
+	expect(onAction).toHaveBeenCalledWith("disable", expect.objectContaining({ id: "microphone" }));
+	expect(screen.getByRole("menuitem", { name: "context.unlink" })).toBeEnabled();
+	view.rerender(
+		<TimelineContextMenu
+			target={{ ...target, locked: true }}
+			onClose={vi.fn()}
+			onAction={onAction}
+		/>,
+	);
+	expect(screen.getByRole("menuitem", { name: "context.delete" })).toBeDisabled();
+	expect(screen.getByRole("menuitem", { name: "context.duplicate" })).toBeDisabled();
+	expect(screen.getByRole("menuitem", { name: "context.fit" })).toBeEnabled();
+});

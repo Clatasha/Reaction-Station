@@ -883,3 +883,19 @@ Desktop scope: duplicate enough overlapping audio/image/video layers to exceed e
 | fix/creator-editing-playback | Windows / macOS / Linux | Skipped desktop | Native computer APIs are disabled and local Rust tooling is unavailable. Unit tests cover media identity through imports, pending seeks, stalled-seek recovery, native clip reindexing, preview playback/scrubbing, live kept-duration readouts, off-canvas image persistence, splits, per-clip layouts and Windows speech-loader fallback. Windows CI compiles native code, runs scene/audio/media tests, checks CPU speech DLL dependencies and loads the packaged CPU speech executable. Actual desktop interaction, GPU rendering, physical recording, audible synchronization, Whisper model inference and capture-to-export remain unverified here. |
 
 Desktop scope: import video and image while scrubbing/playing; repeatedly seek between assets, trims and split clips and confirm the playhead follows playback. Open Edit Clip, play/scrub, set in/out points, apply/cancel and check audio. Resize a trim and watch kept duration change before releasing. Drag an image across all four canvas edges and save/reopen. Split the original recording, choose Dual Frame for one section and No Webcam for the next, then compare preview and MP4 export. Confirm EN and Close stay inside both dock orientations. Transcribe a recording through the Transcript pane on a machine with and without a Vulkan runtime, and verify speech results and captions.
+
+
+### Reaction Station 0.7 Library and linked timeline
+
+| Build / branch | Platform | Result | Scope / skipped checks |
+| --- | --- | --- | --- |
+| feat/library-linked-timeline | Windows / macOS / Linux | Skipped desktop | Native computer APIs and local Rust tooling are unavailable. Unit checks cover Library search/stickers/drag references/relinking, linked motion across cuts, compatible and adjacent tracks, lock enforcement, independent duplicates, disabled export layers, source offsets, project round-trips and one-gesture undo/redo. Windows CI compiles native code, runs the recording visibility geometry regression and existing scene/audio/media tests, and checks the packaged Library grid plus track lock/mute/disable controls. Actual mouse dragging, physical recording, audible synchronization, hardware GPU rendering, and capture-to-export comparisons remain manual checks. |
+
+Desktop checks before a stable release:
+
+- Import videos, images and music into Library. Verify three columns, filenames, search/type filters, repeat placement, custom Stickers imports and collapsible AI chat.
+- Drop video into a visual row and the recording sequence. Confirm picture/sound start together on adjacent rows; drag either half, then Unlink and move independently. Use Ctrl/Cmd or Shift to select added media and preserve their time spacing while moving. Adjacent original recording sections move as a ripple block; nonadjacent section moves are rejected.
+- Move overlays and sound between compatible tracks. Check clear drop timing/track previews, snapping, track renaming, locks, hide/mute, right-click rename/duplicate/disable/enable, and one undo/redo per drag. Duplicate linked media; changing its copy must leave the original independent. Deleting linked media removes the pair and keeps reusable files in Library.
+- Disable imported media and hide the recording track; compare preview with MP4 export. Recording visibility must suppress picture, webcam, screen shadow/frame and cursor while retaining programme duration.
+- Move a source file, Locate it from Library, then save/reopen. Verify source offsets, edits, thumbnails, links, track flags, animations and extracted audio references survive. Reject an incompatible or too-short replacement.
+- Add more than eight tracks and confirm scrolling keeps the preview height stable. Check headers, ruler and playhead alignment when zooming, scrolling and resizing the Library.

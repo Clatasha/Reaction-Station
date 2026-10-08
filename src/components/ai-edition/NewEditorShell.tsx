@@ -5,6 +5,7 @@ import { toFileUrl } from "@/components/video-editor/projectPersistence";
 import { useEditorDialogActions } from "@/contexts/EditorDialogsContext";
 import { useScopedT } from "@/contexts/I18nContext";
 import { useShortcuts } from "@/contexts/ShortcutsContext";
+import { editorTracks, visibleEditorDocument } from "@/lib/ai-edition/document/editorTracks";
 import { createId } from "@/lib/ai-edition/document/ids";
 import {
 	migrateProjectDataToAxcutDocument,
@@ -47,11 +48,7 @@ import { useTimeline } from "@/lib/ai-edition/store/useTimeline";
 import { isGeneratedAssetId } from "@/lib/ai-edition/timeline/clip-parts";
 import { mergeCloseCuts } from "@/lib/ai-edition/timeline/cut-breath";
 import { probeVideoDuration } from "@/lib/ai-edition/timeline/duration";
-import {
-	droppedMediaKind,
-	type MediaDropPlacement,
-	readDroppedImage,
-} from "@/lib/ai-edition/timeline/mediaDrop";
+import { droppedMediaKind, type MediaDropPlacement } from "@/lib/ai-edition/timeline/mediaDrop";
 import { newRegionDurationSec } from "@/lib/ai-edition/timeline/newRegionDuration";
 import {
 	dropTrimPillsByIds,
@@ -67,7 +64,7 @@ import { resolveVisibleClips } from "@/native/sceneDescription";
 import { useNativePlaybackSync } from "@/native/useNativePlaybackSync";
 import { ExportDialog } from "./ExportDialog";
 import { insertionsEnabled } from "./insertionsEnabled";
-import { ChatStripPanel } from "./LeftPanel";
+import { LibraryPanel } from "./LibraryPanel";
 import {
 	EditClipModal,
 	NewProjectModal,
@@ -220,7 +217,7 @@ export function NewEditorShell() {
 	// v4 shell: three modes (Media / Edit / Rec), a collapsible agent (chat)
 	// column, and a floating facet inspector over the stage.
 	const [mode, setMode] = useState<EditorMode>("edit");
-	const [chatOpen, setChatOpen] = useState(false);
+	const [chatOpen, setChatOpen] = useState(true);
 	const pendingChatPrompt = useChatPromptBus((s) => s.pending);
 	useEffect(() => {
 		if (pendingChatPrompt && !chatOpen) {
@@ -357,7 +354,10 @@ export function NewEditorShell() {
 		document?.assets.find((a) => a.id === document.project.primaryAssetId)?.originalPath ?? null;
 	void primaryAssetPath;
 	const clips: AxcutClip[] = document?.timeline.clips ?? [];
-	const visibleClips = useMemo(() => (document ? resolveVisibleClips(document) : []), [document]);
+	const visibleClips = useMemo(
+		() => (document ? resolveVisibleClips(visibleEditorDocument(document)) : []),
+		[document],
+	);
 	const hasProject = Boolean(document);
 	const hasAsset = projectId !== null && (document?.assets.length ?? 0) > 0;
 	const project = document?.project
@@ -556,7 +556,12 @@ export function NewEditorShell() {
 	// closure, `clips.length` stays frozen at the last render, so the second add lands
 	// before the first instead of after it.
 	const handleDropAsset = useCallback(
-		(assetId: string, placement: MediaDropPlacement = "sequence", dropTime?: number) =>
+		(
+			assetId: string,
+			placement: MediaDropPlacement = "sequence",
+			dropTime?: number,
+			trackId?: string,
+		) =>
 			enqueueTimelineWrite(async () => {
 				const doc = useProjectStore.getState().document;
 				const projectId = useProjectStore.getState().projectId;
@@ -568,8 +573,13 @@ export function NewEditorShell() {
 				// timeline" reuses its existing track if it already has one (importing
 				// already placed one) so the same file can't stack up duplicate lanes.
 				if (doc?.assets.find((a) => a.id === assetId)?.kind === "audio") {
-					if (doc.audioTracks.some((t) => t.assetId === assetId)) return Promise.resolve();
-					return tl.addAudioTrack(assetId, dropTime).then(() => undefined);
+					return tl
+						.addAudioTrack(assetId, dropTime, {
+							editorTrackId:
+								editorTracks(doc).find((track) => track.id === trackId && track.kind === "audio")
+									?.id ?? createId("audio-track"),
+						})
+						.then(() => undefined);
 				}
 				const asset = doc?.assets.find((a) => a.id === assetId);
 				if (placement === "overlay" && asset) {
@@ -578,22 +588,22 @@ export function NewEditorShell() {
 					if (superseded()) return;
 					if (!durationSec) throw new Error("Could not read video duration");
 					const startSec = dropTime ?? useProjectStore.getState().currentTimeSec;
-					await tl.addMediaOverlay({ assetId, content: asset.label, startSec, durationSec });
-					// Keep overlay sound on an independently editable audio lane.
-					if (superseded()) return;
-					if (superseded()) return;
-					if (!asset.sourceAudioMuted) {
-						const state = useProjectStore.getState();
-						const audio = await state.addAudioAsset(asset.originalPath, `${asset.label} audio`);
-						if (audio)
-							await tl.addAudioTrack(audio.id, startSec, {
-								durationSec,
-								spanSec: Math.min(
-									durationSec,
-									Math.max(0, (doc?.timeline.clips.at(-1)?.timelineEndSec ?? 0) - startSec),
-								),
-							});
+					let audioAssetId: string | undefined;
+					if (!asset.sourceAudioMuted && !asset.stillImagePath) {
+						const audio = await useProjectStore
+							.getState()
+							.addAudioAsset(asset.originalPath, `${asset.label} audio`);
+						if (superseded()) return;
+						audioAssetId = audio?.id;
 					}
+					await tl.addMediaOverlay({
+						assetId,
+						content: asset.stillImagePath ?? asset.label,
+						startSec,
+						durationSec: asset.stillImagePath ? 5 : durationSec,
+						audioAssetId,
+						trackId,
+					});
 					return;
 				}
 				const found =
@@ -603,7 +613,15 @@ export function NewEditorShell() {
 								(c) => (c.timelineStartSec + c.timelineEndSec) / 2 > dropTime,
 							) ?? -1);
 				const at = found < 0 ? (doc?.timeline.clips.length ?? 0) : found;
-				return tl.insertClipAt(assetId, at);
+				let audioAssetId: string | undefined;
+				if (asset && !asset.sourceAudioMuted && !asset.stillImagePath) {
+					const audio = await useProjectStore
+						.getState()
+						.addAudioAsset(asset.originalPath, asset.label);
+					if (superseded()) return;
+					audioAssetId = audio?.id;
+				}
+				return tl.insertClipAt(assetId, at, audioAssetId);
 			}).catch((error) => {
 				toast.error(te("mediaStage.couldNotAddAsset"), {
 					description: error instanceof Error ? error.message : String(error),
@@ -614,21 +632,14 @@ export function NewEditorShell() {
 	);
 
 	const handleDropFiles = useCallback(
-		async (files: File[], placement: MediaDropPlacement, dropTime: number) => {
+		async (files: File[], placement: MediaDropPlacement, dropTime: number, trackId?: string) => {
 			let nextTime = dropTime;
 			const projectId = useProjectStore.getState().projectId;
 			for (const file of files) {
 				try {
 					const kind = droppedMediaKind(file.name);
 					if (!kind) throw new Error(`Unsupported media file: ${file.name}`);
-					if (kind === "image" && placement === "overlay") {
-						const content = await readDroppedImage(file);
-						await enqueueTimelineWrite(async () => {
-							if (useProjectStore.getState().projectId !== projectId) return;
-							await tl.addMediaOverlay({ content, startSec: nextTime, durationSec: 5 });
-						});
-						continue;
-					}
+
 					const path = window.electronAPI.getPathForFile(file);
 					if (!path) throw new Error("Could not access the dropped file");
 					const asset = await enqueueTimelineWrite(async () => {
@@ -639,7 +650,12 @@ export function NewEditorShell() {
 							: state.addAsset(path, file.name);
 					});
 					if (!asset || useProjectStore.getState().projectId !== projectId) return;
-					await handleDropAsset(asset.id, placement, nextTime);
+					await handleDropAsset(
+						asset.id,
+						kind === "image" ? "overlay" : placement,
+						nextTime,
+						trackId,
+					);
 					if (placement === "sequence" && kind !== "audio") nextTime += asset.durationSec ?? 60;
 				} catch (error) {
 					toast.error(te("mediaStage.couldNotAddAsset"), {
@@ -648,7 +664,7 @@ export function NewEditorShell() {
 				}
 			}
 		},
-		[enqueueTimelineWrite, handleDropAsset, tl, te],
+		[enqueueTimelineWrite, handleDropAsset, te],
 	);
 
 	// Ref so the 'ended' listener below always sees the latest clips without tearing
@@ -1582,6 +1598,10 @@ export function NewEditorShell() {
 		openVoiceoverFlow,
 	]);
 
+	const playbackDocument = useMemo(
+		() => (document ? visibleEditorDocument(document) : null),
+		[document],
+	);
 	const showTimeline = mode !== "rec";
 	const timelineRow = mode === "media" ? "188px" : `${timelineHeightPx}px`;
 	const bodyColumns = mode === "edit" && chatOpen ? `${chatWidthPx}px 1fr` : "1fr";
@@ -1700,8 +1720,11 @@ export function NewEditorShell() {
 			<div className={v4.body} style={{ gridTemplateColumns: bodyColumns }}>
 				{mode === "edit" && chatOpen ? (
 					<>
-						<aside className={v4.agent} aria-label={te("shell.aiEditor")}>
-							<ChatStripPanel />
+						<aside className={v4.agent} aria-label={te("library.title")}>
+							<LibraryPanel
+								onAdd={(id) => handleDropAsset(id, "overlay")}
+								editDocument={tl.editWorkspace}
+							/>
 						</aside>
 						<div
 							className={v4.chatResizeHandle}
@@ -1759,17 +1782,26 @@ export function NewEditorShell() {
 									// and lands in the new take; even on headphones, narrating over
 									// an earlier voiceover is not what the button offers. The video
 									// itself keeps playing — that is what the user is narrating to.
-									audioTracks={voiceoverRecording ? NO_AUDIO_TRACKS : tl.audioTracks}
+									audioTracks={
+										voiceoverRecording ? NO_AUDIO_TRACKS : (playbackDocument?.audioTracks ?? [])
+									}
 									audioSources={videoSources}
 									clips={clips}
-									zoomRegions={tl.zoomRegions}
-									speedRegions={tl.speedRegions}
-									cameraFullscreenRegions={tl.cameraFullscreenRegions}
-									trimRanges={tl.trimRanges}
+									zoomRegions={playbackDocument?.zoomRanges ?? []}
+									speedRegions={
+										(playbackDocument?.legacyEditor?.speedRegions as typeof tl.speedRegions) ?? []
+									}
+									cameraFullscreenRegions={
+										(playbackDocument?.legacyEditor
+											?.cameraFullscreenRegions as typeof tl.cameraFullscreenRegions) ?? []
+									}
+									trimRanges={playbackDocument?.timeline.trimRanges ?? []}
 									selectedZoomRegionId={tl.selection?.kind === "zoom" ? tl.selection.id : null}
 									onZoomFocusChange={tl.updateZoomFocusLive}
 									onZoomFocusCommit={() => void tl.commitZoomFocus()}
-									annotationRegions={tl.annotationRegions}
+									annotationRegions={
+										(playbackDocument?.annotations as unknown as typeof tl.annotationRegions) ?? []
+									}
 									selectedAnnotationId={
 										tl.selection?.kind === "annotation" ? tl.selection.id : null
 									}

@@ -98,6 +98,9 @@ if (process.env.REACTION_STATION_SCENE_TESTS === "1") {
 	await runInVsEnv(
 		`set "PATH=${sdk};%PATH%"\r\n${cargoExeQuoted} test -p openscreen-compositor --lib --release scene::tests::`,
 	);
+	await runInVsEnv(
+		`set "PATH=${sdk};%PATH%"\r\n${cargoExeQuoted} test -p openscreen-compositor --lib --release frame_geometry::tests::hidden_recording_keeps_geometry_but_suppresses_screen_chrome`,
+	);
 }
 
 if (process.env.REACTION_STATION_MEDIA_TESTS === "1") {

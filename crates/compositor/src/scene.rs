@@ -11,6 +11,8 @@ use serde::Deserialize;
 #[serde(rename_all = "camelCase")]
 pub struct SceneClip {
     #[serde(default)]
+    pub screen_hidden: bool,
+    #[serde(default)]
     pub media_animation: Option<SceneMediaAnimation>,
     pub screen_path: String,
     pub webcam_path: String,

@@ -111,6 +111,8 @@ const WRITER_NAMES = {
 // ---------------------------------------------------------------------------
 
 const DECLARED: WritePath[] = [
+	w("src/lib/ai-edition/store/useTimeline.ts", "separateClipAudio", "save", "gesture"),
+	w("src/lib/ai-edition/store/useTimeline.ts", "editWorkspace", "save", "gesture"),
 	w("src/lib/ai-edition/store/useTimeline.ts", "duplicateItem", "save", "gesture"),
 	// Dropping the legacy auto-caption annotations is a button in the captions pane.
 	w(

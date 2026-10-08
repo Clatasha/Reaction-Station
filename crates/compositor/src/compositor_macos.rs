@@ -2446,7 +2446,7 @@ impl Compositor {
             (g.s_dst[0] + g.s_dst[2] * 0.5) * rw,
             (g.s_dst[1] + g.s_dst[3] * 0.5) * rh,
         ];
-        if cfg.shadow {
+        if cfg.shadow && !g.screen_hidden {
             let spread = SCREEN_SHADOW_SPREAD_FRAC * g.screen_unit_px;
             let offset = g.screen_shadow_offset();
             let opacity = 0.45 * lp.shadow_scale;
@@ -2656,7 +2656,7 @@ impl Compositor {
 
         // --- caméra : ombre PiP puis vidéo ---
         let enc = self.begin_pass(cmd_buf, &self.rt, None, &self.pipeline_main)?;
-        if let (true, Some((wy, wuv))) = (lp.has_webcam, webcam_tex.as_ref()) {
+        if let (true, Some((wy, wuv))) = (lp.has_webcam && !g.screen_hidden, webcam_tex.as_ref()) {
             let [cu0, cv0, cu1, cv1] = crate::frame_geometry::webcam_source_rect(
                 [wcw, wch],
                 [wtw as f32, wth as f32],

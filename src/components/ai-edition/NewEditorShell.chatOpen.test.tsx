@@ -24,7 +24,9 @@ vi.mock("@/contexts/ShortcutsContext", async () => {
 vi.mock("@/contexts/I18nContext", () => ({
 	useI18n: () => ({
 		locale: "en",
-		setLocale: () => {},
+		setLocale: () => {
+			/* Shell fixture callback. */
+		},
 	}),
 	useScopedT: (scope: string) => (key: string) => `${scope}.${key}`,
 }));
@@ -61,16 +63,30 @@ describe("NewEditorShell chatOpen behavior with useChatPromptBus", () => {
 	beforeEach(() => {
 		useChatPromptBus.setState({ pending: null });
 		(window as unknown as { electronAPI?: unknown }).electronAPI = {
-			onAiEditionChatEvent: () => () => {},
-			setTitleBarOverlay: () => {},
-			setHasUnsavedChanges: () => {},
-			onRequestCloseConfirm: () => () => {},
-			onRequestSaveBeforeClose: () => () => {},
-			sendCloseConfirmResponse: () => {},
+			onAiEditionChatEvent: () => () => {
+				/* Shell fixture callback. */
+			},
+			setTitleBarOverlay: () => {
+				/* Shell fixture callback. */
+			},
+			setHasUnsavedChanges: () => {
+				/* Shell fixture callback. */
+			},
+			onRequestCloseConfirm: () => () => {
+				/* Shell fixture callback. */
+			},
+			onRequestSaveBeforeClose: () => () => {
+				/* Shell fixture callback. */
+			},
+			sendCloseConfirmResponse: () => {
+				/* Shell fixture callback. */
+			},
 			findRecordingCamera: () => Promise.resolve(null),
 			preparePreviewAudioTrack: () => Promise.resolve(null),
 		};
-		Element.prototype.scrollTo = () => {};
+		Element.prototype.scrollTo = () => {
+			/* Shell fixture callback. */
+		};
 		(globalThis as unknown as { ResizeObserver?: unknown }).ResizeObserver = class {
 			observe() {
 				// noop
@@ -90,15 +106,14 @@ describe("NewEditorShell chatOpen behavior with useChatPromptBus", () => {
 		(window as unknown as { electronAPI?: unknown }).electronAPI = undefined;
 	});
 
-	it("initially starts with chat closed, and opens when useChatPromptBus receives a prompt", () => {
+	it("starts with the Library visible and opens AI when a prompt arrives", () => {
 		renderShell();
 
-		// Initially closed
-		expect(
-			screen.queryByRole("complementary", { name: "editor.shell.aiEditor" }),
-		).not.toBeInTheDocument();
+		// The Library starts visible, while AI is collapsed.
+		expect(screen.getByRole("complementary", { name: "editor.library.title" })).toBeInTheDocument();
+		expect(screen.queryByTestId("consume-prompt-btn")).not.toBeInTheDocument();
 		const toggleBtn = screen.getByRole("button", { name: "editor.topbar.toggleChatPanel" });
-		expect(toggleBtn).toHaveAttribute("aria-pressed", "false");
+		expect(toggleBtn).toHaveAttribute("aria-pressed", "true");
 
 		// Submit a prompt via the bus
 		act(() => {
@@ -106,9 +121,7 @@ describe("NewEditorShell chatOpen behavior with useChatPromptBus", () => {
 		});
 
 		// Now open
-		expect(
-			screen.getByRole("complementary", { name: "editor.shell.aiEditor" }),
-		).toBeInTheDocument();
+		expect(screen.getByRole("complementary", { name: "editor.library.title" })).toBeInTheDocument();
 		expect(toggleBtn).toHaveAttribute("aria-pressed", "true");
 	});
 
@@ -121,9 +134,7 @@ describe("NewEditorShell chatOpen behavior with useChatPromptBus", () => {
 		act(() => {
 			useChatPromptBus.getState().submit("first prompt");
 		});
-		expect(
-			screen.getByRole("complementary", { name: "editor.shell.aiEditor" }),
-		).toBeInTheDocument();
+		expect(screen.getByRole("complementary", { name: "editor.library.title" })).toBeInTheDocument();
 		expect(useChatPromptBus.getState().pending).toBe("first prompt");
 
 		// 2. Consume prompt via send
@@ -139,7 +150,7 @@ describe("NewEditorShell chatOpen behavior with useChatPromptBus", () => {
 			fireEvent.click(toggleBtn);
 		});
 		expect(
-			screen.queryByRole("complementary", { name: "editor.shell.aiEditor" }),
+			screen.queryByRole("complementary", { name: "editor.library.title" }),
 		).not.toBeInTheDocument();
 		expect(toggleBtn).toHaveAttribute("aria-pressed", "false");
 
@@ -147,9 +158,7 @@ describe("NewEditorShell chatOpen behavior with useChatPromptBus", () => {
 		act(() => {
 			useChatPromptBus.getState().submit("second prompt");
 		});
-		expect(
-			screen.getByRole("complementary", { name: "editor.shell.aiEditor" }),
-		).toBeInTheDocument();
+		expect(screen.getByRole("complementary", { name: "editor.library.title" })).toBeInTheDocument();
 		expect(toggleBtn).toHaveAttribute("aria-pressed", "true");
 	});
 });
