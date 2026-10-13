@@ -209,7 +209,8 @@
 		"failedToWriteFile": "Impossibile scrivere il file",
 		"qualityUpscaleWarning": "Upscaling",
 		"exportedVideoOf": "di video esportato in",
-		"nothingToExport": "Niente da esportare: la timeline è vuota."
+		"nothingToExport": "Niente da esportare: la timeline è vuota.",
+		"audioQuality": "Audio quality"
 	},
 	"inspector": {
 		"resetFocusPoint": "Reimposta punto di messa a fuoco",
@@ -470,6 +471,7 @@
 		"wrongType": "Choose the same type of media for this replacement",
 		"tooShort": "This file is shorter than the edited source window",
 		"locateFile": "Locate file",
-		"replaceFile": "Replace file"
+		"replaceFile": "Replace file",
+		"delete": "Delete"
 	}
 }

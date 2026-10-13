@@ -139,6 +139,9 @@
 		"addAudio": "Add audio track",
 		"visual": "Visual",
 		"audio": "Audio",
-		"adjacent": "Select adjacent recording sections to move them together"
+		"adjacent": "Select adjacent recording sections to move them together",
+		"remove": "Remove track",
+		"removeProtected": "Unlock this track and its linked items before removing it. Original recording tracks are protected.",
+		"confirmRemove": "Remove \"{{name}}\" and its items, including linked media? You can undo this."
 	}
 }

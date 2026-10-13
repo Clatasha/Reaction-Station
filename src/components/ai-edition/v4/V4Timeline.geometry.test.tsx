@@ -1256,7 +1256,7 @@ describe("trim duration during the gesture", () => {
 });
 
 describe("workspace track placement", () => {
-	it("renders original picture, desktop sound and microphone before added media", () => {
+	it("renders editing tracks above original picture, desktop sound and microphone", () => {
 		const base = {
 			kind: "voiceover",
 			assetId: "a1",
@@ -1282,13 +1282,19 @@ describe("workspace track placement", () => {
 			},
 		);
 		const rows = [...document.querySelectorAll<HTMLElement>("[data-editor-track-id]")];
-		expect(rows[0].dataset.editorTrackId).toBe("main-video");
-		expect(rows[1].querySelector('[data-timeline-id="desktop"]')).not.toBeNull();
-		expect(rows[2].querySelector('[data-timeline-id="mic"]')).not.toBeNull();
+		expect(rows.at(-3)!.dataset.editorTrackId).toBe("main-video");
+		expect(rows.at(-2)!.querySelector('[data-timeline-id="desktop"]')).not.toBeNull();
+		expect(rows.at(-1)!.querySelector('[data-timeline-id="mic"]')).not.toBeNull();
 	});
-	it("shows a ghost in the destination lane and commits only on release", () => {
+	it("keeps the destination ghost until the saved placement arrives", async () => {
 		vi.stubGlobal("PointerEvent", MouseEvent);
-		const editWorkspace = vi.fn();
+		let finish = () => {};
+		const editWorkspace = vi.fn(
+			() =>
+				new Promise<void>((resolve) => {
+					finish = resolve;
+				}),
+		);
 		const base = {
 			kind: "voiceover",
 			assetId: "a1",
@@ -1333,6 +1339,9 @@ describe("workspace track placement", () => {
 			expect(editWorkspace).not.toHaveBeenCalled();
 			fireEvent.pointerUp(window);
 			expect(editWorkspace).toHaveBeenCalledTimes(1);
+			expect(screen.getByTestId("timeline-drag-ghost")).toBeInTheDocument();
+			expect(document.querySelector('[data-timeline-id="moving"]')).toBeNull();
+			await act(async () => finish());
 			expect(screen.queryByTestId("timeline-drag-ghost")).not.toBeInTheDocument();
 		} finally {
 			if (original) Object.defineProperty(document, "elementFromPoint", original);

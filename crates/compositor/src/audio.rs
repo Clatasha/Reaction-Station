@@ -17,6 +17,14 @@ use std::time::SystemTime;
 pub const AUDIO_OUTPUT_SAMPLE_RATE: i32 = 48_000;
 pub const AUDIO_OUTPUT_CHANNELS: usize = 2;
 pub const AUDIO_BITRATE: i64 = 128_000;
+
+pub fn resolve_audio_bitrate(requested: Option<i64>) -> i64 {
+    requested
+        .filter(|rate| *rate > 0)
+        .map(|rate| rate.clamp(64_000, 320_000))
+        .unwrap_or(AUDIO_BITRATE)
+}
+
 pub const AUDIO_BOUNDARY_FADE_SAMPLES: usize = 240;
 
 // Valeurs partagées : `AVERROR(EAGAIN)` dépend de la plateforme (-11 vs -35), et ce
@@ -1915,7 +1923,10 @@ pub(crate) struct AacEncoder {
 }
 
 impl AacEncoder {
-    pub(crate) unsafe fn open(output: *mut AVFormatContext) -> Result<Self> {
+    pub(crate) unsafe fn open(
+        output: *mut AVFormatContext,
+        bitrate: Option<i64>,
+    ) -> Result<Self> {
         let name = CString::new("aac")?;
         let codec = avcodec_find_encoder_by_name(name.as_ptr());
         if codec.is_null() {
@@ -1927,7 +1938,7 @@ impl AacEncoder {
         }
         (*context).sample_fmt = AVSampleFormat::AV_SAMPLE_FMT_FLTP;
         (*context).sample_rate = AUDIO_OUTPUT_SAMPLE_RATE;
-        (*context).bit_rate = AUDIO_BITRATE;
+        (*context).bit_rate = resolve_audio_bitrate(bitrate);
         (*context).time_base = AVRational { num: 1, den: AUDIO_OUTPUT_SAMPLE_RATE };
         av_channel_layout_default(&mut (*context).ch_layout, AUDIO_OUTPUT_CHANNELS as i32);
         averr(avcodec_open2(context, codec, ptr::null_mut()), "aac avcodec_open2")?;
@@ -2803,5 +2814,45 @@ mod tests {
         assert!((ducked[0][24_000] - 0.5).abs() < 1e-6, "in the clear");
         let under = 0.5 * 10.0f32.powf(DUCK_DEPTH_DB / 20.0);
         assert!((ducked[0][72_000] - under).abs() < 1e-4, "under the voice: {}", ducked[0][72_000]);
+    }
+}
+
+#[cfg(test)]
+mod bitrate_tests {
+    use super::*;
+
+    #[test]
+    fn aac_encoder_and_output_stream_receive_the_selected_quality() {
+        for bitrate in [128_000, 192_000, 320_000] {
+            unsafe {
+                let mut output: *mut AVFormatContext = ptr::null_mut();
+                let path = CString::new("quality-test.mp4").unwrap();
+                averr(
+                    avformat_alloc_output_context2(
+                        &mut output,
+                        ptr::null(),
+                        ptr::null(),
+                        path.as_ptr(),
+                    ),
+                    "test output context",
+                )
+                .unwrap();
+                let encoder = AacEncoder::open(output, Some(bitrate)).unwrap();
+                assert_eq!((*encoder.context).bit_rate, bitrate);
+                assert_eq!((*(*encoder.stream).codecpar).bit_rate, bitrate);
+                drop(encoder);
+                avformat_free_context(output);
+            }
+        }
+    }
+
+    #[test]
+    fn audio_quality_uses_the_requested_rate_with_safe_defaults_and_limits() {
+        assert_eq!(resolve_audio_bitrate(None), AUDIO_BITRATE);
+        assert_eq!(resolve_audio_bitrate(Some(0)), AUDIO_BITRATE);
+        assert_eq!(resolve_audio_bitrate(Some(192_000)), 192_000);
+        assert_eq!(resolve_audio_bitrate(Some(320_000)), 320_000);
+        assert_eq!(resolve_audio_bitrate(Some(1)), 64_000);
+        assert_eq!(resolve_audio_bitrate(Some(999_000)), 320_000);
     }
 }

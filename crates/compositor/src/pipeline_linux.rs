@@ -72,6 +72,7 @@ pub struct ExportParams {
     pub fps: Option<u32>,
     pub codec: ExportCodec,
     pub bit_rate: Option<i64>,
+    pub audio_bit_rate: Option<i64>,
 }
 
 impl Default for ExportParams {
@@ -82,6 +83,7 @@ impl Default for ExportParams {
             fps: None,
             codec: ExportCodec::H264,
             bit_rate: None,
+            audio_bit_rate: None,
         }
     }
 }
@@ -1010,7 +1012,7 @@ fn run_multi_inner(
         // Le flux AAC doit exister AVANT l'en-tete (le muxer y fige sa table de flux).
         // Meme si aucun clip n'a d'audio, on ecrit une piste silencieuse -- parite
         // avec Windows/macOS, qui muxent toujours l'AAC.
-        audio_encoder = AacEncoder::open(octx)?;
+        audio_encoder = AacEncoder::open(octx, params.audio_bit_rate)?;
         crate::ffi::averr(
             crate::ffi::avformat_write_header(octx, ptr::null_mut()),
             "write_header",

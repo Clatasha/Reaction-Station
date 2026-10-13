@@ -209,7 +209,8 @@
 		"exportFailed": "Export failed",
 		"failedToWriteFile": "Failed to write file",
 		"qualityUpscaleWarning": "Upscale",
-		"nothingToExport": "Nothing to export — the timeline is empty."
+		"nothingToExport": "Nothing to export — the timeline is empty.",
+		"audioQuality": "Audio quality"
 	},
 	"inspector": {
 		"resetFocusPoint": "Reset focus point",
@@ -470,6 +471,7 @@
 		"wrongType": "Choose the same type of media for this replacement",
 		"tooShort": "This file is shorter than the edited source window",
 		"locateFile": "Locate file",
-		"replaceFile": "Replace file"
+		"replaceFile": "Replace file",
+		"delete": "Delete"
 	}
 }

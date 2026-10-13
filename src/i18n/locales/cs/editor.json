@@ -209,7 +209,8 @@
 		"exportFailed": "Export selhal",
 		"failedToWriteFile": "Nepodařilo se zapsat soubor",
 		"qualityUpscaleWarning": "Zvýšení rozlišení",
-		"nothingToExport": "Není co exportovat, časová osa je prázdná."
+		"nothingToExport": "Není co exportovat, časová osa je prázdná.",
+		"audioQuality": "Audio quality"
 	},
 	"inspector": {
 		"resetFocusPoint": "Obnovit bod zaostření",
@@ -470,6 +471,7 @@
 		"wrongType": "Choose the same type of media for this replacement",
 		"tooShort": "This file is shorter than the edited source window",
 		"locateFile": "Locate file",
-		"replaceFile": "Replace file"
+		"replaceFile": "Replace file",
+		"delete": "Delete"
 	}
 }

@@ -123,6 +123,13 @@ describe("ExportDialog MP4 params", () => {
 		vi.clearAllMocks();
 	});
 
+	it("sends the selected AAC audio quality independently of picture quality", async () => {
+		renderDialog();
+		fireEvent.change(screen.getByRole("combobox", { name: "Audio quality" }), {
+			target: { value: "320000" },
+		});
+		expect(await exportMp4()).toMatchObject({ audioBitrate: 320000, codec: "h264" });
+	});
 	it("sends the bitrate for the frame rate it exports at", async () => {
 		renderDialog();
 		const expected = (frameRate: number) =>

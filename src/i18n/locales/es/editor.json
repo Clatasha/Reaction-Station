@@ -209,7 +209,8 @@
 		"failedToWriteFile": "No se pudo escribir el archivo",
 		"qualityUpscaleWarning": "Upscaling",
 		"exportedVideoOf": "de vídeo exportado en",
-		"nothingToExport": "Nada que exportar: la línea de tiempo está vacía."
+		"nothingToExport": "Nada que exportar: la línea de tiempo está vacía.",
+		"audioQuality": "Audio quality"
 	},
 	"inspector": {
 		"resetFocusPoint": "Restablecer punto de enfoque",
@@ -470,6 +471,7 @@
 		"wrongType": "Choose the same type of media for this replacement",
 		"tooShort": "This file is shorter than the edited source window",
 		"locateFile": "Locate file",
-		"replaceFile": "Replace file"
+		"replaceFile": "Replace file",
+		"delete": "Delete"
 	}
 }

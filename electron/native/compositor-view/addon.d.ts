@@ -116,6 +116,8 @@ export interface ExportParamsInput {
 	/** Target video bitrate in bits/s, from the output size and frame rate. Omitted or 0 → the
 	 *  pipeline's own fallback, which ignores the frame rate (8 Mb/s at 1080p). */
 	bitrate?: number;
+	/** AAC audio bitrate in bits/s (64000–320000). Omitted uses 128000. */
+	audioBitrate?: number;
 }
 
 /** One timeline clip for the native multiclip export (screen + webcam files + source trim). */

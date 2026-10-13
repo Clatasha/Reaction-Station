@@ -12,6 +12,7 @@ import { anchorRegionsWithDerivedMs } from "../timeline/timelineMap";
 import { anchorAudioTrackFragments, collapseTracksToPills } from "./audioTracks";
 import {
 	attachClipAudio,
+	canRemoveEditorTrack,
 	changesLockedTracks,
 	duplicateLinkedClip,
 	duplicateLinkedItem,
@@ -25,6 +26,8 @@ import {
 	patchEditorTrack,
 	pruneEmptyAutomaticTracks,
 	relinkEditorAsset,
+	removeEditorTrack,
+	removeLibraryAsset,
 	removeLinkedEditorItems,
 	unlinkEditorItems,
 	visibleEditorDocument,
@@ -461,7 +464,7 @@ it("removes vacated automatic lanes but preserves manual and shared lanes", () =
 	).toBe(true);
 	expect(pruneEmptyAutomaticTracks(doc, doc)).toBe(doc);
 });
-it("pins the recording above desktop and microphone sources, followed by added media", () => {
+it("places recording, desktop and microphone below the editing tracks", () => {
 	const doc = fixture();
 	doc.audioTracks = [
 		{
@@ -483,10 +486,82 @@ it("pins the recording above desktop and microphone sources, followed by added m
 		...doc.audioTracks,
 	];
 	const tracks = editorTracks(doc);
-	expect(tracks.slice(0, 3).map((track) => track.id)).toEqual([
+	expect(tracks.slice(-3).map((track) => track.id)).toEqual([
 		"main-video",
 		"desktop-lane",
 		"mic-lane",
 	]);
 	expect(moveEditorItems(doc, [{ kind: "audio", id: "mic" }], 0, "sound-track")).toBe(doc);
+});
+
+it("removes empty manual/default tracks permanently while preserving populated and original tracks", () => {
+	const doc = fixture();
+	doc.timeline.tracks = [
+		...editorTracks(doc),
+		{
+			id: "manual",
+			kind: "audio",
+			label: "Empty",
+			autoCreated: false,
+			locked: false,
+			hidden: false,
+			muted: false,
+		},
+	];
+	const next = removeEditorTrack(doc, "manual");
+	expect(editorTracks(next).some((row) => row.id === "manual")).toBe(false);
+	expect(documentSchema.parse(next).timeline.removedTrackIds).toContain("manual");
+	expect(removeEditorTrack(doc, "main-video")).toBe(doc);
+	const defaultLane = removeEditorTrack(doc, "audio-empty-2");
+	expect(editorTracks(defaultLane).some((row) => row.id === "audio-empty-2")).toBe(false);
+	const populated = removeEditorTrack(doc, "visual-track");
+	expect(populated.annotations).toHaveLength(0);
+	expect(populated.audioTracks).toHaveLength(0);
+	expect(editorTracks(populated).some((row) => row.id === "visual-track")).toBe(false);
+	expect(doc.annotations).toHaveLength(1);
+	expect(
+		canRemoveEditorTrack(patchEditorTrack(doc, "sound-track", { locked: true }), "visual-track"),
+	).toBe(false);
+});
+it("keeps original capture lanes protected from manual removal", () => {
+	const doc = fixture();
+	doc.audioTracks[0] = { ...doc.audioTracks[0], origin: "system", recordingSource: "desktop" };
+	expect(removeEditorTrack(doc, "sound-track")).toBe(doc);
+});
+it("removes a Library entry without removing timeline copies or source files", () => {
+	const doc = fixture();
+	const next = removeLibraryAsset(doc, "v");
+	expect(next.assets.find((asset) => asset.id === "v")?.libraryHidden).toBe(true);
+	expect(next.timeline.clips).toBe(doc.timeline.clips);
+	expect(next.annotations).toBe(doc.annotations);
+	expect(next.audioTracks).toBe(doc.audioTracks);
+	expect(documentSchema.safeParse(next).success).toBe(true);
+	expect(buildSceneDescription(next).clips).toEqual(buildSceneDescription(doc).clips);
+});
+it("appends source audio on the existing Desktop Audio lane with its clip offsets and link", () => {
+	const doc = fixture();
+	doc.audioTracks[0] = {
+		...doc.audioTracks[0],
+		origin: "system",
+		recordingSource: "desktop",
+		linkGroupId: undefined,
+	};
+	const next = attachClipAudio(doc, "c2", "sound");
+	const added = next.audioTracks.find((row) => row.clipId === "c2")!;
+	expect(added).toMatchObject({
+		editorTrackId: "sound-track",
+		recordingSource: "desktop",
+		startMs: 10000,
+		endMs: 20000,
+		offsetMs: 10000,
+	});
+	expect(added.linkGroupId).toBe(next.timeline.clips[1].linkGroupId);
+	expect(editorTracks(next).filter((track) => track.kind === "audio")).toHaveLength(
+		editorTracks(doc).filter((track) => track.kind === "audio").length,
+	);
+	expect(
+		buildSceneDescription(next).audioTracks.some(
+			(track) => track.path === "/video.mp4" && track.recordedSource === true,
+		),
+	).toBe(true);
 });

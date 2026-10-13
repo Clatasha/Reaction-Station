@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { useScopedT } from "@/contexts/I18nContext";
-import { relinkEditorAsset } from "@/lib/ai-edition/document/editorTracks";
+import { relinkEditorAsset, removeLibraryAsset } from "@/lib/ai-edition/document/editorTracks";
 import type { AxcutAsset, AxcutDocument } from "@/lib/ai-edition/schema";
 import { useProjectStore } from "@/lib/ai-edition/store/projectStore";
 import { useChatPromptBus } from "@/lib/ai-edition/store/useChatPromptBus";
@@ -92,6 +92,7 @@ export function LibraryPanel({
 	};
 	const rows = assets.filter(
 		(asset) =>
+			!asset.libraryHidden &&
 			(asset.libraryCategory ?? "media") === tab &&
 			asset.label.toLowerCase().includes(query.toLowerCase()) &&
 			(filter === "all" ||
@@ -136,7 +137,7 @@ export function LibraryPanel({
 						event.nativeEvent.stopPropagation();
 					}}
 				>
-					{["locateFile", "replaceFile"].map((action) => (
+					{["locateFile", "replaceFile", "delete"].map((action) => (
 						<button
 							type="button"
 							role="menuitem"
@@ -146,8 +147,11 @@ export function LibraryPanel({
 								if (
 									displayedContext &&
 									assets.some((asset) => asset.id === displayedContext.asset.id)
-								)
-									locate(displayedContext.asset);
+								) {
+									if (action === "delete")
+										void editDocument((doc) => removeLibraryAsset(doc, displayedContext.asset.id));
+									else locate(displayedContext.asset);
+								}
 								setContext(null);
 							}}
 						>

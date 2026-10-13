@@ -1,13 +1,19 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom";
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/contexts/I18nContext", () => ({
 	useScopedT: (scope: string) => (key: string) => `${scope}.${key}`,
 }));
 
+import { previewTrackGainDb, useLiveAudioGains } from "@/lib/ai-edition/store/liveAudioGains";
 import { AudioTrackPane } from "./RightPanes";
+
+afterEach(() => {
+	cleanup();
+	useLiveAudioGains.setState({ gains: {} });
+});
 
 describe("AudioTrackPane", () => {
 	const createTl = () => ({
@@ -65,5 +71,21 @@ describe("AudioTrackPane", () => {
 		fireEvent.click(closeBtn);
 		expect(onClose).toHaveBeenCalledTimes(1);
 		expect(tl.selectAudioTrack).not.toHaveBeenCalled();
+	});
+	it("previews level changes while dragging and writes one edit on release", async () => {
+		const tl = createTl();
+		const view = render(<AudioTrackPane tl={tl as never} />);
+		const slider = screen.getByRole("slider", { name: "settings.audio.outputGain" });
+		fireEvent.change(slider, { target: { value: "-12" } });
+		expect(previewTrackGainDb(tl.audioTracks[0] as never)).toBe(-12);
+		expect(tl.audioTracks[0].gainDb).toBe(0);
+		expect(tl.setAudioTrackGain).not.toHaveBeenCalled();
+		fireEvent.mouseUp(slider);
+		await waitFor(() => expect(tl.setAudioTrackGain).toHaveBeenCalledWith("track_1", -12));
+		expect(tl.setAudioTrackGain).toHaveBeenCalledTimes(1);
+		await waitFor(() => expect(useLiveAudioGains.getState().gains.track_1).toBeUndefined());
+		fireEvent.change(slider, { target: { value: "-6" } });
+		view.unmount();
+		expect(useLiveAudioGains.getState().gains.track_1).toBeUndefined();
 	});
 });

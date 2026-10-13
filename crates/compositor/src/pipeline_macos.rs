@@ -775,6 +775,7 @@ pub struct ExportParams {
     pub fps: Option<u32>,
     pub codec: ExportCodec,
     pub bit_rate: Option<i64>,
+    pub audio_bit_rate: Option<i64>,
 }
 
 impl Default for ExportParams {
@@ -785,6 +786,7 @@ impl Default for ExportParams {
             fps: None,
             codec: ExportCodec::H264,
             bit_rate: None,
+            audio_bit_rate: None,
         }
     }
 }
@@ -1266,7 +1268,7 @@ fn run_multi_inner(
     // un flux ajouté après coup n'y figure pas. Tout ce qu'il consomme (`audio.rs` :
     // décodage, WSOLA, mix, plan de concaténation) était déjà portable — c'est le muxing
     // qui manquait, pas la machinerie.
-    let mut audio_encoder = unsafe { AacEncoder::open(octx)? };
+    let mut audio_encoder = unsafe { AacEncoder::open(octx, params.audio_bit_rate)? };
     unsafe {
         crate::ffi::averr(
             crate::ffi::avformat_write_header(octx, ptr::null_mut()),

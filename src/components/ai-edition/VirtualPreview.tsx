@@ -20,6 +20,7 @@ import type {
 	AxcutZoomRegion,
 } from "@/lib/ai-edition/schema";
 import { audioGainScalar } from "@/lib/ai-edition/store/editorSettings";
+import { previewTrackGainDb } from "@/lib/ai-edition/store/liveAudioGains";
 import { useEditorSettings } from "@/lib/ai-edition/store/useEditorSettings";
 import { removedRawSpans } from "@/lib/ai-edition/timeline/programme-time";
 import { findActiveSpeedRegion, type SpeedRegion } from "@/lib/ai-edition/timeline/speed";
@@ -1103,7 +1104,7 @@ export function VirtualPreview({
 				// A voiceover is voice: levelled like the recording, its own gain trimming from
 				// there — the sum `mix_external_tracks` applies. A music bed is not levelled; it
 				// ducks under the voice instead.
-				let trackGainDb = track.gainDb;
+				let trackGainDb = previewTrackGainDb(track);
 				if (track.kind === "voiceover" && !track.recordingSource) {
 					const path = audioSourcesRef.current.find(
 						(source) => source.id === track.assetId,

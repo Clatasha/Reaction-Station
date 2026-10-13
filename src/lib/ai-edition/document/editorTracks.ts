@@ -51,7 +51,7 @@ export function itemTrackId(item: EditorItem, kind: EditorItemRef["kind"]): stri
 export function editorTracks(doc: AxcutDocument): EditorTrack[] {
 	const tracks = [...(doc.timeline.tracks ?? [])];
 	const add = (id: string, kind: EditorTrack["kind"], label: string) => {
-		if (!tracks.some((t) => t.id === id))
+		if (!doc.timeline.removedTrackIds?.includes(id) && !tracks.some((t) => t.id === id))
 			tracks.push({
 				id,
 				kind,
@@ -83,10 +83,20 @@ export function editorTracks(doc: AxcutDocument): EditorTrack[] {
 		);
 		return row ? [itemTrackId(row, "audio")] : [];
 	});
+	if (
+		!recordingAudio.some((id) =>
+			doc.audioTracks.some(
+				(row) => row.recordingSource === "desktop" && itemTrackId(row, "audio") === id,
+			),
+		) &&
+		tracks.some((track) => track.id === "recording-desktop")
+	)
+		recordingAudio.unshift("recording-desktop");
 	const pinned = [...new Set([MAIN_TRACK, ...recordingAudio])];
 	return [
+		...tracks.filter((track) => !pinned.includes(track.id) && track.id !== "effect:trim"),
+		...tracks.filter((track) => track.id === "effect:trim"),
 		...pinned.flatMap((id) => tracks.filter((track) => track.id === id)),
-		...tracks.filter((track) => !pinned.includes(track.id)),
 	];
 }
 export function trackForItem(doc: AxcutDocument, ref: EditorItemRef): EditorTrack | undefined {
@@ -456,7 +466,10 @@ export function attachClipAudio(
 	const asset = doc.assets.find((item) => item.id === audioAssetId);
 	if (!asset || asset.kind !== "audio") return doc;
 	const linkGroupId = clip.linkGroupId ?? createId("link");
-	const trackId = createId("audio-track");
+	const desktop = doc.audioTracks.find(
+		(row) => row.origin === "system" && row.recordingSource === "desktop",
+	);
+	const trackId = desktop ? itemTrackId(desktop, "audio") : "recording-desktop";
 	const audio = {
 		...createAudioTrack({
 			assetId: audioAssetId,
@@ -467,23 +480,21 @@ export function attachClipAudio(
 			label: asset.label,
 		}),
 		offsetMs: clip.sourceStartSec * 1000,
+		recordingSource: "desktop" as const,
 		editorTrackId: trackId,
 		linkGroupId,
 	};
 	const tracks = editorTracks(doc);
-	tracks.splice(
-		tracks.findIndex((track) => track.id === MAIN_TRACK),
-		0,
-		{
+	if (!tracks.some((track) => track.id === trackId))
+		tracks.push({
 			id: trackId,
 			kind: "audio",
-			label: asset.label,
+			label: "Desktop Audio",
 			locked: false,
 			hidden: false,
 			muted: false,
-			autoCreated: true,
-		},
-	);
+			autoCreated: false,
+		});
 	return {
 		...doc,
 		timeline: {
@@ -678,4 +689,57 @@ export function pruneEmptyAutomaticTracks(
 	return tracks.length === after.timeline.tracks.length
 		? after
 		: { ...after, timeline: { ...after.timeline, tracks } };
+}
+
+/** User lanes can be removed with their contents; original capture and locked lanes stay protected. */
+export function editorTrackItems(doc: AxcutDocument, id: string): EditorItemRef[] {
+	return [
+		...doc.annotations
+			.filter((row) => itemTrackId(row, "annotation") === id)
+			.map((row) => ({ kind: "annotation" as const, id: row.id })),
+		...doc.audioTracks
+			.filter((row) => itemTrackId(row, "audio") === id)
+			.map((row) => ({ kind: "audio" as const, id: row.id })),
+	];
+}
+export function canRemoveEditorTrack(doc: AxcutDocument, id: string): boolean {
+	const track = editorTracks(doc).find((row) => row.id === id);
+	const refs = linkedItemRefs(doc, editorTrackItems(doc, id));
+	return (
+		!!track &&
+		(track.kind === "visual" || track.kind === "audio") &&
+		!track.locked &&
+		id !== "recording-desktop" &&
+		!refs.some(
+			(ref) =>
+				ref.kind === "clip" ||
+				isItemLocked(doc, ref) ||
+				itemRows(doc, ref).some(
+					(row) => "recordingSource" in row && row.recordingSource && row.origin === "system",
+				),
+		)
+	);
+}
+export function removeEditorTrack(doc: AxcutDocument, id: string): AxcutDocument {
+	if (!canRemoveEditorTrack(doc, id)) return doc;
+	const refs = editorTrackItems(doc, id);
+	const next = refs.reduce((current, ref) => removeLinkedEditorItems(current, ref), doc);
+	return {
+		...next,
+		timeline: {
+			...next.timeline,
+			tracks: editorTracks(next).filter((row) => row.id !== id),
+			removedTrackIds: [...new Set([...(next.timeline.removedTrackIds ?? []), id])],
+		},
+	};
+}
+/** Remove only the Library entry. Timeline instances keep their source; undo restores the entry. */
+export function removeLibraryAsset(doc: AxcutDocument, id: string): AxcutDocument {
+	if (!doc.assets.some((asset) => asset.id === id && !asset.libraryHidden)) return doc;
+	return {
+		...doc,
+		assets: doc.assets.map((asset) =>
+			asset.id === id ? { ...asset, libraryHidden: true } : asset,
+		),
+	};
 }
