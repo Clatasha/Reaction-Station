@@ -3,7 +3,7 @@ run-name: Publish Reaction Station 0.9.0
 on:
   workflow_dispatch:
   push:
-    branches: [release/v0.9.0]
+    branches: [release/v0.9.0, fix/reaction-release-assets]
     paths: [.github/workflows/reaction-station-release.yml]
 
 permissions:
@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   publish:
-    if: github.repository == 'Clatasha/Reaction-Station' && github.ref == 'refs/heads/release/v0.9.0'
+    if: github.repository == 'Clatasha/Reaction-Station' && (github.ref == 'refs/heads/release/v0.9.0' || github.ref == 'refs/heads/fix/reaction-release-assets')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -78,17 +78,32 @@ jobs:
           target = Path("publish-assets")
           target.mkdir()
           for name, source in files.items():
-              shutil.copyfile(source, target / name)
-          print("Installer SHA-256 and update-feed SHA-512 verified.")
+              shutil.copyfile(source, target / name.replace(" ", "."))
+          canonical = names[0].replace(" ", ".")
+          feed = feed.replace(names[0], canonical).replace(names[0].replace(" ", "%20"), canonical)
+          (target / "latest.yml").write_text(feed)
+          (target / "SHA256SUMS.txt").write_text(hashlib.sha256(exe).hexdigest() + "  " + canonical + "\n")
+          print("Installer hashes verified; release filenames normalized for GitHub.")
           PY
       - name: Publish early Windows release
         run: |
           set -euo pipefail
-          if gh release view v0.9.0 --repo "$GH_REPO" >/dev/null 2>&1; then
-            echo "Release v0.9.0 already exists; refusing to replace published assets."
-            exit 1
+          if gh api "repos/$GH_REPO/releases/tags/v0.9.0" > existing-release.json 2>/dev/null; then
+            python3 - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          release = json.loads(Path("existing-release.json").read_text())
+          assert release["tag_name"] == "v0.9.0" and release["prerelease"]
+          assets = {asset["name"]: asset for asset in release["assets"]}
+          for name in ["Reaction.Station.Setup.0.9.0.exe", "Reaction.Station.Setup.0.9.0.exe.blockmap"]:
+              expected = "sha256:" + hashlib.sha256((Path("publish-assets") / name).read_bytes()).hexdigest()
+              assert assets[name]["digest"] == expected, f"Published binary mismatch: {name}"
+          print("Published installer and blockmap are unchanged; updating metadata only.")
+          PY
+            gh release upload v0.9.0 --repo "$GH_REPO" publish-assets/latest.yml publish-assets/SHA256SUMS.txt --clobber
+          else
+            gh release create v0.9.0 --repo "$GH_REPO" --target "$GITHUB_SHA" --draft --prerelease --title "Reaction Station 0.9.0" --notes-file docs/releases/reaction-station-0.9.0.md
+            gh release upload v0.9.0 --repo "$GH_REPO" publish-assets/*
           fi
-          gh release create v0.9.0 --repo "$GH_REPO" --target "$GITHUB_SHA" --draft --prerelease --title "Reaction Station 0.9.0" --notes-file docs/releases/reaction-station-0.9.0.md
-          gh release upload v0.9.0 --repo "$GH_REPO" publish-assets/*
-          gh release edit v0.9.0 --repo "$GH_REPO" --draft=false --prerelease
+          gh release edit v0.9.0 --repo "$GH_REPO" --draft=false --prerelease --notes-file docs/releases/reaction-station-0.9.0.md
           echo "Published: https://github.com/Clatasha/Reaction-Station/releases/tag/v0.9.0" >> "$GITHUB_STEP_SUMMARY"

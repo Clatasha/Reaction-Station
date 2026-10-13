@@ -40,7 +40,7 @@ Ideas for improving that workflow are welcome through [pull requests](https://gi
 
 Download the Windows installer from [Reaction Station Releases](https://github.com/Clatasha/Reaction-Station/releases). Version 0.9.0 is an early public release for Windows x64.
 
-Install `Reaction Station.Setup.0.9.0.exe` from the release assets. The installer is unsigned. macOS and Linux builds are not included in this release.
+Install `Reaction.Station.Setup.0.9.0.exe` from the release assets. The installer is unsigned. macOS and Linux builds are not included in this release.
 
 ## Development
 

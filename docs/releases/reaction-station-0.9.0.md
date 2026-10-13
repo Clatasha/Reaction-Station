@@ -14,7 +14,7 @@ The first public Windows release of Reaction Station by Clatasha, built for YouT
 
 ## Download
 
-Download **Reaction Station.Setup.0.9.0.exe** and run it on Windows x64. The installer is unsigned. The blockmap and latest.yml files support updates; SHA256SUMS.txt verifies the installer.
+Download **Reaction.Station.Setup.0.9.0.exe** and run it on Windows x64. The installer is unsigned. The blockmap and latest.yml files support updates; SHA256SUMS.txt verifies the installer.
 
 This is an early release. macOS and Linux installers are not included.
 
