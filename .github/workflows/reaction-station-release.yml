@@ -1,0 +1,109 @@
+name: Publish Reaction Station Windows release
+run-name: Publish Reaction Station 0.9.0
+on:
+  workflow_dispatch:
+  push:
+    branches: [release/v0.9.0, fix/reaction-release-assets]
+    paths: [.github/workflows/reaction-station-release.yml]
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: reaction-station-release-v0.9.0
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.repository == 'Clatasha/Reaction-Station' && (github.ref == 'refs/heads/release/v0.9.0' || github.ref == 'refs/heads/fix/reaction-release-assets')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: Clatasha/Reaction-Station
+      SOURCE_RUN: "37819844976"
+      SOURCE_SHA: 060fb166a1991758a2ca1df597e156fc9d837f67
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Verify tested build and source equivalence
+        run: |
+          set -euo pipefail
+          gh api "repos/$GH_REPO/actions/runs/$SOURCE_RUN" > source-run.json
+          git fetch --depth=1 origin "$SOURCE_SHA"
+          python3 - <<'PY'
+          import json, os, subprocess
+          from pathlib import Path
+          run = json.loads(Path("source-run.json").read_text())
+          assert run["status"] == "completed" and run["conclusion"] == "success"
+          assert run["head_sha"] == os.environ["SOURCE_SHA"]
+          assert run["path"] == ".github/workflows/reaction-station-windows-test.yml"
+          assert run["repository"]["full_name"] == os.environ["GH_REPO"]
+          assert json.loads(Path("package.json").read_text())["version"] == "0.9.0"
+          allowed = {"README.md", "docs/images/reaction-station-editor.png",
+                     ".github/workflows/reaction-station-release.yml",
+                     "docs/releases/reaction-station-0.9.0.md"}
+          changed = set(subprocess.check_output(
+              ["git", "diff", "--name-only", os.environ["SOURCE_SHA"], "HEAD"],
+              text=True).splitlines())
+          assert changed <= allowed, f"Untested application changes: {changed - allowed}"
+          print("Release application sources match the tested installer.")
+          PY
+      - name: Download verified Windows installer
+        run: gh run download "$SOURCE_RUN" --repo "$GH_REPO" --name reaction-station-windows-test --dir downloaded
+      - name: Verify and stage release assets
+        run: |
+          python3 - <<'PY'
+          import base64, hashlib, re, shutil
+          from pathlib import Path
+          root = Path("downloaded")
+          names = ["Reaction Station.Setup.0.9.0.exe",
+                   "Reaction Station.Setup.0.9.0.exe.blockmap",
+                   "latest.yml", "SHA256SUMS.txt"]
+          files = {}
+          for name in names:
+              matches = list(root.rglob(name))
+              assert len(matches) == 1, f"Expected exactly one {name}"
+              files[name] = matches[0]
+          exe = files[names[0]].read_bytes()
+          checksum = files["SHA256SUMS.txt"].read_text().strip().split(maxsplit=1)
+          assert len(checksum) == 2 and checksum[1].lstrip("*") == names[0]
+          assert hashlib.sha256(exe).hexdigest() == checksum[0].lower()
+          feed = files["latest.yml"].read_text()
+          assert re.search(r"^version: 0\.9\.0\s*$", feed, re.M)
+          hashes = re.findall(r"^\s*sha512:\s*(\S+)\s*$", feed, re.M)
+          assert hashes and all(base64.b64decode(h) == hashlib.sha512(exe).digest() for h in hashes)
+          target = Path("publish-assets")
+          target.mkdir()
+          for name, source in files.items():
+              shutil.copyfile(source, target / name.replace(" ", "."))
+          canonical = names[0].replace(" ", ".")
+          feed = feed.replace(names[0], canonical).replace(names[0].replace(" ", "%20"), canonical)
+          (target / "latest.yml").write_text(feed)
+          (target / "SHA256SUMS.txt").write_text(hashlib.sha256(exe).hexdigest() + "  " + canonical + "\n")
+          print("Installer hashes verified; release filenames normalized for GitHub.")
+          PY
+      - name: Publish early Windows release
+        run: |
+          set -euo pipefail
+          if gh api "repos/$GH_REPO/releases/tags/v0.9.0" > existing-release.json 2>/dev/null; then
+            python3 - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          release = json.loads(Path("existing-release.json").read_text())
+          assert release["tag_name"] == "v0.9.0" and release["prerelease"]
+          assets = {asset["name"]: asset for asset in release["assets"]}
+          for name in ["Reaction.Station.Setup.0.9.0.exe", "Reaction.Station.Setup.0.9.0.exe.blockmap"]:
+              expected = "sha256:" + hashlib.sha256((Path("publish-assets") / name).read_bytes()).hexdigest()
+              assert assets[name]["digest"] == expected, f"Published binary mismatch: {name}"
+          print("Published installer and blockmap are unchanged; updating metadata only.")
+          PY
+            gh release upload v0.9.0 --repo "$GH_REPO" publish-assets/latest.yml publish-assets/SHA256SUMS.txt --clobber
+          else
+            gh release create v0.9.0 --repo "$GH_REPO" --target "$GITHUB_SHA" --draft --prerelease --title "Reaction Station 0.9.0" --notes-file docs/releases/reaction-station-0.9.0.md
+            gh release upload v0.9.0 --repo "$GH_REPO" publish-assets/*
+          fi
+          gh release edit v0.9.0 --repo "$GH_REPO" --draft=false --prerelease --notes-file docs/releases/reaction-station-0.9.0.md
+          echo "Published: https://github.com/Clatasha/Reaction-Station/releases/tag/v0.9.0" >> "$GITHUB_STEP_SUMMARY"
