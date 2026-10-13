@@ -10,6 +10,8 @@ Reaction Station is a free, open-source desktop screen recorder and video editor
 
 Capture what you are watching alongside your webcam and voice, then edit the recording into a reaction video. Whether you are discussing a trailer, responding to an interview, reviewing gameplay or sharing your take on an online clip, Reaction Station brings screen recording and editing into one app.
 
+![Reaction Station editor with a reaction recording, media library, webcam controls and separate audio tracks](docs/images/reaction-station-editor.png)
+
 ## Create your next reaction video
 
 - **Capture the content** — record a browser window, another app or your entire screen.
@@ -36,11 +38,13 @@ Ideas for improving that workflow are welcome through [pull requests](https://gi
 
 ## Downloads
 
-Windows test installers are available from the [Reaction Station Windows test workflow](https://github.com/Clatasha/Reaction-Station/actions/workflows/reaction-station-windows-test.yml). Open a successful run and download the `reaction-station-windows-test` artifact. Stable releases will be posted on [this repository's Releases page](https://github.com/Clatasha/Reaction-Station/releases) when ready.
+Download the Windows installer from [Reaction Station Releases](https://github.com/Clatasha/Reaction-Station/releases). Version 0.9.0 is an early public release for Windows x64.
+
+Install `Reaction Station.Setup.0.9.0.exe` from the release assets. The installer is unsigned. macOS and Linux builds are not included in this release.
 
 ## Development
 
-Development is public and the project is in its early stages. The codebase includes Windows, macOS and Linux support; Reaction Station installers still need packaging and desktop testing before release.
+Development is public and the project is in its early stages. The codebase includes Windows, macOS and Linux support; This release provides a Windows x64 installer; macOS and Linux packaging and desktop testing remain in development.
 
 For local development, use Node.js **22.22.1** and npm **10.9.4**:
 
