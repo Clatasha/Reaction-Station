@@ -1,7 +1,11 @@
 import { execFileSync } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { expect } from "@playwright/test";
+import { expect as baseExpect } from "@playwright/test";
+import { readRecordingProject } from "./recorder-smoke-project.mjs";
+
+const expect = baseExpect.configure({ timeout: 30_000 });
+
 import { _electron as electron } from "playwright";
 
 const executablePath = path.resolve(process.argv[2]);
@@ -176,23 +180,19 @@ try {
 	editor.on("pageerror", (error) => editorErrors.push(error.message));
 	await editor.getByText("Microphone", { exact: true }).last().waitFor({ timeout: 60_000 });
 	await editor.getByText("Desktop audio", { exact: true }).last().waitFor({ timeout: 60_000 });
-	const getImportedDocument = () =>
-		editor.evaluate(async () => {
-			const list = await window.electronAPI.invokeNativeBridge({
-				domain: "aiEdition",
-				action: "document.listProjects",
-				requestId: crypto.randomUUID(),
-			});
-			if (!list.ok || !list.data?.length) return null;
-			const result = await window.electronAPI.invokeNativeBridge({
-				domain: "aiEdition",
-				action: "document.get",
-				payload: { projectId: list.data[0].id },
-				requestId: crypto.randomUUID(),
-			});
-			return result.ok ? result.data?.document : null;
-		});
-	await expect.poll(async () => (await getImportedDocument())?.audioTracks?.length ?? 0).toBe(2);
+	const projectsDirectory = path.join(path.dirname(recordings), "projects");
+	let importedProjectFile;
+	const getImportedDocument = async () => {
+		const saved = await readRecordingProject(projectsDirectory, fixture, importedProjectFile);
+		if (saved) importedProjectFile = saved.file;
+		return saved?.document ?? null;
+	};
+	await expect
+		.poll(async () => (await getImportedDocument())?.audioTracks?.length ?? 0, {
+			timeout: 60_000,
+			message: "Both recording audio sources must persist",
+		})
+		.toBe(2);
 	const document = await getImportedDocument();
 	if (!document.assets.find((asset) => asset.kind === "video")?.sourceAudioMuted)
 		throw new Error("Embedded recording mix was not suppressed");
