@@ -12,7 +12,7 @@ export interface ProxyStatus {
 }
 export function proxyKey(filePath: string, size: number, mtimeMs: number) {
 	return createHash("sha256")
-		.update(JSON.stringify(["720p-v1", filePath, size, mtimeMs]))
+		.update(JSON.stringify(["720p-mpeg4-v2", filePath, size, mtimeMs]))
 		.digest("hex");
 }
 export function proxyArgs(source: string, target: string) {
@@ -27,13 +27,20 @@ export function proxyArgs(source: string, target: string) {
 		"-vf",
 		"scale=1280:720:force_original_aspect_ratio=decrease:force_divisible_by=2",
 		"-c:v",
-		"libx264",
-		"-preset",
-		"ultrafast",
+		// The packaged LGPL FFmpeg has no libx264. MPEG-4 Part 2 is a
+		// built-in encoder, and its small 720p frames decode cheaply in
+		// the native compositor without requiring a hardware encoder.
+		"mpeg4",
 		"-threads",
 		"2",
-		"-crf",
-		"20",
+		"-q:v",
+		"3",
+		"-pix_fmt",
+		"yuv420p",
+		"-fps_mode:v",
+		"passthrough",
+		"-enc_time_base:v",
+		"1:60000",
 		"-g",
 		"30",
 		"-bf",

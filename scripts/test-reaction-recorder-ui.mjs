@@ -13,6 +13,7 @@ const application = await electron.launch({
 	timeout: 60_000,
 });
 let editor;
+let lastProxyStatus;
 const editorErrors = [];
 try {
 	const page = await application.firstWindow();
@@ -214,7 +215,24 @@ try {
 		exact: true,
 	});
 	await proxies.check();
-	await expect(editor.getByText(/Editing copy ready/)).toBeVisible({ timeout: 60_000 });
+	// Report the encoder's failure directly rather than timing out on a
+	// missing label. This invokes the same cached job the UI is polling.
+	await expect
+		.poll(
+			async () => {
+				const status = await editor.evaluate(
+					({ fixture }) => window.electronAPI.preparePreviewProxy(fixture, 2),
+					{ fixture },
+				);
+				lastProxyStatus = status;
+				if (status.state === "error")
+					throw new Error(`Packaged proxy preparation failed: ${status.message}`);
+				return status.state;
+			},
+			{ timeout: 60_000, message: "Packaged FFmpeg must prepare the editing copy" },
+		)
+		.toBe("ready");
+	await expect(editor.getByText(/Editing copy ready/)).toBeVisible({ timeout: 10_000 });
 	await proxies.uncheck();
 	const snapping = editor.getByRole("switch", { name: /Enable snapping/ });
 	await expect(snapping).toHaveAttribute("aria-checked", "true");
@@ -382,6 +400,7 @@ try {
 			"Editor diagnostics:",
 			JSON.stringify({
 				errors: editorErrors,
+				proxyStatus: lastProxyStatus,
 				toasts: await editor
 					.locator("[data-sonner-toast]")
 					.allTextContents()

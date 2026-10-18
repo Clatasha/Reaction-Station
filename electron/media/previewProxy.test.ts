@@ -18,6 +18,10 @@ it("invalidates proxies when the original changes and never crops or trims", () 
 	expect(proxyKey("/source.mp4", 10, 1)).not.toBe(proxyKey("/source.mp4", 11, 1));
 	const args = proxyArgs("/source.mp4", "/proxy.mp4");
 	expect(args).toContain("0:a?");
+	expect(args[args.indexOf("-c:v") + 1]).toBe("mpeg4");
+	expect(args).not.toContain("libx264");
+	expect(args).not.toContain("-preset");
+	expect(args).not.toContain("-crf");
 	expect(args).not.toContain("-ss");
 	expect(args.join(" ")).not.toContain("crop=");
 });
@@ -26,7 +30,7 @@ it.skipIf(!existsSync("/usr/bin/ffmpeg") || !existsSync("/usr/bin/ffprobe"))(
 	async () => {
 		const dir = await fs.mkdtemp(path.join(tmpdir(), "reaction-proxy-"));
 		dirs.push(dir);
-		const source = path.join(dir, "original with spaces.mp4");
+		const source = path.join(dir, "original with spaces.webm");
 		execFileSync("/usr/bin/ffmpeg", [
 			"-v",
 			"error",
@@ -41,13 +45,13 @@ it.skipIf(!existsSync("/usr/bin/ffmpeg") || !existsSync("/usr/bin/ffprobe"))(
 			"-t",
 			"1",
 			"-c:v",
-			"libx264",
+			"libvpx-vp9",
 			"-threads",
 			"2",
-			"-preset",
-			"ultrafast",
+			"-deadline",
+			"realtime",
 			"-c:a",
-			"aac",
+			"libopus",
 			source,
 		]);
 		await fs.writeFile(`${source}.cursor.json`, '{"positions":[]}');
@@ -72,7 +76,7 @@ it.skipIf(!existsSync("/usr/bin/ffmpeg") || !existsSync("/usr/bin/ffprobe"))(
 		);
 		expect(
 			metadata.streams.find((s: { codec_type: string }) => s.codec_type === "video"),
-		).toMatchObject({ width: 1280, height: 720 });
+		).toMatchObject({ codec_name: "mpeg4", width: 1280, height: 720 });
 		expect(metadata.streams.some((s: { codec_type: string }) => s.codec_type === "audio")).toBe(
 			true,
 		);
