@@ -17,6 +17,7 @@
 
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { attachRecordingAudio } from "@/components/ai-edition/recordingAudioImport";
 import { type AxcutDocument, createEmptyDocument } from "@/lib/ai-edition/schema";
 import { useProjectStore } from "./projectStore";
 import { useSequentialTimelineOps } from "./useSequentialTimelineOps";
@@ -65,6 +66,65 @@ afterEach(() => {
 });
 
 describe("useSequentialTimelineOps", () => {
+	it("keeps a metadata write behind the entire recording audio import", async () => {
+		const seed = makeDocWithAsset();
+		useProjectStore.setState({ document: seed });
+		let finishProbe!: () => void;
+		const probe = new Promise<void>((resolve) => {
+			finishProbe = resolve;
+		});
+		const saveDocument = vi.fn(async (document: AxcutDocument) => {
+			useProjectStore.setState({ document });
+			return true;
+		});
+		const { result } = renderHook(() =>
+			useSequentialTimelineOps({ fallbackDocument: seed, saveDocument }),
+		);
+		let metadataStarted = false;
+		await act(async () => {
+			const importing = result.current.enqueue(async () => {
+				await probe;
+				const doc = useProjectStore.getState().document!;
+				const sources = (["microphone", "desktop"] as const).map((source) => ({
+					source,
+					asset: {
+						id: source,
+						kind: "audio" as const,
+						label: source,
+						originalPath: `/tmp/${source}.wav`,
+						durationSec: 10,
+						cameraTrack: null,
+					},
+				}));
+				await saveDocument(
+					attachRecordingAudio(
+						{ ...doc, assets: [...doc.assets, ...sources.map(({ asset }) => asset)] },
+						"/tmp/screen.webm",
+						sources,
+					),
+				);
+			});
+			const metadata = result.current.enqueue(async () => {
+				metadataStarted = true;
+				const doc = useProjectStore.getState().document!;
+				await saveDocument({
+					...doc,
+					assets: doc.assets.map((asset) =>
+						asset.id === "asset_1" ? { ...asset, durationSec: 10 } : asset,
+					),
+				});
+			});
+			await Promise.resolve();
+			expect(metadataStarted).toBe(false);
+			finishProbe();
+			await Promise.all([importing, metadata]);
+		});
+		expect(
+			useProjectStore.getState().document?.audioTracks.map((track) => track.recordingSource),
+		).toEqual(["microphone", "desktop"]);
+		expect(useProjectStore.getState().document?.assets[0].sourceAudioMuted).toBe(true);
+	});
+
 	it("serialises calls: op N+1 reads the doc op N committed", async () => {
 		const seed = makeDocWithAsset();
 		useProjectStore.setState({ document: seed });

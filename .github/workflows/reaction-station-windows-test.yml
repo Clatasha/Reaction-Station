@@ -17,6 +17,7 @@ on:
     paths:
       - .github/workflows/reaction-station-windows-test.yml
       - scripts/test-reaction-recorder-ui.mjs
+      - src/components/ai-edition/NewEditorShell.tsx
 
 permissions:
   contents: read

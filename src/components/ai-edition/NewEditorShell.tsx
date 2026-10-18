@@ -394,7 +394,14 @@ export function NewEditorShell() {
 		void (async () => {
 			if (!window.electronAPI) return;
 			try {
-				if (await importPendingRecording((warning) => toast.warning(warning))) {
+				// Metadata can arrive as soon as addAsset publishes the video. Keep
+				// the complete import on the same queue so a duration save cannot
+				// overwrite independently imported microphone and desktop tracks.
+				if (
+					await enqueueTimelineWrite(() =>
+						importPendingRecording((warning) => toast.warning(warning)),
+					)
+				) {
 					toast.success("Recording added to a new project");
 					return;
 				}
@@ -432,7 +439,7 @@ export function NewEditorShell() {
 				console.warn("[editor] auto-load failed", e);
 			}
 		})();
-	}, [loadProject]);
+	}, [loadProject, enqueueTimelineWrite]);
 
 	// Warn on close when dirty
 	useEffect(() => {
