@@ -372,7 +372,25 @@
 			"retry": "Réessayer",
 			"detail": "Détails : {{detail}}"
 		},
-		"preparing": "Preparing preview…"
+		"preparing": "Preparing preview…",
+		"quality": "Preview quality",
+		"auto": "Auto",
+		"full": "Full",
+		"half": "Half",
+		"quarter": "Quarter",
+		"useProxies": "Use lightweight editing copies (720p)",
+		"exportUnaffected": "Preview only. Exports use the originals at your selected quality. Copies switch in when playback is paused.",
+		"buffering": "Buffering audio and video…",
+		"proxy": {
+			"queued": "Queued",
+			"generating": "Preparing editing copy",
+			"ready": "Editing copy ready",
+			"error": "Preparation failed",
+			"cancelled": "Cancelled",
+			"fallback": "Using the original. You can retry preparation.",
+			"cancel": "Cancel preparation",
+			"retry": "Retry preparation"
+		}
 	},
 	"annotationOverlay": {
 		"imageAlt": "Annotation",

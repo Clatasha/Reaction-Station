@@ -47,6 +47,52 @@ describe("AudioTrackPane", () => {
 		removeAudioTrack: vi.fn(),
 	});
 
+	it("offers optional desktop ducking and commits adjustable reduction", () => {
+		const tl = createTl();
+		const updateAudioTrack = vi.fn();
+		const desktop = {
+			...tl.audioTracks[0],
+			kind: "voiceover" as const,
+			recordingSource: "desktop" as const,
+		};
+		const view = render(
+			<AudioTrackPane tl={{ ...tl, audioTracks: [desktop], updateAudioTrack } as never} />,
+		);
+		fireEvent.click(screen.getByLabelText("settings.ducking.enabled"));
+		expect(updateAudioTrack).toHaveBeenCalledWith("track_1", {
+			ducking: expect.objectContaining({ enabled: true, depthDb: -10 }),
+		});
+		view.rerender(
+			<AudioTrackPane
+				tl={
+					{
+						...tl,
+						audioTracks: [
+							{
+								...desktop,
+								ducking: {
+									enabled: true,
+									depthDb: -10,
+									thresholdDbfs: -35,
+									attackSec: 0.25,
+									holdSec: 0.5,
+									releaseSec: 0.6,
+								},
+							},
+						],
+						updateAudioTrack,
+					} as never
+				}
+			/>,
+		);
+		const reduction = screen.getByRole("spinbutton", { name: "settings.ducking.depthDb" });
+		fireEvent.change(reduction, { target: { value: "-18" } });
+		fireEvent.blur(reduction);
+		expect(updateAudioTrack).toHaveBeenLastCalledWith("track_1", {
+			ducking: expect.objectContaining({ depthDb: -18 }),
+		});
+	});
+
 	it("renders close button and closes audio track by default", () => {
 		const tl = createTl();
 		render(<AudioTrackPane tl={tl as never} />);

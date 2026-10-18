@@ -1728,7 +1728,10 @@ export function useTimeline() {
 		async (
 			trackId: string,
 			patch: Partial<
-				Pick<AxcutAudioTrack, "gainDb" | "muted" | "loop" | "fadeInMs" | "fadeOutMs" | "offsetMs">
+				Pick<
+					AxcutAudioTrack,
+					"gainDb" | "muted" | "loop" | "fadeInMs" | "fadeOutMs" | "offsetMs" | "ducking"
+				>
 			>,
 		) => {
 			const doc = useProjectStore.getState().document;

@@ -81,6 +81,7 @@ import {
 } from "./Modals";
 import { Preview } from "./Preview";
 import { importPendingRecording, maybeSaveFreshRecordingAutoZooms } from "./recordingImport";
+import { usePreparePreviewProxies } from "./usePreviewProxies";
 import { AddAudioLayerDialog } from "./v4/AddAudioLayerDialog";
 import v4 from "./v4/EditorShellV4.module.css";
 import { type EditorMode, EditorTopBar } from "./v4/EditorTopBar";
@@ -201,6 +202,7 @@ export async function runLoadedMetadataWrite(
 }
 
 export function NewEditorShell() {
+	usePreparePreviewProxies();
 	const te = useScopedT("editor");
 	useMcpDocumentHost();
 	const document = useProjectStore((s) => s.document);

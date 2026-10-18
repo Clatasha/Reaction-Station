@@ -205,6 +205,17 @@ try {
 	await editor.getByRole("slider").first().waitFor();
 	await editor.screenshot({ path: path.join(output, "separate-audio-editor.png") });
 	await editor.getByRole("button", { name: "Workspace", exact: true }).click();
+	const quality = editor.getByRole("combobox", { name: "Preview quality", exact: true });
+	await quality.selectOption("quarter");
+	await expect(quality).toHaveValue("quarter");
+	await quality.selectOption("auto");
+	const proxies = editor.getByRole("checkbox", {
+		name: "Use lightweight editing copies (720p)",
+		exact: true,
+	});
+	await proxies.check();
+	await expect(editor.getByText(/Editing copy ready/)).toBeVisible({ timeout: 60_000 });
+	await proxies.uncheck();
 	const snapping = editor.getByRole("switch", { name: /Enable snapping/ });
 	await expect(snapping).toHaveAttribute("aria-checked", "true");
 	await snapping.click();
@@ -319,6 +330,32 @@ try {
 		)
 		.toBe(false);
 	await editor.screenshot({ path: path.join(output, "library-track-controls.png") });
+	await editor
+		.locator('[data-timeline-kind="audio"]')
+		.filter({ hasText: "Desktop audio" })
+		.first()
+		.click();
+	await editor.getByLabel("Lower this track while I speak", { exact: true }).click();
+	await expect
+		.poll(
+			async () =>
+				(await getImportedDocument())?.audioTracks?.find(
+					(track) => track.recordingSource === "desktop",
+				)?.ducking?.enabled,
+		)
+		.toBe(true);
+	const reduction = editor.getByRole("spinbutton", { name: "Reduction", exact: true });
+	await reduction.fill("-18");
+	await reduction.press("Tab");
+	await expect
+		.poll(
+			async () =>
+				(await getImportedDocument())?.audioTracks?.find(
+					(track) => track.recordingSource === "desktop",
+				)?.ducking?.depthDb,
+		)
+		.toBe(-18);
+	await editor.screenshot({ path: path.join(output, "audio-ducking.png") });
 	console.log(
 		"Packaged Library has three columns; lock, mute, disable, and enable persist correctly.",
 	);

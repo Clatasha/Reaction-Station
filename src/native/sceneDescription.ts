@@ -4,6 +4,7 @@ import {
 	itemTrackId,
 	visibleEditorDocument,
 } from "@/lib/ai-edition/document/editorTracks";
+import type { DuckingSettings } from "@/lib/ai-edition/ducking";
 /**
  * Scene contract — the flat description the app hands the native D3D compositor so it can
  * compute the composed frame itself (preview AND export) with **no POC-fixture logic**.
@@ -548,6 +549,8 @@ export interface SceneDescription {
 		fadeInSec: number;
 		fadeOutSec: number;
 		recordedSource?: boolean;
+		recordingSource?: "microphone" | "desktop";
+		ducking?: DuckingSettings;
 		outputDurationSec?: number;
 		/** A voiceover is voice: the export levels it like the recording's own audio. */
 		kind: AxcutAudioTrack["kind"];
@@ -871,7 +874,10 @@ export function buildSceneDescription(
 			fadeInSec: track.fadeInMs / 1000,
 			fadeOutSec: track.fadeOutMs / 1000,
 			kind: track.kind,
-			...(track.recordingSource ? { recordedSource: true } : {}),
+			...(track.ducking ? { ducking: track.ducking } : {}),
+			...(track.recordingSource
+				? { recordedSource: true, recordingSource: track.recordingSource }
+				: {}),
 		};
 		// The window the file has left after the offset. Without a probed duration
 		// there is nothing to loop over and nothing to cap the tail with, so the

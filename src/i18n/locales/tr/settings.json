@@ -456,5 +456,15 @@
 	},
 	"mediaAnimation": {
 		"title": "Animation"
+	},
+	"ducking": {
+		"title": "Audio ducking",
+		"enabled": "Lower this track while I speak",
+		"help": "Microphone and voiceover audio trigger ducking. Desktop audio does not trigger itself. Without a separate microphone, the original mixed recording is used.",
+		"depthDb": "Reduction",
+		"thresholdDbfs": "Voice threshold",
+		"attackSec": "Fade down",
+		"holdSec": "Hold between words",
+		"releaseSec": "Fade up"
 	}
 }

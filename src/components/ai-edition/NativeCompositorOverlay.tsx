@@ -3,6 +3,7 @@ import { useScopedT } from "@/contexts/I18nContext";
 import { readSpeedRegions } from "@/lib/ai-edition/document/timeline";
 import { noteUiProbeClipSwitch } from "@/lib/ai-edition/perf/uiFrameProbe";
 import { usePreviewPlayback } from "@/lib/ai-edition/previewPlayback";
+import { usePreviewProxies } from "@/lib/ai-edition/previewPreferences";
 import { getEditorSettings } from "@/lib/ai-edition/store/editorSettings";
 import { useProjectStore } from "@/lib/ai-edition/store/projectStore";
 import { assetCameraSource } from "@/lib/ai-edition/timeline/camera";
@@ -32,6 +33,7 @@ import {
 	getWebcamNativeSizeRevision,
 	subscribeWebcamNativeSize,
 } from "@/native/webcamSizeCache";
+import { PreviewPreparationStatus } from "./PreviewPreparationStatus";
 
 /**
  * POC Option A — preview rendue par le compositeur D3D11 natif (`compositor_view.node`),
@@ -104,6 +106,7 @@ export function NativeCompositorOverlay() {
 		return primary ? assetCameraSource(primary).path || undefined : undefined;
 	}, [document]);
 
+	const proxyPaths = usePreviewProxies((s) => s.paths);
 	const sources = useMemo(() => {
 		if (!document) {
 			return null;
@@ -117,14 +120,16 @@ export function NativeCompositorOverlay() {
 		// treats the key's absence as "no webcam source"; the value still comes from
 		// the one accessor, so it can never disagree with the scene or the export.
 		return {
-			screenPath: primary.originalPath,
-			webcamPath: assetCameraSource(primary).path || undefined,
+			screenPath: proxyPaths[primary.originalPath] ?? primary.originalPath,
+			webcamPath:
+				proxyPaths[assetCameraSource(primary).path] ??
+				(assetCameraSource(primary).path || undefined),
 			// sidecar convention (electron/ipc/handlers.ts readCursorRecordingFile) : la
 			// télémétrie curseur vit à côté de la vidéo tant qu'elle n'a pas bougé. Absente →
 			// le natif ignore juste le curseur (CursorTrack::load échoue silencieusement).
 			cursorPath: `${primary.originalPath}.cursor.json`,
 		};
-	}, [document]);
+	}, [document, proxyPaths]);
 
 	const ready = sources !== null;
 	const { viewId, error } = useNativeCompositorView(canvasRef, {
@@ -146,6 +151,14 @@ export function NativeCompositorOverlay() {
 		return () => setCurrentNativeViewId(null);
 	}, [viewId]);
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: source-map changes invalidate the cached active clip.
+	useEffect(() => {
+		// A newly prepared camera or overlay can change without the primary
+		// screen path (and therefore the view id) changing.
+		previousActiveClipIdRef.current = null;
+		previousActiveClipIndexRef.current = null;
+	}, [proxyPaths]);
+
 	// Pousse la scène (document → SceneDescription → JSON) au natif quand le document change,
 	// la vue s'active, OU que la taille réelle de la webcam active vient d'être sondée (voir
 	// `_webcamSizeRevision` ci-dessus) : le layout preset et cie pilotent le rendu (remplace le
@@ -159,6 +172,19 @@ export function NativeCompositorOverlay() {
 		try {
 			const webcamSourceSize = cameraPath ? getWebcamNativeSize(cameraPath) : null;
 			const scene = buildSceneDescription(document, webcamSourceSize);
+			// Only preview video paths are replaced. Audio, cursor sidecars, project
+			// files and the export scene always retain the original sources.
+			scene.clips = scene.clips.map((clip) => ({
+				...clip,
+				screenPath: proxyPaths[clip.screenPath] ?? clip.screenPath,
+				webcamPath: proxyPaths[clip.webcamPath] ?? clip.webcamPath,
+			}));
+			scene.annotations = scene.annotations.map((annotation) => ({
+				...annotation,
+				...(annotation.videoPath
+					? { videoPath: proxyPaths[annotation.videoPath] ?? annotation.videoPath }
+					: {}),
+			}));
 			setNativeScene(JSON.stringify(scene));
 		} catch (error) {
 			console.warn("[compositor-view] build/push scene failed:", error);
@@ -168,7 +194,7 @@ export function NativeCompositorOverlay() {
 		// re-read fresh via getWebcamNativeSize() above on every run (biome flags this as
 		// an "unnecessary" dependency, but removing it would mean a probed webcam size
 		// arriving after mount never gets pushed to native).
-	}, [viewId, document, sources, _webcamSizeRevision]);
+	}, [viewId, document, sources, proxyPaths, _webcamSizeRevision]);
 
 	// SYNCHRO COMPLETE DES PARAMS, en un seul endroit.
 	//
@@ -282,8 +308,8 @@ export function NativeCompositorOverlay() {
 
 		setActiveClip(
 			viewId,
-			asset.originalPath,
-			camera.path,
+			proxyPaths[asset.originalPath] ?? asset.originalPath,
+			proxyPaths[camera.path] ?? camera.path,
 			camera.offsetSec,
 			activeClipIndex,
 			activeSourceTimeSec,
@@ -309,6 +335,7 @@ export function NativeCompositorOverlay() {
 				}
 			});
 	}, [
+		proxyPaths,
 		viewId,
 		document,
 		activeClipId,
@@ -361,8 +388,8 @@ export function NativeCompositorOverlay() {
 		const camera = assetCameraSource(asset);
 		setActiveClip(
 			viewId,
-			asset.originalPath,
-			camera.path,
+			proxyPaths[asset.originalPath] ?? asset.originalPath,
+			proxyPaths[camera.path] ?? camera.path,
 			camera.offsetSec,
 			activeClipIndex,
 			activeSourceTimeSec,
@@ -370,6 +397,7 @@ export function NativeCompositorOverlay() {
 			console.warn("[compositor-view] re-anchoring the preview failed:", error);
 		});
 	}, [
+		proxyPaths,
 		viewId,
 		document,
 		playing,
@@ -429,6 +457,7 @@ export function NativeCompositorOverlay() {
 				data-testid="native-compositor-mount"
 				style={{ position: "absolute", inset: 0, zIndex: 0, width: "100%", height: "100%" }}
 			/>
+			<PreviewPreparationStatus />
 			{(nativePreparing || buffering) && (
 				<output
 					role="status"
@@ -451,7 +480,7 @@ export function NativeCompositorOverlay() {
 							fontSize: "0.8125rem",
 						}}
 					>
-						{t("preview.preparing")}
+						{t(buffering && !nativePreparing ? "preview.buffering" : "preview.preparing")}
 					</span>
 				</output>
 			)}

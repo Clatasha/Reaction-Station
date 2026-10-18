@@ -13,6 +13,7 @@ import {
 	projectRawTimelineSecToPlayback,
 	resolvePlaybackSegments,
 } from "@/lib/ai-edition/document/timeline";
+import { advanceDuckDb, trackDucking } from "@/lib/ai-edition/ducking";
 import {
 	attachPreviewTransport,
 	pausePreview,
@@ -690,7 +691,10 @@ export function VirtualPreview({
 	// not tear the graph down. Joined ids change only on a real mount/unmount.
 	const mountedAudioTrackKey = audioTracks
 		.filter((track) => audioSources.some((source) => source.id === track.assetId))
-		.map((track) => track.id)
+		.map(
+			(track) =>
+				`${track.id}:${track.kind}:${track.recordingSource ?? ""}:${trackDucking(track).enabled}`,
+		)
 		.join(",");
 
 	// Sum the audio elements into one gain node so the output trim can boost past 0 dB,
@@ -748,7 +752,11 @@ export function VirtualPreview({
 					audioSourceNodesRef.current.set(element, source);
 				}
 				source.disconnect();
-				source.connect(graph.voice);
+				source.connect(
+					audioTracksRef.current.some((t) => t.recordingSource === "microphone")
+						? graph.gain
+						: graph.voice,
+				);
 				connectedSources.push(source);
 			} catch {
 				// Routing THIS element failed; leave the others alone. Once
@@ -775,7 +783,12 @@ export function VirtualPreview({
 				source.connect(trackGain);
 				trackGain.connect(graph.gain);
 				// A voiceover is voice: the music ducks under it as under the recording.
-				if (audioTracksRef.current.find((track) => track.id === trackId)?.kind === "voiceover") {
+				const track = audioTracksRef.current.find((t) => t.id === trackId);
+				if (
+					track?.kind === "voiceover" &&
+					track.recordingSource !== "desktop" &&
+					!trackDucking(track).enabled
+				) {
 					trackGain.connect(graph.analyser);
 				}
 				audioTrackGainNodesRef.current.set(trackId, trackGain);
@@ -944,6 +957,7 @@ export function VirtualPreview({
 	audioSourcesRef.current = audioSources;
 	// Live state of the music ducking (see MUSIC_DUCK): the gain, when the voice was last
 	// heard, and the analyser's reading buffer, reused every frame.
+	const trackDuckRef = useRef(new Map<string, { db: number; voiceAt: number }>());
 	const musicDuckRef = useRef({
 		db: 0,
 		voiceAt: Number.NEGATIVE_INFINITY,
@@ -1113,11 +1127,13 @@ export function VirtualPreview({
 			const frameSec = Math.min(0.1, Math.max(0, (now - duck.tickAt) / 1000));
 			duck.tickAt = now;
 			const analyser = audioGraphRef.current?.analyser;
+			let voiceDbfs = Number.NEGATIVE_INFINITY;
 			if (analyser && !v.paused) {
 				analyser.getFloatTimeDomainData(duck.reading);
 				let energy = 0;
 				for (const sample of duck.reading) energy += sample * sample;
-				if (10 * Math.log10(energy / duck.reading.length) > MUSIC_DUCK.thresholdDbfs) {
+				voiceDbfs = 10 * Math.log10(energy / duck.reading.length);
+				if (voiceDbfs > MUSIC_DUCK.thresholdDbfs) {
 					duck.voiceAt = now;
 				}
 			}
@@ -1209,9 +1225,21 @@ export function VirtualPreview({
 						(source) => source.id === track.assetId,
 					)?.filePath;
 					trackGainDb += path ? (loudnessGainDbByPathRef.current.get(path) ?? 0) : 0;
-				} else if (track.kind === "music") {
-					trackGainDb += duck.db;
 				}
+				const config = trackDucking(track);
+				const envelope = trackDuckRef.current.get(takeGroupId) ?? {
+					db: 0,
+					voiceAt: Number.NEGATIVE_INFINITY,
+				};
+				if (voiceDbfs > config.thresholdDbfs) envelope.voiceAt = now;
+				envelope.db = advanceDuckDb(
+					envelope.db,
+					(now - envelope.voiceAt) / 1000,
+					v.paused ? 0 : frameSec,
+					config,
+				);
+				trackDuckRef.current.set(takeGroupId, envelope);
+				trackGainDb += envelope.db;
 				const trackGainNode = audioTrackGainNodesRef.current.get(track.id);
 				if (trackGainNode) {
 					trackGainNode.gain.value = audioGainScalar(trackGainDb) * fade;

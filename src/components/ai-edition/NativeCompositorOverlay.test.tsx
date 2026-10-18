@@ -10,6 +10,7 @@
  */
 import { act, cleanup, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { usePreviewProxies } from "@/lib/ai-edition/previewPreferences";
 import type { AxcutClip, AxcutDocument } from "@/lib/ai-edition/schema";
 import { axcutSchemaVersion } from "@/lib/ai-edition/schema";
 import { useProjectStore } from "@/lib/ai-edition/store/projectStore";
@@ -105,6 +106,7 @@ describe("NativeCompositorOverlay while playing", () => {
 
 	beforeEach(() => {
 		vi.clearAllMocks();
+		usePreviewProxies.setState({ paths: {}, jobs: {} });
 		vi.spyOn(performance, "now").mockImplementation(() => now);
 		useProjectStore.setState({
 			projectId: "proj_sync",
@@ -122,9 +124,36 @@ describe("NativeCompositorOverlay while playing", () => {
 
 	afterEach(() => {
 		cleanup();
+		usePreviewProxies.setState({ paths: {}, jobs: {} });
 		vi.restoreAllMocks();
 		publishNativePosition(null);
 		useProjectStore.getState().clear();
+	});
+
+	it("refreshes a paused camera when its proxy becomes ready without changing the screen", async () => {
+		const document = makeDocument();
+		document.assets[0].cameraTrack = {
+			sourcePath: "/camera.mp4",
+			startMs: 0,
+			offsetMs: 0,
+			visible: true,
+		};
+		useProjectStore.setState({ document, playing: false });
+		await mountAtFirstClip();
+		await act(async () => {
+			usePreviewProxies.setState({ paths: { "/camera.mp4": "/cache/camera.mp4" } });
+		});
+		expect(native.setActiveClip).toHaveBeenLastCalledWith(
+			7,
+			"/take.mp4",
+			"/cache/camera.mp4",
+			0,
+			0,
+			4.9,
+		);
+		expect(useProjectStore.getState().document?.assets[0].cameraTrack?.sourcePath).toBe(
+			"/camera.mp4",
+		);
 	});
 
 	async function mountAtFirstClip() {

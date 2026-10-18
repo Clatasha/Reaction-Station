@@ -1,3 +1,4 @@
+import { previewResolution, usePreviewPreferences } from "@/lib/ai-edition/previewPreferences";
 /**
  * React hook that drives a canvas-based preview of the native D3D11
  * compositor. The compositor renders OFFSCREEN (no OS window), so this hook:
@@ -110,6 +111,13 @@ export function useNativeCompositorView(
 	opts: UseNativeCompositorViewOptions = {},
 ): UseNativeCompositorViewResult {
 	const enabled = opts.enabled !== false;
+	const quality = usePreviewPreferences((s) => s.quality);
+	const qualityRef = useRef(quality);
+	qualityRef.current = quality;
+	// biome-ignore lint/correctness/useExhaustiveDependencies: changing quality re-measures the target through the live ref.
+	useEffect(() => {
+		window.dispatchEvent(new Event("resize"));
+	}, [quality]);
 	// Re-create the native view when the screen source changes (e.g. loading a different
 	// project) so it never keeps showing a stale clip.
 	const screenPath = opts.sources?.screenPath;
@@ -178,7 +186,15 @@ export function useNativeCompositorView(
 			// `getBoundingClientRect` on the canvas reflects its CSS layout box;
 			// scaled to device pixels for the native offscreen target.
 			const domRect = canvas.getBoundingClientRect();
-			const next = computeDeviceRect(domRect, window.devicePixelRatio);
+			const next = {
+				...computeDeviceRect(domRect, window.devicePixelRatio),
+				...previewResolution(
+					domRect.width,
+					domRect.height,
+					window.devicePixelRatio,
+					qualityRef.current,
+				),
+			};
 			// `x` / `y` are vestigial in the new contract (ignored native-side),
 			// but `rectsEqual` still compares them — harmless: scrolling will just
 			// re-push the rect, and the native side ignores x/y.
@@ -373,7 +389,16 @@ export function useNativeCompositorView(
 		// the moment the effect ran. The async id will be used on subsequent
 		// resize/scroll updates. Without the bridge, this is a swallowed
 		// warning — the rest of the hook stays inert.
-		const initialRect = computeDeviceRect(canvas.getBoundingClientRect(), window.devicePixelRatio);
+		const initialBox = canvas.getBoundingClientRect();
+		const initialRect = {
+			...computeDeviceRect(initialBox, window.devicePixelRatio),
+			...previewResolution(
+				initialBox.width,
+				initialBox.height,
+				window.devicePixelRatio,
+				qualityRef.current,
+			),
+		};
 		lastRect = initialRect;
 		// Prime the canvas drawing buffer to the resolution we expect the
 		// first pulled frame to have; avoids a 300x150 flash before the

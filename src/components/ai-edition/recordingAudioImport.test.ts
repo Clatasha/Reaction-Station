@@ -123,7 +123,11 @@ describe("independent recording audio", () => {
 		const scene = buildSceneDescription(next);
 		const a = scene.audioTracks.filter((t) => t.path === "/mic.wav");
 		const b = scene.audioTracks.filter((t) => t.path === "/desktop.wav");
-		expect(a.map(({ path, ...entry }) => entry)).toEqual(b.map(({ path, ...entry }) => entry));
+		expect(a.every((entry) => entry.recordingSource === "microphone")).toBe(true);
+		expect(b.every((entry) => entry.recordingSource === "desktop")).toBe(true);
+		expect(a.map(({ path, recordingSource, ...entry }) => entry)).toEqual(
+			b.map(({ path, recordingSource, ...entry }) => entry),
+		);
 		expect(a.map((t) => [t.trimStartSec, t.trimEndSec, t.startSec, t.outputDurationSec])).toEqual([
 			[0, 2, 0, 2],
 			[4, 6, 2, 2],

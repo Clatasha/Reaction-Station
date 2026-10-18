@@ -5,7 +5,7 @@
 use crate::ffi::*;
 
 use crate::regions::SpeedSegment;
-use crate::scene::{SceneAudio, SceneAudioTrack, SceneAudioTrackKind};
+use crate::scene::{SceneAudio, SceneAudioTrack, SceneAudioTrackKind, SceneDucking};
 use anyhow::{bail, Result};
 use std::collections::{HashMap, VecDeque};
 use std::f32::consts::PI;
@@ -1670,23 +1670,31 @@ pub fn mix_external_tracks(mut programme: PlanarPcm, tracks: &[SceneAudioTrack])
     if programme.first().map_or(true, Vec::is_empty) {
         return programme;
     }
-    let (voice, music): (Vec<&SceneAudioTrack>, Vec<&SceneAudioTrack>) = tracks
-        .iter()
-        .partition(|track| track.kind == SceneAudioTrackKind::Voiceover);
-    for track in voice {
-        overlay_external_track(&mut programme, track, &[]);
-    }
-    if !music.is_empty() {
-        let duck = duck_curve(&programme);
-        for track in music {
-            overlay_external_track(&mut programme, track, &duck);
+    // Sidechain excludes desktop sound, including desktop tracks whose ducking
+    // is off. Otherwise the video would trigger its own attenuation.
+    let mut reference = voice_energy(&programme);
+    let mut targets = Vec::new();
+    for track in tracks {
+        let config = track.ducking.unwrap_or(SceneDucking {
+            enabled: track.kind == SceneAudioTrackKind::Music,
+            ..SceneDucking::default()
+        });
+        if config.enabled {
+            targets.push((track, config));
+        } else {
+            let sidechain = track.kind == SceneAudioTrackKind::Voiceover && track.recording_source.as_deref() != Some("desktop");
+            overlay_external_track(&mut programme, track, &[], if sidechain { Some(&mut reference) } else { None });
         }
+    }
+    for (track, config) in targets {
+        let duck = duck_curve_from_energy(&reference, config);
+        overlay_external_track(&mut programme, track, &duck, None);
     }
     programme
 }
 
 /// One entry of `mix_external_tracks`: decode its window, level it, sum it in under `duck`.
-fn overlay_external_track(programme: &mut PlanarPcm, track: &SceneAudioTrack, duck: &[f32]) {
+fn overlay_external_track(programme: &mut PlanarPcm, track: &SceneAudioTrack, duck: &[f32], reference: Option<&mut Vec<f32>>) {
     let programme_len = programme.first().map(Vec::len).unwrap_or(0);
     let offset = (track.start_sec.max(0.0) * AUDIO_OUTPUT_SAMPLE_RATE as f64).round() as usize;
     // A track that starts at or past the programme end contributes nothing —
@@ -1746,19 +1754,36 @@ fn overlay_external_track(programme: &mut PlanarPcm, track: &SceneAudioTrack, du
         full_len,
         duck,
     );
+    if let Some(reference) = reference {
+        let envelope_len = full_len.max(decoded.first().map_or(0, Vec::len));
+        let (fade_in, fade_out) = resolve_fade_samples(envelope_len, track.fade_in_sec.max(0.0), track.fade_out_sec.max(0.0));
+        for channel in &decoded {
+            for (k, value) in channel.iter().take(programme_len.saturating_sub(offset)).enumerate() {
+                let sample = value * gain * fade_envelope(k, envelope_len, fade_in, fade_out);
+                let block = (offset + k) / DUCK_BLOCK;
+                let samples = (programme_len - block * DUCK_BLOCK).min(DUCK_BLOCK) * AUDIO_OUTPUT_CHANNELS;
+                reference[block] += sample * sample / samples as f32;
+            }
+        }
+    }
 }
 
 /// How far a music bed dips while someone speaks.
+#[cfg(test)]
 pub const DUCK_DEPTH_DB: f32 = -10.0;
 /// A 10 ms stretch of the voice counts as speech above this RMS level. The voice is already
 /// loudness-normalised here, so speech sits well above it, and a room's noise floor — even
 /// raised by the normalisation's full boost — well below.
+#[cfg(test)]
 const DUCK_THRESHOLD_DBFS: f32 = -35.0;
 /// Pauses shorter than this keep the music down: the gaps between words and phrases.
+#[cfg(test)]
 const DUCK_HOLD_SEC: f64 = 0.5;
 /// The dip starts this long before the voice does, so the first syllable is already clear.
+#[cfg(test)]
 const DUCK_ATTACK_SEC: f64 = 0.25;
 /// And takes this long to come back up once a pause outlasts the hold.
+#[cfg(test)]
 const DUCK_RELEASE_SEC: f64 = 0.6;
 /// Resolution of the envelope: 10 ms.
 const DUCK_BLOCK: usize = AUDIO_OUTPUT_SAMPLE_RATE as usize / 100;
@@ -1767,26 +1792,33 @@ const DUCK_BLOCK: usize = AUDIO_OUTPUT_SAMPLE_RATE as usize / 100;
 /// programme: 1 in the clear, `DUCK_DEPTH_DB` while someone speaks, with straight ramps in dB
 /// between. The export holds the whole voice, so it looks ahead: the dip is already complete
 /// when the first word starts.
+#[cfg(test)]
 fn duck_curve(voice: &PlanarPcm) -> Vec<f32> {
+    duck_curve_with_settings(voice, SceneDucking::default())
+}
+fn voice_energy(voice: &PlanarPcm) -> Vec<f32> {
     let len = voice.first().map(Vec::len).unwrap_or(0);
-    let blocks = len.div_ceil(DUCK_BLOCK);
-    let threshold = 10.0f32.powf(DUCK_THRESHOLD_DBFS / 10.0);
-    let speaking: Vec<bool> = (0..blocks)
-        .map(|block| {
-            let range = block * DUCK_BLOCK..((block + 1) * DUCK_BLOCK).min(len);
-            let samples = (range.len() * voice.len()) as f32;
-            let energy: f32 = voice
-                .iter()
-                .map(|channel| channel[range.clone()].iter().map(|s| s * s).sum::<f32>())
-                .sum();
-            energy / samples > threshold
-        })
-        .collect();
+    (0..len.div_ceil(DUCK_BLOCK)).map(|block| {
+        let range = block * DUCK_BLOCK..((block + 1) * DUCK_BLOCK).min(len);
+        let samples = (range.len() * voice.len()) as f32;
+        voice.iter().map(|channel| channel[range.clone()].iter().map(|s| s * s).sum::<f32>()).sum::<f32>() / samples
+    }).collect()
+}
+#[cfg(test)]
+fn duck_curve_with_settings(voice: &PlanarPcm, config: SceneDucking) -> Vec<f32> {
+    duck_curve_from_energy(&voice_energy(voice), config)
+}
+fn duck_curve_from_energy(energy: &[f32], config: SceneDucking) -> Vec<f32> {
+    if !config.enabled { return Vec::new(); }
+    let depth = config.depth_db.clamp(-40.0, 0.0);
+    let blocks = energy.len();
+    let threshold = 10.0f32.powf(config.threshold_dbfs.clamp(-60.0, -10.0) / 10.0);
+    let speaking: Vec<bool> = energy.iter().map(|level| *level > threshold).collect();
     let blocks_of = |sec: f64| (sec * 100.0).round() as usize;
     let (attack, hold, release) = (
-        blocks_of(DUCK_ATTACK_SEC),
-        blocks_of(DUCK_HOLD_SEC),
-        blocks_of(DUCK_RELEASE_SEC),
+        blocks_of(config.attack_sec.clamp(0.01, 2.0)).max(1),
+        blocks_of(config.hold_sec.clamp(0.0, 3.0)),
+        blocks_of(config.release_sec.clamp(0.01, 5.0)).max(1),
     );
     // Down from `attack` blocks before any speech until `hold` blocks after it.
     let mut ducked = vec![false; blocks];
@@ -1805,15 +1837,15 @@ fn duck_curve(voice: &PlanarPcm) -> Vec<f32> {
         ducked[block] |= next.is_some_and(|spoken| spoken - block <= attack);
     }
     let (down, up) = (
-        DUCK_DEPTH_DB / attack as f32,
-        -DUCK_DEPTH_DB / release as f32,
+        depth / attack as f32,
+        -depth / release as f32,
     );
     let mut db = 0.0f32;
     ducked
         .into_iter()
         .map(|down_here| {
             db = if down_here {
-                (db + down).max(DUCK_DEPTH_DB)
+                (db + down).max(depth)
             } else {
                 (db + up).min(0.0)
             };
@@ -2110,6 +2142,46 @@ mod tests {
     const EDITOR_SPEEDS: [f64; 13] = [
         0.1, 0.25, 0.5, 0.75, 1.25, 1.5, 1.75, 2.0, 3.0, 4.0, 5.0, 10.0, 100.0,
     ];
+
+    #[test]
+    fn configurable_ducking_depth_threshold_and_disable() {
+        let voice = vec![vec![0.1; 96_000]; 2];
+        let config = SceneDucking { depth_db: -20.0, attack_sec: 0.1, ..SceneDucking::default() };
+        let curve = duck_curve_with_settings(&voice, config);
+        assert!((curve[100] - 0.1).abs() < 1e-5);
+        assert!(duck_curve_with_settings(&voice, SceneDucking { enabled: false, ..config }).is_empty());
+        let silent = duck_curve_with_settings(&voice, SceneDucking { threshold_dbfs: -10.0, ..config });
+        assert!(silent.iter().all(|gain| *gain == 1.0));
+    }
+
+    #[test]
+    fn desktop_audio_never_triggers_its_own_ducking() {
+        use std::io::Write;
+        let root = std::env::temp_dir().join(format!("reaction-duck-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        let write_wav = |name: &str, sample: i16| {
+            let path = root.join(name);
+            let mut file = std::fs::File::create(&path).unwrap();
+            let bytes = 48_000_u32 * 4;
+            file.write_all(b"RIFF").unwrap(); file.write_all(&(36 + bytes).to_le_bytes()).unwrap();
+            file.write_all(b"WAVEfmt ").unwrap(); file.write_all(&16_u32.to_le_bytes()).unwrap();
+            file.write_all(&1_u16.to_le_bytes()).unwrap(); file.write_all(&2_u16.to_le_bytes()).unwrap();
+            file.write_all(&48_000_u32.to_le_bytes()).unwrap(); file.write_all(&192_000_u32.to_le_bytes()).unwrap();
+            file.write_all(&4_u16.to_le_bytes()).unwrap(); file.write_all(&16_u16.to_le_bytes()).unwrap();
+            file.write_all(b"data").unwrap(); file.write_all(&bytes.to_le_bytes()).unwrap();
+            for _ in 0..96_000 { file.write_all(&sample.to_le_bytes()).unwrap(); }
+            path.to_string_lossy().into_owned()
+        };
+        let desktop = SceneAudioTrack { path: write_wav("desktop.wav", 8192), recording_source: Some("desktop".into()), recorded_source: true,
+            trim_end_sec: Some(1.0), kind: SceneAudioTrackKind::Voiceover, ducking: Some(SceneDucking { depth_db: -20.0, ..SceneDucking::default() }), ..Default::default() };
+        let clear = mix_external_tracks(vec![vec![0.0; 48_000]; 2], &[desktop.clone()]);
+        assert!((clear[0][24_000] - 0.25).abs() < 0.001);
+        let mic = SceneAudioTrack { path: write_wav("microphone.wav", 4096), recording_source: Some("microphone".into()), recorded_source: true,
+            trim_end_sec: Some(1.0), kind: SceneAudioTrackKind::Voiceover, ..Default::default() };
+        let ducked = mix_external_tracks(vec![vec![0.0; 48_000]; 2], &[desktop, mic]);
+        assert!((ducked[0][24_000] - 0.15).abs() < 0.002, "microphone retained, desktop reduced: {}", ducked[0][24_000]);
+        std::fs::remove_dir_all(root).unwrap();
+    }
 
     #[test]
     fn atempo_covers_every_editor_speed_without_a_silent_tail() {

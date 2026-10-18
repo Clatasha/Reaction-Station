@@ -4,6 +4,7 @@ import { useScopedT } from "@/contexts/I18nContext";
 import { useShortcuts } from "@/contexts/ShortcutsContext";
 import { formatBinding } from "@/lib/shortcuts";
 import { fitTimelineToWindow, useWorkspace, type WorkspacePreference } from "@/lib/workspace";
+import { PreviewSettings } from "../PreviewSettings";
 import styles from "./EditorShellV4.module.css";
 
 export function WorkspaceMenu() {
@@ -46,6 +47,8 @@ export function WorkspaceMenu() {
 						</button>
 					))}
 				</div>
+				<div className={styles.appMenuSep} />
+				<PreviewSettings />
 				<div className={styles.appMenuSep} />
 				<button type="button" className={styles.appMenuRow} onClick={fitTimelineToWindow}>
 					<Maximize2 size={14} />

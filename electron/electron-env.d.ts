@@ -384,6 +384,11 @@ interface Window {
 			message?: string;
 			error?: string;
 		}>;
+		preparePreviewProxy?: (
+			filePath: string,
+			durationSec: number,
+		) => Promise<import("./media/previewProxy").ProxyStatus>;
+		cancelPreviewProxies?: () => Promise<void>;
 		getAudioPeaks: (
 			filePath: string,
 			durationSec: number,

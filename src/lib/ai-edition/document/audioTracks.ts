@@ -296,7 +296,9 @@ export function dropUnusedGeneratedMedia(doc: AxcutDocument): AxcutDocument {
 export function patchAudioTrack(
 	doc: AxcutDocument,
 	trackId: string,
-	patch: Partial<Pick<AxcutAudioTrack, "gainDb" | "muted" | "loop" | "fadeInMs" | "fadeOutMs">> & {
+	patch: Partial<
+		Pick<AxcutAudioTrack, "gainDb" | "muted" | "loop" | "fadeInMs" | "fadeOutMs" | "ducking">
+	> & {
 		offsetMs?: number;
 	},
 ): AxcutDocument {
@@ -315,6 +317,7 @@ export function patchAudioTrack(
 				...t,
 				...(patch.gainDb === undefined ? {} : { gainDb: patch.gainDb }),
 				...(patch.muted === undefined ? {} : { muted: patch.muted }),
+				...(patch.ducking === undefined ? {} : { ducking: patch.ducking }),
 				...(patch.loop === undefined ? {} : { loop: patch.loop }),
 				// Fades live on the outer edges; an interior fragment keeps none.
 				...(patch.fadeInMs === undefined ? {} : { fadeInMs: isFirst ? patch.fadeInMs : 0 }),

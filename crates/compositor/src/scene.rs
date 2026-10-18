@@ -656,6 +656,10 @@ pub struct SceneAudio {
 #[serde(rename_all = "camelCase")]
 pub struct SceneAudioTrack {
     #[serde(default)]
+    pub ducking: Option<SceneDucking>,
+    #[serde(default)]
+    pub recording_source: Option<String>,
+    #[serde(default)]
     pub recorded_source: bool,
     #[serde(default)]
     pub output_duration_sec: Option<f64>,
@@ -683,6 +687,21 @@ pub struct SceneAudioTrack {
     /// what every imported file was before voiceovers were recorded in the app.
     #[serde(default)]
     pub kind: SceneAudioTrackKind,
+}
+
+/// Per-target sidechain controls. Older scenes retain automatic music ducking.
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SceneDucking {
+    pub enabled: bool,
+    pub depth_db: f32,
+    pub threshold_dbfs: f32,
+    pub attack_sec: f64,
+    pub hold_sec: f64,
+    pub release_sec: f64,
+}
+impl Default for SceneDucking {
+    fn default() -> Self { Self { enabled: true, depth_db: -10.0, threshold_dbfs: -35.0, attack_sec: 0.25, hold_sec: 0.5, release_sec: 0.6 } }
 }
 
 /// `AxcutAudioTrack["kind"]` on the app side.

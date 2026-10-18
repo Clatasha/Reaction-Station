@@ -81,6 +81,7 @@ import {
 	readCursorTelemetryFile as readCursorTelemetryFileFrom,
 } from "../media/cursorSidecar";
 import { findMediaLinksByFingerprint, registerMediaLinks } from "../media/mediaLinksRegistry";
+import { PreviewProxyService } from "../media/previewProxy";
 import { relinkProjectMedia } from "../media/projectMediaRelinker";
 import { showOpenDialogOver, showSaveDialogOver } from "../messageBox";
 import {
@@ -4387,6 +4388,27 @@ export function registerIpcHandlers(
 			};
 		}
 	});
+
+	const previewProxies = new PreviewProxyService(
+		path.join(app.getPath("userData"), "preview-proxies"),
+	);
+	app.once("before-quit", () => previewProxies.cancel());
+	ipcMain.handle("preview-proxy", async (_, filePath: string, durationSec: number) => {
+		try {
+			const approved = readableApprovedPath(filePath);
+			if (!approved || !hasAllowedImportVideoExtension(approved))
+				throw new Error("Video path is not approved");
+			const result = await previewProxies.request(
+				approved,
+				Number.isFinite(durationSec) ? Math.max(0, durationSec) : 0,
+			);
+			if (result.path) approveFilePath(result.path);
+			return result;
+		} catch (error) {
+			return { state: "error", progress: 0, message: String(error) };
+		}
+	});
+	ipcMain.handle("cancel-preview-proxies", () => previewProxies.cancel());
 
 	// Waveform peaks for a timeline clip, decoded natively (see media/audioPeaks).
 	// The renderer's own pipelines take ~12s on a 32-minute recording because they
