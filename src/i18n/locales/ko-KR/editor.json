@@ -371,7 +371,8 @@
 			"description": "영상을 디코딩할 수 없습니다. 파일이 손상되었거나, 아직 저장 중이거나, 프로젝트가 기대한 위치에 없을 수 있습니다. 프로젝트 자체는 그대로입니다.",
 			"retry": "다시 시도",
 			"detail": "세부 정보: {{detail}}"
-		}
+		},
+		"preparing": "Preparing preview…"
 	},
 	"annotationOverlay": {
 		"imageAlt": "주석",

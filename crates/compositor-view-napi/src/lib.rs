@@ -401,7 +401,9 @@ pub fn set_scene(id: i32, scene_json: String) {
 pub fn destroy_view(id: i32) {
     // remove hors du lock : le Drop (join du thread de rendu) ne le tient pas.
     let removed = registry().lock().unwrap().remove(&id);
-    drop(removed);
+    // Dropping a view joins its decoder, which may still be opening or seeking
+    // a long recording. Keep Electron's main thread available for transport IPC.
+    let _ = openscreen_compositor::preview_cleanup::retire_view(removed);
 }
 
 /// Bilan d'un export natif (mesure §10 : une lecture d'horloge avant-après tout le run).

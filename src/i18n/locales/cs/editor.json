@@ -371,7 +371,8 @@
 			"description": "Video nelze dekódovat. Soubor může být poškozen, stále se zapisuje nebo již není tam, kde ho projekt očekává. Váš projekt je v pořádku.",
 			"retry": "Zkusit znovu",
 			"detail": "Podrobnosti: {{detail}}"
-		}
+		},
+		"preparing": "Preparing preview…"
 	},
 	"annotationOverlay": {
 		"imageAlt": "Anotace",

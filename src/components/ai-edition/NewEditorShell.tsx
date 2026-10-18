@@ -23,6 +23,12 @@ import {
 } from "@/lib/ai-edition/document/transcript";
 import { isModalOpen } from "@/lib/ai-edition/modalGuard";
 import {
+	PREVIEW_TRANSPORT_EVENT,
+	pausePreview,
+	playPreview,
+	previewPlaybackRequested,
+} from "@/lib/ai-edition/previewPlayback";
+import {
 	type AxcutAudioTrack,
 	type AxcutClip,
 	type AxcutDocument,
@@ -681,8 +687,8 @@ export function NewEditorShell() {
 	useEffect(() => {
 		const el = videoElement;
 		if (!el) return;
-		const onPlay = () => setPlaying(true);
-		const onPause = () => setPlaying(false);
+		const onPlay = () => setPlaying(previewPlaybackRequested(el));
+		const onPause = () => setPlaying(previewPlaybackRequested(el));
 		// BUG corrigé : ce listener écoutait le même événement DOM natif 'ended' que le
 		// onEnded interne de VirtualPreview.tsx, sans la moindre logique multi-clip — il
 		// mettait TOUJOURS `playing` à false, y compris quand VirtualPreview venait
@@ -700,32 +706,32 @@ export function NewEditorShell() {
 		el.addEventListener("play", onPlay);
 		el.addEventListener("pause", onPause);
 		el.addEventListener("ended", onEnded);
-		setPlaying(!el.paused);
+		el.addEventListener(PREVIEW_TRANSPORT_EVENT, onPlay);
+		setPlaying(previewPlaybackRequested(el));
 		return () => {
 			el.removeEventListener("play", onPlay);
 			el.removeEventListener("pause", onPause);
 			el.removeEventListener("ended", onEnded);
+			el.removeEventListener(PREVIEW_TRANSPORT_EVENT, onPlay);
 		};
 		// setPlaying is a stable Zustand action reference (never recreated), so listing it
 		// here doesn't cause this effect to re-subscribe on every playhead tick.
 	}, [videoElement, setPlaying]);
 
 	useEffect(() => {
-		if (editClipTarget) videoElement?.pause();
+		if (editClipTarget && videoElement) pausePreview(videoElement);
 	}, [editClipTarget, videoElement]);
 
 	const togglePlay = useCallback(() => {
 		if (!videoElement) return;
-		if (videoElement.paused) {
+		if (!previewPlaybackRequested(videoElement)) {
 			// Same catch as VirtualPreview's: `play()` rejects on the autoplay policy
 			// or when a new load interrupts it, and the store's `playing` flag is
 			// driven by the element's own play/pause listeners above — so a rejection
 			// leaves nothing to reconcile, it just must not escape unhandled.
-			void videoElement.play().catch(() => {
-				// swallow: rejection just means playback never started
-			});
+			playPreview(videoElement);
 		} else {
-			videoElement.pause();
+			pausePreview(videoElement);
 		}
 	}, [videoElement]);
 
@@ -1122,12 +1128,12 @@ export function NewEditorShell() {
 		// hitting Record, and playback starts from wherever the playhead is now.
 		voiceoverStartSecRef.current = useProjectStore.getState().currentTimeSec;
 		setVoiceoverRecording(true);
-		if (videoElement?.paused) void videoElement.play().catch(() => undefined);
+		if (videoElement?.paused) playPreview(videoElement);
 	}, [videoElement]);
 
 	const handleVoiceoverRecordingStop = useCallback(() => {
 		setVoiceoverRecording(false);
-		videoElement?.pause();
+		if (videoElement) pausePreview(videoElement);
 	}, [videoElement]);
 
 	const handleVoiceoverReady = useCallback(

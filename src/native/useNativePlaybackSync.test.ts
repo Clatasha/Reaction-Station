@@ -5,6 +5,7 @@
  */
 import { renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { usePreviewPlayback } from "@/lib/ai-edition/previewPlayback";
 import type { AxcutClip } from "@/lib/ai-edition/schema";
 import { publishNativePosition } from "./nativeSync";
 
@@ -41,6 +42,7 @@ describe("useNativePlaybackSync while playing", () => {
 
 	beforeEach(() => {
 		vi.clearAllMocks();
+		usePreviewPlayback.setState({ nativeStatus: "inactive", buffering: false });
 		now = 1000;
 		vi.spyOn(performance, "now").mockImplementation(() => now);
 	});
@@ -48,6 +50,7 @@ describe("useNativePlaybackSync while playing", () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
 		publishNativePosition(null);
+		usePreviewPlayback.setState({ nativeStatus: "inactive", buffering: false });
 	});
 
 	/** Plays from `fromSec` for a few frames, the playhead in step with the wall clock. */
@@ -70,6 +73,23 @@ describe("useNativePlaybackSync while playing", () => {
 		hook.rerender({ time: 6 });
 
 		expect(store.setNativeTime).toHaveBeenCalledWith(6);
+	});
+
+	it("does not keep seeking a decoder that has not produced its first frame", () => {
+		usePreviewPlayback.setState({ nativeStatus: "loading" });
+		const hook = play(1);
+		for (const time of [2, 4, 6]) {
+			now += 200;
+			hook.rerender({ time });
+		}
+		expect(store.setNativeTime).not.toHaveBeenCalled();
+	});
+
+	it("parks native playback while the requested transport waits for buffered media", () => {
+		usePreviewPlayback.setState({ buffering: true });
+		const hook = play(1);
+		expect(store.setNativePlaying).toHaveBeenLastCalledWith(false);
+		hook.unmount();
 	});
 
 	// The overlay watches the drift then; a guess at 1× here would re-seek inside speed regions.

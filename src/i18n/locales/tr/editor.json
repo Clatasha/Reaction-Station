@@ -371,7 +371,8 @@
 			"description": "Video çözümlenemedi. Dosya bozulmuş, hâlâ yazılıyor ya da projenin beklediği yerde olmayabilir — projeniz olduğu gibi duruyor.",
 			"retry": "Yeniden dene",
 			"detail": "Ayrıntılar: {{detail}}"
-		}
+		},
+		"preparing": "Preparing preview…"
 	},
 	"annotationOverlay": {
 		"imageAlt": "Açıklama",

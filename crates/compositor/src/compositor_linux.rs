@@ -2607,7 +2607,7 @@ impl Compositor {
                 // desormais exactement ces deux lignes.
                 let anchor = a.anchor_rect(g.s_ann);
                 let dst = crate::frame_geometry::annotation_dst_in(anchor, a.x, a.y, a.w, a.h);
-                let (dst, media_opacity) = if a.kind == "image" { crate::media_image::animated_rect(dst, a.media_animation.as_deref(), t - a.start_sec as f32 + a.media_animation_offset_sec, anchor[3]) } else { (dst, 1.0) };
+                let (dst, media_opacity) = if a.kind == "image" { crate::media_image::animated_rect(dst, a.media_animation.as_deref(), g.source_t - a.start_sec as f32 + a.media_animation_offset_sec, anchor[3]) } else { (dst, 1.0) };
             let quad_px = [dst[2] * rw, dst[3] * rh];
                 // Une boite degeneree ferait un atlas 0x0 et un draw invisible ;
                 // macOS l'ecarte de la meme facon.
@@ -2684,7 +2684,7 @@ impl Compositor {
                         privacy_draws.push(AnnDraw::plain(layer));
                     }
                     "image" => {
-                        let Some(frame_source) = a.frame_source(t) else {
+                        let Some(frame_source) = a.frame_source(g.source_t) else {
                             continue;
                         };
                         let src = &frame_source;

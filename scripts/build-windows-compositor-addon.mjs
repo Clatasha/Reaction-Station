@@ -92,6 +92,9 @@ if (process.env.REACTION_STATION_AUDIO_TESTS === "1") {
 	await runInVsEnv(
 		`set "PATH=${sdk};%PATH%"\r\n${cargoExeQuoted} test -p openscreen-compositor --lib --release audio::`,
 	);
+	await runInVsEnv(
+		`set "PATH=${sdk};%PATH%"\r\n${cargoExeQuoted} test -p openscreen-compositor --lib --release preview_cleanup::tests::`,
+	);
 }
 if (process.env.REACTION_STATION_SCENE_TESTS === "1") {
 	const sdk = pinMatch ? path.join(CRATES_DIR, pinMatch[1], "bin") : "";

@@ -371,7 +371,8 @@
 			"description": "Không thể giải mã video. Tệp có thể đã hỏng, vẫn đang được ghi, hoặc không còn ở nơi dự án mong đợi — dự án của bạn vẫn nguyên vẹn.",
 			"retry": "Thử lại",
 			"detail": "Chi tiết: {{detail}}"
-		}
+		},
+		"preparing": "Preparing preview…"
 	},
 	"annotationOverlay": {
 		"imageAlt": "Chú thích",

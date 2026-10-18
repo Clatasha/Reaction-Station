@@ -13,6 +13,13 @@ import {
 	projectRawTimelineSecToPlayback,
 	resolvePlaybackSegments,
 } from "@/lib/ai-edition/document/timeline";
+import {
+	attachPreviewTransport,
+	pausePreview,
+	playPreview,
+	previewPlaybackRequested,
+	usePreviewPlayback,
+} from "@/lib/ai-edition/previewPlayback";
 import type {
 	AxcutAudioTrack,
 	AxcutClip,
@@ -546,6 +553,7 @@ export function VirtualPreview({
 	const stalledSeekAtRef = useRef<number | null>(null);
 	const reloadClockRef = useRef<((play: boolean, delayMs: number) => void) | null>(null);
 	const pendingSeekRef = useRef<{ sourceTimeSec: number; play: boolean } | null>(null);
+	const reloadPlayRef = useRef(false);
 	// When each AUTOMATIC reload happened. The budget is "reloads inside
 	// RELOAD_WINDOW_MS", so it expires by itself: a dead file burns it in
 	// seconds, while the occasional transient across a long editing session
@@ -582,12 +590,18 @@ export function VirtualPreview({
 
 	const virtualDurationSec = useMemo(() => totalVirtualDuration(clips), [clips]);
 	const activeSource = videoSources[sourceIndex] ?? null;
+	const activeClip = clips.find((clip) => clip.id === activeClipIdRef.current) ?? clips[0];
+	const embeddedAudioNeeded = !activeSource?.sourceAudioMuted && !activeClip?.embeddedAudioMuted;
 
 	useEffect(() => {
 		let cancelled = false;
 		setSupplementalAudioSrc(null);
 		setAudioProbeComplete(false);
-		if (!activeSource?.filePath || !window.electronAPI?.preparePreviewAudioTrack) {
+		if (
+			!embeddedAudioNeeded ||
+			!activeSource?.filePath ||
+			!window.electronAPI?.preparePreviewAudioTrack
+		) {
 			setAudioProbeComplete(true);
 			return () => {
 				cancelled = true;
@@ -608,7 +622,7 @@ export function VirtualPreview({
 		return () => {
 			cancelled = true;
 		};
-	}, [activeSource?.filePath]);
+	}, [activeSource?.filePath, embeddedAudioNeeded]);
 
 	// Loudness normalisation of every voice file the preview plays: the recording mounted now
 	// and each voiceover take. The export levels them to −16 LUFS with a gain the compositor
@@ -661,7 +675,6 @@ export function VirtualPreview({
 			);
 		}
 	}, [voicePathsKey, retryToken, activeVoicePath]);
-	const activeClip = clips.find((clip) => clip.id === activeClipIdRef.current) ?? clips[0];
 	const voiceGainDb =
 		activeSource?.sourceAudioMuted || activeClip?.embeddedAudioMuted
 			? Number.NEGATIVE_INFINITY
@@ -957,6 +970,73 @@ export function VirtualPreview({
 	const seekToVirtualTimeRef = useRef<
 		((nextVirtualTimeSec: number, preservePlayback?: boolean, forceResume?: boolean) => void) | null
 	>(null);
+	const transportRef = useRef<ReturnType<typeof attachPreviewTransport> | null>(null);
+	const embeddedAudioNeededRef = useRef(true);
+	embeddedAudioNeededRef.current = embeddedAudioNeeded;
+	const readinessRef = useRef<() => boolean>(() => true);
+	const requiredAudioRef = useRef<() => (HTMLAudioElement | null)[]>(() => []);
+	requiredAudioRef.current = () => {
+		const required = embeddedAudioNeededRef.current
+			? [primaryAudioRef.current, supplementalAudioRef.current]
+			: [];
+		for (const track of audioTracksRef.current) {
+			if (
+				track.startMs / 1000 <= virtualTimeSecRef.current &&
+				track.endMs / 1000 > virtualTimeSecRef.current &&
+				!track.muted &&
+				track.gainDb > -60
+			)
+				required.push(audioTrackElsRef.current.get(track.id) ?? null);
+		}
+		return required;
+	};
+	readinessRef.current = () => {
+		const video = videoRef.current;
+		if (!video || video.seeking || video.readyState < 3 || recoveringRef.current) return false;
+		if (usePreviewPlayback.getState().nativeStatus === "loading") return false;
+		if (!audioProbeComplete) return false;
+		return requiredAudioRef
+			.current()
+			.every((audio) => !audio || audio.error || (audio.readyState >= 3 && !audio.seeking));
+	};
+	const sourceKey = activeSource?.id ?? null;
+	// biome-ignore lint/correctness/useExhaustiveDependencies: sourceKey remounts the clock element; callbacks read live refs.
+	useEffect(() => {
+		const video = videoRef.current;
+		if (!video) return;
+		const transport = attachPreviewTransport(
+			video,
+			() => readinessRef.current(),
+			() => {
+				for (const audio of [
+					primaryAudioRef.current,
+					supplementalAudioRef.current,
+					...audioTrackElsRef.current.values(),
+				])
+					audio?.pause();
+			},
+			() => {
+				if (pendingSeekRef.current) pendingSeekRef.current.play = false;
+				reloadPlayRef.current = false;
+			},
+			() => {
+				if (audioGraphRef.current?.context.state === "suspended")
+					void audioGraphRef.current.context.resume();
+				for (const audio of requiredAudioRef.current()) {
+					if (audio && audio.paused && !audio.error) {
+						const playback = audio.play();
+						if (playback) void playback.catch(() => undefined);
+					}
+				}
+			},
+		);
+		transportRef.current = transport;
+		if (pendingSeekRef.current?.play) transport.start();
+		return () => {
+			transport.dispose();
+			if (transportRef.current === transport) transportRef.current = null;
+		};
+	}, [sourceKey]);
 	// biome-ignore lint/correctness/useExhaustiveDependencies: re-create the rAF when the active source swaps.
 	useEffect(() => {
 		let raf = 0;
@@ -966,8 +1046,14 @@ export function VirtualPreview({
 			if (!v || !Number.isFinite(v.currentTime)) {
 				return;
 			}
+			const clockReady = !v.seeking && v.readyState >= 3 && !recoveringRef.current;
+			if (!clockReady) transportRef.current?.check();
 			for (const audio of [primaryAudioRef.current, supplementalAudioRef.current]) {
 				if (!audio) continue;
+				if (!embeddedAudioNeededRef.current) {
+					if (!audio.paused) audio.pause();
+					continue;
+				}
 				const target = resolveAudioTrackPlayback(v.currentTime, audio.duration);
 				// A paused video is not a clock to free-run against: the audio is about to be
 				// paused with it, and is placed exactly where the picture stopped.
@@ -990,13 +1076,13 @@ export function VirtualPreview({
 						// media metadata not ready yet
 					}
 				}
-				if (!v.paused && target.shouldPlay && audio.paused) {
+				if (clockReady && !v.paused && target.shouldPlay && audio.paused) {
 					if (audioGraphRef.current?.context.state === "suspended") {
 						void audioGraphRef.current.context.resume();
 					}
 					const playback = audio.play();
 					if (playback) void playback.catch(() => undefined);
-				} else if ((v.paused || !target.shouldPlay) && !audio.paused) {
+				} else if ((!clockReady || v.paused || !target.shouldPlay) && !audio.paused) {
 					audio.pause();
 				}
 			}
@@ -1100,7 +1186,20 @@ export function VirtualPreview({
 				// never the imported track — so following `v.playbackRate` would pitch a
 				// voiceover up under a 2× region and finish it early, diverging from export.
 				const trackRate = track.recordingSource ? v.playbackRate : 1;
-				if (el.playbackRate !== trackRate) el.playbackRate = trackRate;
+				const recordingSteer = track.recordingSource
+					? steerAudio(
+							el.currentTime - trackTarget.targetTimeSec,
+							!v.paused && !el.paused && trackTarget.shouldPlay,
+							el.seeking,
+							audioJumpedRef.current.has(el),
+							el.playbackRate !== trackRate,
+						)
+					: null;
+				const rate = Math.min(
+					trackRate * (recordingSteer?.rateFactor ?? 1),
+					MAX_NATIVE_PLAYBACK_RATE,
+				);
+				if (el.playbackRate !== rate) el.playbackRate = rate;
 				// A voiceover is voice: levelled like the recording, its own gain trimming from
 				// there — the sum `mix_external_tracks` applies. A music bed is not levelled; it
 				// ducks under the voice instead.
@@ -1127,6 +1226,7 @@ export function VirtualPreview({
 				// offset, so it free-runs in sync; the wide leash just catches the jumps.
 				// BGM/voiceover tolerates it; frame-tight sync is the video's job.
 				if (
+					recordingSteer?.seek ??
 					shouldResyncAudio(
 						el.currentTime - trackTarget.targetTimeSec,
 						!el.paused && trackTarget.shouldPlay,
@@ -1136,11 +1236,12 @@ export function VirtualPreview({
 				) {
 					try {
 						el.currentTime = trackTarget.targetTimeSec;
+						audioJumpedRef.current.delete(el);
 					} catch {
 						// media metadata not ready yet
 					}
 				}
-				if (!v.paused && trackTarget.shouldPlay && el.paused) {
+				if (clockReady && !v.paused && trackTarget.shouldPlay && el.paused) {
 					// Resume a context suspended by autoplay policy, exactly as the primary
 					// loop does above — otherwise a track that starts while the primary
 					// element is silent (its span is over, or a recording with no separate
@@ -1150,10 +1251,12 @@ export function VirtualPreview({
 					}
 					const playback = el.play();
 					if (playback) void playback.catch(() => undefined);
-				} else if ((v.paused || !trackTarget.shouldPlay) && !el.paused) {
+				} else if ((!clockReady || v.paused || !trackTarget.shouldPlay) && !el.paused) {
 					el.pause();
 				}
 			}
+			// Place audio before starting the clock after a load or seek.
+			transportRef.current?.check();
 			// A reload is in flight: the decoder is dead and `currentTime` is
 			// frozen (or already reset to 0), so every decision below — trim
 			// skipping, the clip-boundary advance, the unmapped-position
@@ -1173,7 +1276,7 @@ export function VirtualPreview({
 					const reloads = pruneReloads(reloadsRef.current, Date.now());
 					if (mediaErrorDisposition(null, reloads.length, false) === "retry") {
 						reloadsRef.current = [...reloads, Date.now()];
-						reloadClockRef.current?.(!v.paused, 0);
+						reloadClockRef.current?.(previewPlaybackRequested(v), 0);
 					} else {
 						// Share the existing fatal-error card and its explicit Retry action.
 						v.dispatchEvent(new Event("error"));
@@ -1432,7 +1535,11 @@ export function VirtualPreview({
 		// junction moves the picture out from under them. The rAF tick cannot tell that from
 		// clock drift by its size (a cut can be 50 ms), so it is told: each element follows
 		// once it is not seeking, whatever the drift.
-		for (const audio of [primaryAudioRef.current, supplementalAudioRef.current]) {
+		for (const audio of [
+			primaryAudioRef.current,
+			supplementalAudioRef.current,
+			...audioTrackElsRef.current.values(),
+		]) {
 			if (audio) audioJumpedRef.current.add(audio);
 		}
 	}, []);
@@ -1441,7 +1548,7 @@ export function VirtualPreview({
 		(nextVirtualTimeSec: number, preservePlayback = false, forceResume = false) => {
 			const position = locateVirtualPosition(clips, nextVirtualTimeSec);
 			if (!position) {
-				videoRef.current?.pause();
+				if (videoRef.current) pausePreview(videoRef.current);
 				updateVirtualTime(0);
 				return;
 			}
@@ -1468,7 +1575,9 @@ export function VirtualPreview({
 			// race against the rAF tick's own boundary check: the native `ended`
 			// event fires first, stops playback outright, and the multi-clip
 			// timeline never advances — the "stops at clip end" bug.
-			const shouldContinuePlayback = preservePlayback && (forceResume || !videoRef.current?.paused);
+			const shouldContinuePlayback =
+				preservePlayback &&
+				(forceResume || (!!videoRef.current && previewPlaybackRequested(videoRef.current)));
 
 			if (isAssetSwitch) {
 				pendingScrubTargetRef.current = null;
@@ -1504,9 +1613,7 @@ export function VirtualPreview({
 				// A rejection here means playback never actually started, so the browser
 				// never fired 'play' — nothing to reconcile, just avoid an unhandled
 				// rejection warning.
-				void video.play().catch(() => {
-					// swallow: rejection just means playback never started
-				});
+				playPreview(video);
 			}
 		},
 		[applySourceTime, clips, videoSources, sourceIndex, updateVirtualTime],
@@ -1533,6 +1640,7 @@ export function VirtualPreview({
 	 * callback is stable and the scheduled work always sees current state.
 	 */
 	const reloadActiveSource = useCallback((play: boolean, delayMs: number) => {
+		reloadPlayRef.current = play;
 		if (retryTimerRef.current !== null) {
 			window.clearTimeout(retryTimerRef.current);
 			retryTimerRef.current = null;
@@ -1567,7 +1675,7 @@ export function VirtualPreview({
 					position && clipIsOnThisSource ? position.sourceTimeSec : lastGoodSourceTimeRef.current;
 				pendingSeekRef.current = {
 					sourceTimeSec: Number.isFinite(resumeSec) ? resumeSec : 0,
-					play,
+					play: reloadPlayRef.current,
 				};
 			}
 			// The restore itself rides the cross-asset path `onLoadedMetadata`
@@ -1685,7 +1793,7 @@ export function VirtualPreview({
 								...videoStyle,
 								cursor: settings.cursorShow ? "none" : undefined,
 							}}
-							preload="metadata"
+							preload="auto"
 							muted
 							playsInline
 							onLoadedMetadata={(e) => {
@@ -1718,9 +1826,7 @@ export function VirtualPreview({
 									if (play) {
 										// See the other video.play() catch above: a rejection means
 										// playback never started, so there's no state to reconcile.
-										void e.currentTarget.play().catch(() => {
-											// swallow: rejection just means playback never started
-										});
+										playPreview(e.currentTarget);
 									}
 								} else if (clips.length > 0) {
 									seekToVirtualTime(virtualTimeSec);
@@ -1735,10 +1841,21 @@ export function VirtualPreview({
 									applySourceTime(e.currentTarget, queued);
 								}
 							}}
-							onWaiting={() => setLoadState("loading")}
+							onSeeking={() => transportRef.current?.check()}
+							onPause={(e) => {
+								// Cancel a queued asset/reload resume on a genuine transport pause.
+								if (!previewPlaybackRequested(e.currentTarget)) {
+									if (pendingSeekRef.current) pendingSeekRef.current.play = false;
+								}
+							}}
+							onWaiting={() => {
+								setLoadState("loading");
+								transportRef.current?.check();
+							}}
 							onCanPlay={() => {
 								setLoadState("ready");
 								markSourceLoaded();
+								transportRef.current?.check();
 							}}
 							onError={(e) => {
 								const el = e.currentTarget;
@@ -1786,7 +1903,7 @@ export function VirtualPreview({
 									// shell's transport for it. What keeps the rAF from
 									// steering the dead decoder in the meantime is
 									// `recoveringRef`, set by reloadActiveSource.
-									reloadActiveSource(!el.paused, retryDelayMs(reloadsInWindow));
+									reloadActiveSource(previewPlaybackRequested(el), retryDelayMs(reloadsInWindow));
 									return;
 								}
 								// ponytail: don't blindly advance to the next source — if
@@ -1803,7 +1920,7 @@ export function VirtualPreview({
 								// An 'error' doesn't itself fire 'pause', so make sure the shell's
 								// transport state (single source of truth, see NewEditorShell's
 								// own play/pause/ended listener) actually learns playback stopped.
-								el.pause();
+								pausePreview(el);
 								onVideoError?.(activeSource.id, detail);
 							}}
 							onEnded={() => {
@@ -1846,9 +1963,10 @@ export function VirtualPreview({
 							key={`${activeSource.id}:primary-audio`}
 							ref={setPrimaryAudioElement}
 							src={activeSource.src}
-							preload="metadata"
+							preload={embeddedAudioNeeded ? "auto" : "metadata"}
 							aria-hidden="true"
 							data-testid="preview-audio-primary"
+							onWaiting={() => transportRef.current?.check()}
 							// The recording's own mp4: without this its picture is decoded too.
 							onLoadedMetadata={(e) => dropVideoTrack(e.currentTarget)}
 						/>
@@ -1857,7 +1975,7 @@ export function VirtualPreview({
 								key={`${activeSource.id}:supplemental-audio`}
 								ref={setSupplementalAudioElement}
 								src={supplementalAudioSrc}
-								preload="metadata"
+								preload="auto"
 								aria-hidden="true"
 								onLoadedMetadata={(e) => dropVideoTrack(e.currentTarget)}
 								data-testid="preview-audio-supplemental"
@@ -1874,9 +1992,16 @@ export function VirtualPreview({
 									key={`audio-track:${track.id}`}
 									ref={(element) => registerAudioTrackEl(track.id, element)}
 									src={src}
-									preload="metadata"
+									preload={
+										track.startMs / 1000 <= virtualTimeSec + 1 &&
+										track.endMs / 1000 > virtualTimeSec
+											? "auto"
+											: "metadata"
+									}
 									aria-hidden="true"
 									data-testid={`preview-audio-track-${track.id}`}
+									onLoadedMetadata={(e) => dropVideoTrack(e.currentTarget)}
+									onWaiting={() => transportRef.current?.check()}
 								/>
 							);
 						})}

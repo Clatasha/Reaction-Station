@@ -371,7 +371,8 @@
 			"description": "動画をデコードできませんでした。ファイルが破損しているか、まだ書き込み中か、プロジェクトが参照している場所にない可能性があります。プロジェクト自体は損なわれていません。",
 			"retry": "再試行",
 			"detail": "詳細: {{detail}}"
-		}
+		},
+		"preparing": "Preparing preview…"
 	},
 	"annotationOverlay": {
 		"imageAlt": "注釈",

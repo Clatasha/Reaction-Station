@@ -25,6 +25,7 @@
 import type { RefObject } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { noteUiProbePreviewFrame } from "@/lib/ai-edition/perf/uiFrameProbe";
+import { usePreviewPlayback } from "@/lib/ai-edition/previewPlayback";
 import {
 	createCompositorView,
 	destroyCompositorView,
@@ -140,6 +141,7 @@ export function useNativeCompositorView(
 		let lastPullAt = Number.NEGATIVE_INFINITY;
 		let lastRect: CompositorViewRect | null = null;
 		let disposed = false;
+		usePreviewPlayback.setState({ nativeStatus: "loading" });
 		// Fresh view (source or enablement changed) → the previous view's fatal error
 		// says nothing about this one.
 		setError(null);
@@ -150,6 +152,9 @@ export function useNativeCompositorView(
 		// fresh view, whose bitmap stays empty until that view paints.
 		const markPainted = () => {
 			canvas.dataset.painted = "true";
+			usePreviewPlayback.setState((state) =>
+				state.nativeStatus === "ready" ? state : { nativeStatus: "ready" },
+			);
 		};
 		delete canvas.dataset.painted;
 
@@ -256,6 +261,7 @@ export function useNativeCompositorView(
 					// opaque everywhere, so a transparent pixel on this fresh canvas is that failure.
 					if (ctx.getImageData(meta.width >> 1, meta.height >> 1, 1, 1).data[3] === 0) {
 						sharedTransport = false;
+						usePreviewPlayback.setState({ nativeStatus: "loading" });
 						safelyCall("stopSharedFrames", () => stopSharedCompositorFrames(id));
 					}
 				}
@@ -359,6 +365,7 @@ export function useNativeCompositorView(
 					cancelAnimationFrame(pullRafHandle);
 					pullRafHandle = 0;
 					setError(cause instanceof Error ? cause.message : String(cause));
+					usePreviewPlayback.setState({ nativeStatus: "error" });
 				});
 		};
 
@@ -400,6 +407,7 @@ export function useNativeCompositorView(
 
 		return () => {
 			disposed = true;
+			usePreviewPlayback.setState({ nativeStatus: "inactive" });
 			unsubscribeShared();
 			publishFootageQuad(null);
 			publishNativePosition(null);

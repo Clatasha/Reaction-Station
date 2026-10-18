@@ -15,6 +15,7 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import type { RefObject } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { usePreviewPlayback } from "@/lib/ai-edition/previewPlayback";
 import type { CompositorSharedFrameMeta } from "../contracts";
 
 type SharedFrameListener = (frame: VideoFrame, meta: CompositorSharedFrameMeta) => void;
@@ -147,6 +148,7 @@ describe("useNativeCompositorView", () => {
 
 		await waitFor(() => expect(mocks.readCompositorFrame).toHaveBeenCalled());
 		expect(result.current.error).toBeNull();
+		expect(usePreviewPlayback.getState().nativeStatus).toBe("loading");
 		// No frame yet: the card keeps its placeholder background.
 		expect(ref.current?.dataset.painted).toBeUndefined();
 	});
@@ -180,6 +182,7 @@ describe("useNativeCompositorView", () => {
 			const ref = stubCanvasRef();
 			renderHook(() => useNativeCompositorView(ref, { sources: { screenPath: "rec.mp4" } }));
 			await waitFor(() => expect(ref.current?.dataset.painted).toBe("true"));
+			expect(usePreviewPlayback.getState().nativeStatus).toBe("ready");
 		} finally {
 			vi.unstubAllGlobals();
 		}

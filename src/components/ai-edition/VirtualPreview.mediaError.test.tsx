@@ -2,6 +2,11 @@
 import "@testing-library/jest-dom";
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	pausePreview,
+	playPreview,
+	previewPlaybackRequested,
+} from "@/lib/ai-edition/previewPlayback";
 import type { AxcutClip } from "@/lib/ai-edition/schema";
 import { RELOAD_WINDOW_MS, RETRY_DELAYS_MS } from "./mediaError";
 import { type VideoSource, VirtualPreview } from "./VirtualPreview";
@@ -87,6 +92,7 @@ function driveVideo(element: HTMLVideoElement) {
 		// What the real load() does to the position, and why the resume point
 		// cannot be read off the element after a failure.
 		currentTime = 0;
+		paused = true;
 	});
 	element.play = vi.fn(() => {
 		paused = false;
@@ -156,6 +162,8 @@ function mount(clips: AxcutClip[] = [clip("clip_1", "a1", 0)], sources: VideoSou
 	const element = view.container.querySelector("video");
 	if (!element) throw new Error("no <video> rendered");
 	const video = driveVideo(element as HTMLVideoElement);
+	const audio = view.container.querySelector("audio");
+	if (audio) Object.defineProperty(audio, "readyState", { configurable: true, get: () => 4 });
 	// How the real app resolves its first clip: metadata arrives, the component
 	// seeks to its current virtual time, and that seek names the active clip.
 	video.loadedMetadata();
@@ -228,6 +236,19 @@ describe("VirtualPreview media-error recovery (issue #395)", () => {
 		expect(video.currentTime).toBeCloseTo(4, 5);
 		// …and playback resumes, because it was playing when the failure hit.
 		expect(video.playCalls).toBeGreaterThan(0);
+	});
+
+	it("does not resume after Pause during the retry backoff", () => {
+		const { video, element } = mount();
+		act(() => playPreview(element));
+		const starts = video.playCalls;
+		video.fail(3);
+		act(() => pausePreview(element));
+		advance(RETRY_DELAYS_MS[0]);
+		video.loadedMetadata();
+		tick();
+		expect(video.playCalls).toBe(starts);
+		expect(previewPlaybackRequested(element)).toBe(false);
 	});
 
 	// …and "at reload time" is the load-bearing half. Resolving it when the error

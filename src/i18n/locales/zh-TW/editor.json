@@ -371,7 +371,8 @@
 			"description": "無法解碼此影片。檔案可能已損毀、仍在寫入中，或已不在專案預期的位置——你的專案本身完好無缺。",
 			"retry": "重試",
 			"detail": "詳細資訊：{{detail}}"
-		}
+		},
+		"preparing": "Preparing preview…"
 	},
 	"annotationOverlay": {
 		"imageAlt": "註解",

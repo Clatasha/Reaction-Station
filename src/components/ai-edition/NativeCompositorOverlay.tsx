@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import { useScopedT } from "@/contexts/I18nContext";
 import { readSpeedRegions } from "@/lib/ai-edition/document/timeline";
 import { noteUiProbeClipSwitch } from "@/lib/ai-edition/perf/uiFrameProbe";
+import { usePreviewPlayback } from "@/lib/ai-edition/previewPlayback";
 import { getEditorSettings } from "@/lib/ai-edition/store/editorSettings";
 import { useProjectStore } from "@/lib/ai-edition/store/projectStore";
 import { assetCameraSource } from "@/lib/ai-edition/timeline/camera";
@@ -128,6 +129,7 @@ export function NativeCompositorOverlay() {
 	const ready = sources !== null;
 	const { viewId, error } = useNativeCompositorView(canvasRef, {
 		sources: sources ?? undefined,
+		enabled: ready,
 	});
 	const t = useScopedT("editor");
 	// No usable GPU: the preview still renders every effect, just slowly (~8 fps with
@@ -203,7 +205,10 @@ export function NativeCompositorOverlay() {
 	const playbackSpeed = findActiveSpeedRegion(speedRegions, currentTimeSec * 1000)?.speed ?? 1;
 	const pendingTargetClipIdRef = useRef<string | null>(null);
 
-	const playing = useProjectStore((s) => s.playing);
+	const buffering = usePreviewPlayback((s) => s.buffering);
+	const nativePreparing = usePreviewPlayback((s) => s.nativeStatus === "loading");
+	const requestedPlaying = useProjectStore((s) => s.playing);
+	const playing = requestedPlaying && !buffering;
 	const wasPlayingRef = useRef(playing);
 
 	// Change les décodeurs screen/webcam quand le playhead entre dans un autre clip, à l'arrêt.
@@ -293,7 +298,7 @@ export function NativeCompositorOverlay() {
 				// of the user's pause, and the preview plays on by itself. The store is
 				// the single source of truth for "is the transport playing", so ask it
 				// at the moment we'd act on it.
-				if (useProjectStore.getState().playing) {
+				if (useProjectStore.getState().playing && !usePreviewPlayback.getState().buffering) {
 					setNativePlaying(true);
 				}
 			})
@@ -321,6 +326,7 @@ export function NativeCompositorOverlay() {
 	// recalage devinait la dérive à l'horloge murale, à vitesse 1 : dans une région à 2× il
 	// relançait une recherche dix fois par seconde.
 	const driftRef = useRef<DriftWatch>(IDLE_DRIFT_WATCH);
+	const resyncedFrameRef = useRef<number | null>(null);
 	useEffect(() => {
 		if (
 			viewId === null ||
@@ -334,8 +340,9 @@ export function NativeCompositorOverlay() {
 			return;
 		}
 		const now = performance.now();
+		const reported = getNativePosition();
 		const lead = nativeLeadSec(
-			getNativePosition(),
+			reported,
 			{ clipIndex: activeClipIndex, sourceTimeSec: activeSourceTimeSec },
 			nativeClips,
 			playbackSpeed,
@@ -343,9 +350,10 @@ export function NativeCompositorOverlay() {
 		);
 		const { watch, resync } = watchDrift(driftRef.current, lead, now);
 		driftRef.current = watch;
-		if (!resync) {
+		if (!resync || reported?.receivedAtMs === resyncedFrameRef.current) {
 			return;
 		}
+		resyncedFrameRef.current = reported?.receivedAtMs ?? null;
 		const asset = document.assets.find((candidate) => candidate.id === activeClip.assetId);
 		if (!asset?.originalPath) {
 			return;
@@ -421,6 +429,32 @@ export function NativeCompositorOverlay() {
 				data-testid="native-compositor-mount"
 				style={{ position: "absolute", inset: 0, zIndex: 0, width: "100%", height: "100%" }}
 			/>
+			{(nativePreparing || buffering) && (
+				<output
+					role="status"
+					data-testid="preview-preparing"
+					style={{
+						position: "absolute",
+						inset: 0,
+						display: "grid",
+						placeItems: "center",
+						pointerEvents: "none",
+						zIndex: 1,
+					}}
+				>
+					<span
+						style={{
+							background: "rgba(15, 23, 42, 0.85)",
+							color: "white",
+							padding: "0.5rem 0.875rem",
+							borderRadius: "999px",
+							fontSize: "0.8125rem",
+						}}
+					>
+						{t("preview.preparing")}
+					</span>
+				</output>
+			)}
 			{cpuCompositor && (
 				// Persistent rather than a toast: the question it answers ("why is this
 				// choppy?") comes up whenever the user looks at the preview, not once at

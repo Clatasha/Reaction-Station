@@ -371,7 +371,8 @@
 			"description": "La vidéo n'a pas pu être décodée. Le fichier est peut-être endommagé, en cours d'écriture, ou plus à l'emplacement attendu — votre projet, lui, est intact.",
 			"retry": "Réessayer",
 			"detail": "Détails : {{detail}}"
-		}
+		},
+		"preparing": "Preparing preview…"
 	},
 	"annotationOverlay": {
 		"imageAlt": "Annotation",

@@ -1,5 +1,5 @@
 name: Reaction Station Windows test installer
-run-name: Reaction Station 0.9 audio and track editing test (${{ github.ref_name }})
+run-name: Reaction Station 0.9.1 preview playback test (${{ github.ref_name }})
 
 on:
   workflow_dispatch:
@@ -13,6 +13,7 @@ on:
       - fix/creator-editing-playback
       - feat/library-linked-timeline
       - fix/audio-track-polish-09
+      - fix/editor-preview-playback
     paths:
       - .github/workflows/reaction-station-windows-test.yml
       - scripts/test-reaction-recorder-ui.mjs

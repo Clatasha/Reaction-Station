@@ -371,7 +371,8 @@
 			"description": "Non è stato possibile decodificare il video. Il file potrebbe essere danneggiato, ancora in scrittura o non più dove il progetto lo cerca: il progetto è intatto.",
 			"retry": "Riprova",
 			"detail": "Dettagli: {{detail}}"
-		}
+		},
+		"preparing": "Preparing preview…"
 	},
 	"annotationOverlay": {
 		"imageAlt": "Annotazione",

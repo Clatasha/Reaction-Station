@@ -19,6 +19,7 @@
  * re-seeked the view ten times a second inside a 2× speed region.
  */
 import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
+import { usePreviewPlayback } from "@/lib/ai-edition/previewPlayback";
 import type { AxcutClip } from "@/lib/ai-edition/schema";
 import { resolveNativePosition } from "@/lib/ai-edition/timeline/timelineMap";
 import {
@@ -37,6 +38,8 @@ export function useNativePlaybackSync(
 	/** RAW clip layout (`document.timeline.clips`) `currentTimeSec` is expressed against. */
 	rawClips: readonly AxcutClip[],
 ): void {
+	const buffering = usePreviewPlayback((state) => state.buffering);
+	const running = playing && !buffering;
 	const activePosition = useMemo(
 		() => resolveNativePosition(currentTimeSec, [...visibleSegments], [...rawClips]),
 		[visibleSegments, rawClips, currentTimeSec],
@@ -56,8 +59,8 @@ export function useNativePlaybackSync(
 		if (!active) {
 			return;
 		}
-		setNativePlaying(playing);
-	}, [active, playing]);
+		setNativePlaying(running);
+	}, [active, running]);
 
 	// Scrub/step while paused, and drift while playing for an addon that reports no position.
 	// A clip change is `setActiveClip`'s, in the overlay.
@@ -76,13 +79,15 @@ export function useNativePlaybackSync(
 			lastSyncedWallTimeRef.current = now;
 			return;
 		}
-		if (!playing) {
+		if (!running) {
 			setNativeTime(sourceTimeSec);
 			lastSyncedSourceTimeRef.current = sourceTimeSec;
 			lastSyncedWallTimeRef.current = now;
 			return;
 		}
-		if (getNativePosition() !== null) {
+		// No frame yet means the current decoder is preparing, not an old addon.
+		// Wall-clock guesses during that interval repeatedly sought the loading decoder.
+		if (getNativePosition() !== null || usePreviewPlayback.getState().nativeStatus === "loading") {
 			return;
 		}
 		if (lastSyncedSourceTimeRef.current === null || lastSyncedWallTimeRef.current === 0) {
@@ -97,5 +102,5 @@ export function useNativePlaybackSync(
 			lastSyncedSourceTimeRef.current = sourceTimeSec;
 			lastSyncedWallTimeRef.current = now;
 		}
-	}, [active, playing, activeClipId, sourceTimeSec]);
+	}, [active, running, activeClipId, sourceTimeSec]);
 }

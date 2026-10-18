@@ -371,7 +371,8 @@
 			"description": "Das Video konnte nicht dekodiert werden. Die Datei ist womöglich beschädigt, wird noch geschrieben oder liegt nicht mehr dort, wo das Projekt sie erwartet — dein Projekt selbst ist intakt.",
 			"retry": "Erneut versuchen",
 			"detail": "Details: {{detail}}"
-		}
+		},
+		"preparing": "Preparing preview…"
 	},
 	"annotationOverlay": {
 		"imageAlt": "Anmerkung",

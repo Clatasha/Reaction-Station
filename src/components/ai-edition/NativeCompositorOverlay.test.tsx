@@ -194,6 +194,12 @@ describe("NativeCompositorOverlay while playing", () => {
 
 		expect(native.setActiveClip).toHaveBeenCalledTimes(1);
 		expect(native.setActiveClip).toHaveBeenCalledWith(7, "/take.mp4", "", 0, 0, 2.52);
+		// A long decode/seek must finish before another request can restart it.
+		for (const elapsed of [600, 120, 600, 120]) {
+			now += elapsed;
+			setPlayhead(3 + elapsed / 1000, true);
+		}
+		expect(native.setActiveClip).toHaveBeenCalledTimes(1);
 	});
 
 	// At 16× a frame that takes 30 ms to arrive shows the playhead 0.48 s of programme ago.

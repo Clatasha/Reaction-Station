@@ -371,7 +371,8 @@
 			"description": "Não foi possível decodificar o vídeo. O arquivo pode estar danificado, ainda sendo gravado ou não estar mais onde o projeto espera — seu projeto continua intacto.",
 			"retry": "Tentar novamente",
 			"detail": "Detalhes: {{detail}}"
-		}
+		},
+		"preparing": "Preparing preview…"
 	},
 	"annotationOverlay": {
 		"imageAlt": "Anotação",

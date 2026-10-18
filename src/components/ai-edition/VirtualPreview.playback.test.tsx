@@ -108,6 +108,8 @@ function mount(clips: AxcutClip[], trimRanges: AxcutTrimRange[] = []) {
 	const element = container.querySelector("video");
 	if (!element) throw new Error("no <video> rendered");
 	const video = driveVideo(element as HTMLVideoElement);
+	const audio = container.querySelector("audio");
+	if (audio) Object.defineProperty(audio, "readyState", { configurable: true, get: () => 4 });
 	// How the real app resolves its first clip: metadata arrives, the component seeks to
 	// its current virtual time, and that seek is what names the active clip.
 	act(() => {
@@ -432,6 +434,7 @@ function driveAudioClock(
 	el: HTMLAudioElement,
 	{ seekLatencySec, skew }: { seekLatencySec: number; skew: number },
 ) {
+	Object.defineProperty(el, "readyState", { configurable: true, get: () => 4 });
 	let currentTime = 0;
 	let paused = true;
 	let stallLeftSec = 0;
@@ -662,7 +665,8 @@ describe("VirtualPreview primary audio keeps to the picture", () => {
 
 		world.run(1, [0.1]); // the seek ends, and the loop goes where the picture went
 		expect(world.audio.writes).toHaveLength(2);
-		expect(world.audio.writes[1]).toBeGreaterThan(6);
+		// The transport now parks picture too while its sound is seeking.
+		expect(world.audio.writes[1]).toBeCloseTo(6, 5);
 	});
 
 	it("keeps in step through a 2x region, entering and leaving it under load", () => {
