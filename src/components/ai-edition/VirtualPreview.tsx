@@ -13,7 +13,7 @@ import {
 	projectRawTimelineSecToPlayback,
 	resolvePlaybackSegments,
 } from "@/lib/ai-edition/document/timeline";
-import { advanceDuckDb, trackDucking } from "@/lib/ai-edition/ducking";
+import { advanceDuckDb, otherAudioDuckGain, triggerDucking } from "@/lib/ai-edition/ducking";
 import {
 	attachPreviewTransport,
 	pausePreview,
@@ -29,6 +29,7 @@ import type {
 } from "@/lib/ai-edition/schema";
 import { audioGainScalar } from "@/lib/ai-edition/store/editorSettings";
 import { previewTrackGainDb } from "@/lib/ai-edition/store/liveAudioGains";
+import { useLiveDucking } from "@/lib/ai-edition/store/liveDucking";
 import { useEditorSettings } from "@/lib/ai-edition/store/useEditorSettings";
 import { removedRawSpans } from "@/lib/ai-edition/timeline/programme-time";
 import { findActiveSpeedRegion, type SpeedRegion } from "@/lib/ai-edition/timeline/speed";
@@ -693,7 +694,7 @@ export function VirtualPreview({
 		.filter((track) => audioSources.some((source) => source.id === track.assetId))
 		.map(
 			(track) =>
-				`${track.id}:${track.kind}:${track.recordingSource ?? ""}:${trackDucking(track).enabled}`,
+				`${track.id}:${track.kind}:${track.recordingSource ?? ""}:${triggerDucking(track).enabled}`,
 		)
 		.join(",");
 
@@ -752,11 +753,7 @@ export function VirtualPreview({
 					audioSourceNodesRef.current.set(element, source);
 				}
 				source.disconnect();
-				source.connect(
-					audioTracksRef.current.some((t) => t.recordingSource === "microphone")
-						? graph.gain
-						: graph.voice,
-				);
+				source.connect(graph.voice);
 				connectedSources.push(source);
 			} catch {
 				// Routing THIS element failed; leave the others alone. Once
@@ -782,15 +779,12 @@ export function VirtualPreview({
 				const trackGain = graph.context.createGain();
 				source.connect(trackGain);
 				trackGain.connect(graph.gain);
-				// A voiceover is voice: the music ducks under it as under the recording.
-				const track = audioTracksRef.current.find((t) => t.id === trackId);
-				if (
-					track?.kind === "voiceover" &&
-					track.recordingSource !== "desktop" &&
-					!trackDucking(track).enabled
-				) {
-					trackGain.connect(graph.analyser);
-				}
+				// Analyse the selected source before attenuation to avoid feedback
+				// when several priority tracks overlap.
+				const analyser = graph.context.createAnalyser();
+				analyser.fftSize = 1024;
+				source.connect(analyser);
+				triggerAnalysersRef.current.set(trackId, { analyser, reading: new Float32Array(1024) });
 				audioTrackGainNodesRef.current.set(trackId, trackGain);
 				connectedSources.push(source);
 				trackGainNodes.push(trackGain);
@@ -807,6 +801,8 @@ export function VirtualPreview({
 			for (const source of connectedSources) source.disconnect();
 			for (const trackGain of trackGainNodes) trackGain.disconnect();
 			audioTrackGainNodesRef.current = new Map();
+			for (const { analyser } of triggerAnalysersRef.current.values()) analyser.disconnect();
+			triggerAnalysersRef.current.clear();
 			graph.voice.disconnect();
 			graph.analyser.disconnect();
 			graph.gain.disconnect();
@@ -957,6 +953,9 @@ export function VirtualPreview({
 	audioSourcesRef.current = audioSources;
 	// Live state of the music ducking (see MUSIC_DUCK): the gain, when the voice was last
 	// heard, and the analyser's reading buffer, reused every frame.
+	const triggerAnalysersRef = useRef(
+		new Map<string, { analyser: AnalyserNode; reading: Float32Array<ArrayBuffer> }>(),
+	);
 	const trackDuckRef = useRef(new Map<string, { db: number; voiceAt: number }>());
 	const musicDuckRef = useRef({
 		db: 0,
@@ -1121,23 +1120,78 @@ export function VirtualPreview({
 				virtualTimeSecRef.current,
 				speedRegionsRef.current,
 			);
-			// Music ducking, heard live: one reading of the voice per frame (see MUSIC_DUCK).
-			const duck = musicDuckRef.current;
 			const now = performance.now();
+			const duck = musicDuckRef.current;
 			const frameSec = Math.min(0.1, Math.max(0, (now - duck.tickAt) / 1000));
 			duck.tickAt = now;
-			const analyser = audioGraphRef.current?.analyser;
-			let voiceDbfs = Number.NEGATIVE_INFINITY;
-			if (analyser && !v.paused) {
-				analyser.getFloatTimeDomainData(duck.reading);
+			const sourceLevels = new Map<string, number>();
+			for (const track of audioTracksRef.current) {
+				const config = triggerDucking(track);
+				const el = audioTrackElsRef.current.get(track.id);
+				const probe = triggerAnalysersRef.current.get(track.id);
+				if (
+					!config.enabled ||
+					!probe ||
+					!el ||
+					el.paused ||
+					track.muted ||
+					previewTrackGainDb(track) <= -60 ||
+					v.paused
+				)
+					continue;
+				probe.analyser.getFloatTimeDomainData(probe.reading);
 				let energy = 0;
-				for (const sample of duck.reading) energy += sample * sample;
-				voiceDbfs = 10 * Math.log10(energy / duck.reading.length);
-				if (voiceDbfs > MUSIC_DUCK.thresholdDbfs) {
-					duck.voiceAt = now;
-				}
+				for (const sample of probe.reading) energy += sample * sample;
+				const path = audioSourcesRef.current.find((s) => s.id === track.assetId)?.filePath;
+				const normalisation =
+					track.kind === "voiceover" && !track.recordingSource && path
+						? (loudnessGainDbByPathRef.current.get(path) ?? 0)
+						: 0;
+				const db =
+					10 * Math.log10(energy / probe.reading.length) +
+					previewTrackGainDb(track) +
+					normalisation;
+				const group = trackGroupId(track);
+				sourceLevels.set(group, Math.max(sourceLevels.get(group) ?? Number.NEGATIVE_INFINITY, db));
 			}
-			duck.db = nextMusicDuckDb(duck.db, (now - duck.voiceAt) / 1000, frameSec);
+			const duckGains = new Map<string, number>();
+			const seen = new Set<string>();
+			for (const track of audioTracksRef.current) {
+				const config = triggerDucking(track);
+				const group = trackGroupId(track);
+				if (!config.enabled) {
+					trackDuckRef.current.delete(group);
+					continue;
+				}
+				if (seen.has(group)) continue;
+				seen.add(group);
+				const envelope = trackDuckRef.current.get(group) ?? {
+					db: 0,
+					voiceAt: Number.NEGATIVE_INFINITY,
+				};
+				if ((sourceLevels.get(group) ?? Number.NEGATIVE_INFINITY) > config.thresholdDbfs)
+					envelope.voiceAt = now;
+				envelope.db = advanceDuckDb(
+					envelope.db,
+					(now - envelope.voiceAt) / 1000,
+					v.paused ? 0 : frameSec,
+					{ ...config, depthDb: -1 },
+				);
+				trackDuckRef.current.set(group, envelope);
+				const reduction = useLiveDucking.getState().reductions[group] ?? config.reductionPercent;
+				duckGains.set(group, Math.max(0, 1 + (envelope.db * reduction) / 100));
+			}
+			const embeddedDuck = otherAudioDuckGain(null, duckGains);
+			if (audioGraphRef.current)
+				audioGraphRef.current.voice.gain.value =
+					audioGainScalar(voiceGainDbRef.current) * embeddedDuck;
+			else
+				for (const el of [primaryAudioRef.current, supplementalAudioRef.current])
+					if (el)
+						el.volume = Math.min(
+							1,
+							globalGain * audioGainScalar(voiceGainDbRef.current) * embeddedDuck,
+						);
 			for (const track of audioTracksRef.current) {
 				const el = audioTrackElsRef.current.get(track.id);
 				if (!el) continue;
@@ -1226,26 +1280,13 @@ export function VirtualPreview({
 					)?.filePath;
 					trackGainDb += path ? (loudnessGainDbByPathRef.current.get(path) ?? 0) : 0;
 				}
-				const config = trackDucking(track);
-				const envelope = trackDuckRef.current.get(takeGroupId) ?? {
-					db: 0,
-					voiceAt: Number.NEGATIVE_INFINITY,
-				};
-				if (voiceDbfs > config.thresholdDbfs) envelope.voiceAt = now;
-				envelope.db = advanceDuckDb(
-					envelope.db,
-					(now - envelope.voiceAt) / 1000,
-					v.paused ? 0 : frameSec,
-					config,
-				);
-				trackDuckRef.current.set(takeGroupId, envelope);
-				trackGainDb += envelope.db;
+				const duckGain = otherAudioDuckGain(takeGroupId, duckGains);
 				const trackGainNode = audioTrackGainNodesRef.current.get(track.id);
 				if (trackGainNode) {
-					trackGainNode.gain.value = audioGainScalar(trackGainDb) * fade;
+					trackGainNode.gain.value = audioGainScalar(trackGainDb) * fade * duckGain;
 					if (el.volume !== 1) el.volume = 1;
 				} else {
-					el.volume = Math.min(1, audioGainScalar(trackGainDb) * globalGain * fade);
+					el.volume = Math.min(1, audioGainScalar(trackGainDb) * globalGain * fade * duckGain);
 				}
 				// Only re-seek on a real discontinuity (a scrub, a trim jump, a first play),
 				// NOT on the sub-frame drift of normal playback: at a tight leash this

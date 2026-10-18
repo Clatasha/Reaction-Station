@@ -7,7 +7,9 @@ vi.mock("@/contexts/I18nContext", () => ({
 	useScopedT: (scope: string) => (key: string) => `${scope}.${key}`,
 }));
 
+import { DEFAULT_DUCKING_TRIGGER } from "@/lib/ai-edition/ducking";
 import { previewTrackGainDb, useLiveAudioGains } from "@/lib/ai-edition/store/liveAudioGains";
+import { useLiveDucking } from "@/lib/ai-edition/store/liveDucking";
 import { AudioTrackPane } from "./RightPanes";
 
 afterEach(() => {
@@ -47,20 +49,21 @@ describe("AudioTrackPane", () => {
 		removeAudioTrack: vi.fn(),
 	});
 
-	it("offers optional desktop ducking and commits adjustable reduction", () => {
+	it("lets a microphone lower all other audio by a live percentage with one saved edit", async () => {
 		const tl = createTl();
-		const updateAudioTrack = vi.fn();
-		const desktop = {
+		const updateAudioTrack = vi.fn(async () => undefined);
+		const microphone = {
 			...tl.audioTracks[0],
-			kind: "voiceover" as const,
-			recordingSource: "desktop" as const,
+			kind: "voiceover",
+			recordingSource: "microphone",
+			duckingTrigger: DEFAULT_DUCKING_TRIGGER,
 		};
 		const view = render(
-			<AudioTrackPane tl={{ ...tl, audioTracks: [desktop], updateAudioTrack } as never} />,
+			<AudioTrackPane tl={{ ...tl, audioTracks: [microphone], updateAudioTrack } as never} />,
 		);
-		fireEvent.click(screen.getByLabelText("settings.ducking.enabled"));
+		fireEvent.click(screen.getByLabelText("settings.ducking.triggerEnabled"));
 		expect(updateAudioTrack).toHaveBeenCalledWith("track_1", {
-			ducking: expect.objectContaining({ enabled: true, depthDb: -10 }),
+			duckingTrigger: { ...DEFAULT_DUCKING_TRIGGER, enabled: true },
 		});
 		view.rerender(
 			<AudioTrackPane
@@ -68,29 +71,25 @@ describe("AudioTrackPane", () => {
 					{
 						...tl,
 						audioTracks: [
-							{
-								...desktop,
-								ducking: {
-									enabled: true,
-									depthDb: -10,
-									thresholdDbfs: -35,
-									attackSec: 0.25,
-									holdSec: 0.5,
-									releaseSec: 0.6,
-								},
-							},
+							{ ...microphone, duckingTrigger: { ...DEFAULT_DUCKING_TRIGGER, enabled: true } },
 						],
 						updateAudioTrack,
 					} as never
 				}
 			/>,
 		);
-		const reduction = screen.getByRole("spinbutton", { name: "settings.ducking.depthDb" });
-		fireEvent.change(reduction, { target: { value: "-18" } });
-		fireEvent.blur(reduction);
-		expect(updateAudioTrack).toHaveBeenLastCalledWith("track_1", {
-			ducking: expect.objectContaining({ depthDb: -18 }),
-		});
+		updateAudioTrack.mockClear();
+		const slider = screen.getByRole("slider", { name: "settings.ducking.reductionPercent" });
+		fireEvent.change(slider, { target: { value: "50" } });
+		expect(useLiveDucking.getState().reductions.track_1).toBe(50);
+		expect(updateAudioTrack).not.toHaveBeenCalled();
+		fireEvent.mouseUp(slider);
+		await waitFor(() =>
+			expect(updateAudioTrack).toHaveBeenCalledWith("track_1", {
+				duckingTrigger: { ...DEFAULT_DUCKING_TRIGGER, enabled: true, reductionPercent: 50 },
+			}),
+		);
+		expect(updateAudioTrack).toHaveBeenCalledTimes(1);
 	});
 
 	it("renders close button and closes audio track by default", () => {

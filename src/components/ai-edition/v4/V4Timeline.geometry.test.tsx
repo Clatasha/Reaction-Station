@@ -111,6 +111,12 @@ function renderTimeline(
 	onRender?: ProfilerOnRenderCallback,
 	overrides: Record<string, unknown> = {},
 	onDropFiles?: (files: File[], placement: "sequence" | "overlay", time: number) => Promise<void>,
+	onDropAsset?: (
+		id: string,
+		placement?: "sequence" | "overlay",
+		time?: number,
+		track?: string,
+	) => Promise<void>,
 ) {
 	const tl = {
 		clips,
@@ -157,6 +163,7 @@ function renderTimeline(
 				onEditClip={vi.fn()}
 				onAddVoiceover={vi.fn()}
 				onDropFiles={onDropFiles}
+				onDropAsset={onDropAsset}
 			/>
 		</ShortcutsProvider>
 	);
@@ -1161,6 +1168,30 @@ describe("timeline Workspace controls and context actions", () => {
 });
 
 describe("external timeline drops", () => {
+	it("prefers a reusable sticker asset over the browser thumbnail file payload", () => {
+		const files = vi.fn(async () => undefined);
+		const asset = vi.fn(async () => undefined);
+		const { clipEls } = renderTimeline(
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			{},
+			files,
+			asset,
+		);
+		const dataTransfer = {
+			files: [new File(["thumbnail"], "sticker.png")],
+			types: ["Files", "application/x-axcut-asset"],
+			getData: (type: string) => (type === "application/x-axcut-asset" ? "sticker-asset" : ""),
+		};
+		const event = createEvent.drop(clipEls[0], { dataTransfer });
+		Object.defineProperty(event, "clientX", { value: 225 });
+		fireEvent(clipEls[0], event);
+		expect(asset).toHaveBeenCalledWith("sticker-asset", "sequence", 450, undefined);
+		expect(files).not.toHaveBeenCalled();
+	});
+
 	it("uses the main track for sequence insertion and upper lanes for overlays", () => {
 		const onDrop = vi.fn(async () => {
 			/* Only placement is asserted here. */

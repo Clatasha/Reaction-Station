@@ -25,6 +25,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { getAvailableLocales, getLocaleName } from "@/i18n/loader";
 import { moveMenuFocus } from "@/lib/menuKeyboard";
 import { formatBinding } from "@/lib/shortcuts";
+import { PreviewQualitySelect } from "../PreviewQualitySelect";
 import { StylePresetsMenu } from "../StylePresetsMenu";
 import styles from "./EditorShellV4.module.css";
 import { WorkspaceMenu } from "./WorkspaceMenu";
@@ -124,21 +125,25 @@ export function EditorTopBar({
 				</span>
 			</span>
 
-			<div className={styles.modeSwitch} role="tablist" aria-label={t("topbar.editorMode")}>
-				{MODES.map((m) => (
-					<button
-						key={m.id}
-						type="button"
-						role="tab"
-						aria-selected={mode === m.id}
-						// Feeds the hidden bold copy that reserves the selected width — see
-						// .modeSwitch button::before.
-						data-label={t(m.labelKey)}
-						onClick={() => onModeChange(m.id)}
-					>
-						<span className={styles.modeLabel}>{t(m.labelKey)}</span>
-					</button>
-				))}
+			<div className={styles.modeControls}>
+				<div className={styles.modeSwitch} role="tablist" aria-label={t("topbar.editorMode")}>
+					{MODES.map((m) => (
+						<button
+							key={m.id}
+							type="button"
+							role="tab"
+							aria-selected={mode === m.id}
+							// Feeds the hidden bold copy that reserves the selected width — see
+							// .modeSwitch button::before.
+							data-label={t(m.labelKey)}
+							onClick={() => onModeChange(m.id)}
+						>
+							<span className={styles.modeLabel}>{t(m.labelKey)}</span>
+						</button>
+					))}
+				</div>
+
+				<PreviewQualitySelect />
 			</div>
 
 			{/* A preset is the whole look the right panel's panes edit — Composition, camera,

@@ -1670,6 +1670,9 @@ pub fn mix_external_tracks(mut programme: PlanarPcm, tracks: &[SceneAudioTrack])
     if programme.first().map_or(true, Vec::is_empty) {
         return programme;
     }
+    if tracks.iter().any(|track| track.ducking_trigger.is_some()) {
+        return mix_triggered_tracks(programme, tracks);
+    }
     // Sidechain excludes desktop sound, including desktop tracks whose ducking
     // is off. Otherwise the video would trigger its own attenuation.
     let mut reference = voice_energy(&programme);
@@ -1693,8 +1696,60 @@ pub fn mix_external_tracks(mut programme: PlanarPcm, tracks: &[SceneAudioTrack])
     programme
 }
 
+fn audio_group(track: &SceneAudioTrack) -> &str {
+    track.group_id.as_deref().unwrap_or(&track.path)
+}
+
+/// Analyse each trigger before attenuation, keeping only 10ms energy buckets.
+/// The second pass decodes/mixes one track at a time; no full-programme PCM copy
+/// is retained per trigger, even for long recordings.
+fn mix_triggered_tracks(mut programme: PlanarPcm, tracks: &[SceneAudioTrack]) -> PlanarPcm {
+    let len = programme.first().map_or(0, Vec::len);
+    let blocks = len.div_ceil(DUCK_BLOCK);
+    let mut curves: HashMap<String, Vec<f32>> = HashMap::new();
+    for source in tracks {
+        let Some(config) = source.ducking_trigger.filter(|settings| settings.enabled) else { continue };
+        let group = audio_group(source);
+        if curves.contains_key(group) { continue; }
+        let mut energy = vec![0.0; blocks];
+        for fragment in tracks.iter().filter(|track| audio_group(track) == group) {
+            process_external_track(&mut programme, fragment, &[], Some(&mut energy), true);
+        }
+        let envelope = duck_curve_from_energy(&energy, SceneDucking {
+            enabled: true, depth_db: -1.0, threshold_dbfs: config.threshold_dbfs,
+            attack_sec: config.attack_sec, hold_sec: config.hold_sec, release_sec: config.release_sec,
+        });
+        let reduction = config.reduction_percent.clamp(0.0, 100.0) / 100.0;
+        let curve = envelope.iter().map(|gain| {
+            let progress = (-20.0 * gain.max(0.000001).log10()).clamp(0.0, 1.0);
+            (1.0 - progress * reduction).clamp(0.0, 1.0)
+        }).collect();
+        curves.insert(group.to_owned(), curve);
+    }
+    let combined = |exclude: Option<&str>| -> Vec<f32> {
+        let mut result = vec![1.0_f32; blocks];
+        for (group, curve) in &curves {
+            if exclude == Some(group.as_str()) { continue; }
+            for (value, gain) in result.iter_mut().zip(curve) { *value = (*value).min(*gain); }
+        }
+        result
+    };
+    let embedded_curve = combined(None);
+    for channel in &mut programme {
+        for (sample, value) in channel.iter_mut().enumerate() { *value *= duck_gain_at(&embedded_curve, sample); }
+    }
+    for track in tracks {
+        let curve = combined(Some(audio_group(track)));
+        overlay_external_track(&mut programme, track, &curve, None);
+    }
+    programme
+}
+
 /// One entry of `mix_external_tracks`: decode its window, level it, sum it in under `duck`.
 fn overlay_external_track(programme: &mut PlanarPcm, track: &SceneAudioTrack, duck: &[f32], reference: Option<&mut Vec<f32>>) {
+    process_external_track(programme, track, duck, reference, false);
+}
+fn process_external_track(programme: &mut PlanarPcm, track: &SceneAudioTrack, duck: &[f32], reference: Option<&mut Vec<f32>>, analysis_only: bool) {
     let programme_len = programme.first().map(Vec::len).unwrap_or(0);
     let offset = (track.start_sec.max(0.0) * AUDIO_OUTPUT_SAMPLE_RATE as f64).round() as usize;
     // A track that starts at or past the programme end contributes nothing —
@@ -1744,6 +1799,7 @@ fn overlay_external_track(programme: &mut PlanarPcm, track: &SceneAudioTrack, du
         SceneAudioTrackKind::Music => 0.0,
     };
     let gain = 10.0f32.powf((track.gain_db.clamp(-60.0, 12.0) + normalisation) / 20.0);
+    if !analysis_only {
     overlay_track_pcm(
         programme,
         &decoded,
@@ -1754,6 +1810,7 @@ fn overlay_external_track(programme: &mut PlanarPcm, track: &SceneAudioTrack, du
         full_len,
         duck,
     );
+    }
     if let Some(reference) = reference {
         let envelope_len = full_len.max(decoded.first().map_or(0, Vec::len));
         let (fade_in, fade_out) = resolve_fade_samples(envelope_len, track.fade_in_sec.max(0.0), track.fade_out_sec.max(0.0));
@@ -2180,6 +2237,29 @@ mod tests {
             trim_end_sec: Some(1.0), kind: SceneAudioTrackKind::Voiceover, ..Default::default() };
         let ducked = mix_external_tracks(vec![vec![0.0; 48_000]; 2], &[desktop, mic]);
         assert!((ducked[0][24_000] - 0.15).abs() < 0.002, "microphone retained, desktop reduced: {}", ducked[0][24_000]);
+
+        // Source-trigger mode: the selected microphone is never lowered by
+        // itself, and every other layer (including embedded audio) drops 25%.
+        let mic_path = root.join("microphone.wav").to_string_lossy().into_owned();
+        let desktop_path = root.join("desktop.wav").to_string_lossy().into_owned();
+        let config = crate::scene::SceneDuckingTrigger { enabled: true, reduction_percent: 25.0,
+            threshold_dbfs: -35.0, attack_sec: 0.25, hold_sec: 0.5, release_sec: 0.6 };
+        let source = SceneAudioTrack { path: mic_path, group_id: Some("mic".into()),
+            ducking_trigger: Some(config), recorded_source: true, trim_end_sec: Some(1.0),
+            kind: SceneAudioTrackKind::Voiceover, ..Default::default() };
+        let target = SceneAudioTrack { path: desktop_path, group_id: Some("desktop".into()),
+            recorded_source: true, trim_end_sec: Some(1.0), kind: SceneAudioTrackKind::Voiceover, ..Default::default() };
+        let output = mix_external_tracks(vec![vec![0.4; 48_000]; 2], &[source.clone(), target.clone()]);
+        assert!((output[0][24_000] - 0.6125).abs() < 0.003, "source retained, other layers at 75%: {}", output[0][24_000]);
+        let full = SceneAudioTrack { ducking_trigger: Some(crate::scene::SceneDuckingTrigger { reduction_percent: 100.0, ..config }), ..source.clone() };
+        let output = mix_external_tracks(vec![vec![0.4; 48_000]; 2], &[full, target.clone()]);
+        assert!((output[0][24_000] - 0.125).abs() < 0.003, "100% reduction silences only other audio");
+        let off = SceneAudioTrack { ducking_trigger: Some(crate::scene::SceneDuckingTrigger { enabled: false, ..config }), ..source.clone() };
+        let output = mix_external_tracks(vec![vec![0.4; 48_000]; 2], &[off, target.clone()]);
+        assert!((output[0][24_000] - 0.775).abs() < 0.003, "disabled trigger keeps original levels");
+        let second = SceneAudioTrack { ducking_trigger: Some(crate::scene::SceneDuckingTrigger { reduction_percent: 50.0, ..config }), ..target };
+        let output = mix_external_tracks(vec![vec![0.4; 48_000]; 2], &[source, second]);
+        assert!((output[0][24_000] - 0.45).abs() < 0.003, "overlapping triggers use strongest other-source reduction");
         std::fs::remove_dir_all(root).unwrap();
     }
 

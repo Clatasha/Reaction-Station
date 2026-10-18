@@ -4,7 +4,11 @@ import {
 	itemTrackId,
 	visibleEditorDocument,
 } from "@/lib/ai-edition/document/editorTracks";
-import type { DuckingSettings } from "@/lib/ai-edition/ducking";
+import {
+	type DuckingSettings,
+	type DuckingTrigger,
+	triggerDucking,
+} from "@/lib/ai-edition/ducking";
 /**
  * Scene contract — the flat description the app hands the native D3D compositor so it can
  * compute the composed frame itself (preview AND export) with **no POC-fixture logic**.
@@ -551,6 +555,8 @@ export interface SceneDescription {
 		recordedSource?: boolean;
 		recordingSource?: "microphone" | "desktop";
 		ducking?: DuckingSettings;
+		duckingTrigger?: DuckingTrigger;
+		groupId?: string;
 		outputDurationSec?: number;
 		/** A voiceover is voice: the export levels it like the recording's own audio. */
 		kind: AxcutAudioTrack["kind"];
@@ -875,6 +881,8 @@ export function buildSceneDescription(
 			fadeOutSec: track.fadeOutMs / 1000,
 			kind: track.kind,
 			...(track.ducking ? { ducking: track.ducking } : {}),
+			duckingTrigger: triggerDucking(track),
+			groupId: trackGroupId(track),
 			...(track.recordingSource
 				? { recordedSource: true, recordingSource: track.recordingSource }
 				: {}),
@@ -1490,8 +1498,8 @@ export function buildSceneDescription(
 					const media = region.mediaAssetId ? assetById.get(region.mediaAssetId) : undefined;
 					return {
 						...base,
-						imagePath: region.content || region.imageContent || "",
-						...(media
+						imagePath: media?.stillImagePath || region.content || region.imageContent || "",
+						...(media && !media.stillImagePath
 							? {
 									videoPath: media.originalPath,
 									videoSourceStartSec: region.mediaSourceStartSec ?? 0,

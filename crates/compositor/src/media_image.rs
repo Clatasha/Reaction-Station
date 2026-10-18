@@ -127,4 +127,15 @@ mod tests {
             assert_eq!(animated_rect(rect, Some(name), 3600.0, 1080.0), (rect, 1.0));
         }
     }
+
+    #[test]
+    fn original_png_keeps_transparent_pixels_and_partial_alpha() {
+        let path = std::env::temp_dir().join(format!("reaction-png-alpha-{}.png", std::process::id()));
+        let image = image::RgbaImage::from_raw(2, 1, vec![255, 0, 0, 0, 0, 255, 0, 128]).unwrap();
+        image.save(&path).unwrap();
+        let decoded = super::load(path.to_str().unwrap()).unwrap();
+        assert_eq!(decoded.dimensions(), (2, 1));
+        assert_eq!(decoded.as_raw(), image.as_raw());
+        std::fs::remove_file(path).unwrap();
+    }
 }

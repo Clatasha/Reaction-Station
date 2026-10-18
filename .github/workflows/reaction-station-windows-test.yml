@@ -1,5 +1,5 @@
 name: Reaction Station Windows test installer
-run-name: Reaction Station 0.9.2 preview quality and ducking test (${{ github.ref_name }})
+run-name: Reaction Station 0.9.3 audio priority and media test (${{ github.ref_name }})
 
 on:
   workflow_dispatch:
@@ -15,6 +15,7 @@ on:
       - fix/audio-track-polish-09
       - fix/editor-preview-playback
       - feat/preview-quality-ducking
+      - feat/creator-audio-and-media-polish
     paths:
       - .github/workflows/reaction-station-windows-test.yml
       - scripts/test-reaction-recorder-ui.mjs

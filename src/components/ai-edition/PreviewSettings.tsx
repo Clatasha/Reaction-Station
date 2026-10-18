@@ -1,9 +1,5 @@
 import { useScopedT } from "@/contexts/I18nContext";
-import {
-	type PreviewQuality,
-	usePreviewPreferences,
-	usePreviewProxies,
-} from "@/lib/ai-edition/previewPreferences";
+import { usePreviewPreferences, usePreviewProxies } from "@/lib/ai-edition/previewPreferences";
 import { useProjectStore } from "@/lib/ai-edition/store/projectStore";
 import styles from "./v4/EditorShellV4.module.css";
 export function PreviewSettings() {
@@ -18,20 +14,6 @@ export function PreviewSettings() {
 	const pending = entries.filter(([, job]) => job.state === "queued" || job.state === "generating");
 	return (
 		<div style={{ display: "grid", gap: 8, padding: "8px 12px" }}>
-			<label>
-				{t("preview.quality")}{" "}
-				<select
-					aria-label={t("preview.quality")}
-					value={prefs.quality}
-					onChange={(e) => prefs.setQuality(e.target.value as PreviewQuality)}
-				>
-					{(["auto", "full", "half", "quarter"] as const).map((q) => (
-						<option key={q} value={q}>
-							{t(`preview.${q}`)}
-						</option>
-					))}
-				</select>
-			</label>
 			<label>
 				<input
 					type="checkbox"

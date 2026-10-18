@@ -74,7 +74,7 @@ it("drags a reusable asset reference and keeps custom stickers in their tab", ()
 	render(<LibraryPanel onAdd={add} editDocument={edit} />);
 	const setData = vi.fn();
 	fireEvent.dragStart(screen.getByTitle("Reaction.mp4"), {
-		dataTransfer: { setData, effectAllowed: "" },
+		dataTransfer: { clearData: vi.fn(), setData, effectAllowed: "" },
 	});
 	expect(setData).toHaveBeenCalledWith("application/x-axcut-asset", "video");
 	fireEvent.click(screen.getByRole("tab", { name: "library.stickers" }));

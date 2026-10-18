@@ -1,5 +1,6 @@
-import { trackDucking } from "@/lib/ai-edition/ducking";
+import { DEFAULT_DUCKING_TRIGGER, triggerDucking } from "@/lib/ai-edition/ducking";
 import { useLiveAudioGains } from "@/lib/ai-edition/store/liveAudioGains";
+import { useLiveDucking } from "@/lib/ai-edition/store/liveDucking";
 // Six right-rail panes matching design/openscreen-editor.html. Each control
 // reads from + writes to the project document via `useEditorSettings`, so the
 // design's UI is the canonical surface (no more "more options" link to a
@@ -3519,6 +3520,7 @@ export function AudioTrackPane({ tl, onClose }: { tl: TimelineApi; onClose?: () 
 		: undefined;
 	const asset = track ? tl.assets.find((a) => a.id === track.assetId) : undefined;
 	// Live-drag values; null means "show the committed value".
+	const [liveReduction, setLiveReduction] = useState<number | null>(null);
 	const [liveGain, setLiveGain] = useState<number | null>(null);
 	const [liveFadeIn, setLiveFadeIn] = useState<number | null>(null);
 	const [liveFadeOut, setLiveFadeOut] = useState<number | null>(null);
@@ -3527,10 +3529,14 @@ export function AudioTrackPane({ tl, onClose }: { tl: TimelineApi; onClose?: () 
 	// track A would show as track B's gain the moment B is selected.
 	useEffect(() => {
 		setLiveGain(null);
+		setLiveReduction(null);
 		setLiveFadeIn(null);
 		setLiveFadeOut(null);
 		return () => {
-			if (trackId) useLiveAudioGains.getState().clearGain(trackId);
+			if (trackId) {
+				useLiveAudioGains.getState().clearGain(trackId);
+				useLiveDucking.getState().clear(trackId);
+			}
 		};
 	}, [trackId]);
 	if (!track) return null;
@@ -3648,63 +3654,93 @@ export function AudioTrackPane({ tl, onClose }: { tl: TimelineApi; onClose?: () 
 				/>
 			</div>
 
-			{(track.kind === "music" || track.recordingSource === "desktop") && (
-				<fieldset
-					style={{
-						border: "1px solid var(--border)",
-						borderRadius: 10,
-						padding: 10,
-						margin: "12px 0",
-					}}
-				>
-					<legend>{ts("ducking.title")}</legend>
-					<div className={styles.paneRow}>
-						<span>{ts("ducking.enabled")}</span>
-						<Toggle
-							checked={trackDucking(track).enabled}
-							ariaLabel={ts("ducking.enabled")}
-							onChange={(enabled) =>
-								void tl.updateAudioTrack(track.id, { ducking: { ...trackDucking(track), enabled } })
-							}
+			<fieldset
+				style={{
+					border: "1px solid var(--border)",
+					borderRadius: 10,
+					padding: 10,
+					margin: "12px 0",
+				}}
+			>
+				<legend>{ts("ducking.title")}</legend>
+				<div className={styles.paneRow}>
+					<span>{ts("ducking.triggerEnabled")}</span>
+					<Toggle
+						checked={triggerDucking(track).enabled}
+						ariaLabel={ts("ducking.triggerEnabled")}
+						onChange={(enabled) =>
+							void tl.updateAudioTrack(track.id, {
+								duckingTrigger: { ...triggerDucking(track), enabled },
+							})
+						}
+					/>
+				</div>
+				<p style={{ fontSize: 12 }}>{ts("ducking.triggerHelp")}</p>
+				{triggerDucking(track).enabled && (
+					<>
+						<SliderCell
+							label={ts("ducking.reductionPercent")}
+							value={liveReduction ?? triggerDucking(track).reductionPercent}
+							min={0}
+							max={100}
+							step={1}
+							decimals={0}
+							suffix="%"
+							onChange={(value) => {
+								setLiveReduction(value);
+								if (trackId) useLiveDucking.getState().set(trackId, value);
+							}}
+							onCommit={async () => {
+								if (liveReduction === null) return;
+								const target = liveReduction;
+								try {
+									await tl.updateAudioTrack(track.id, {
+										duckingTrigger: { ...triggerDucking(track), reductionPercent: target },
+									});
+								} finally {
+									if (trackId) useLiveDucking.getState().clear(trackId, target);
+									setLiveReduction((current) => (current === target ? null : current));
+								}
+							}}
 						/>
-					</div>
-					<p style={{ fontSize: 12 }}>{ts("ducking.help")}</p>
-					{trackDucking(track).enabled &&
-						(
-							[
-								["depthDb", -40, 0, 1, " dB"],
-								["thresholdDbfs", -60, -10, 1, " dB"],
-								["attackSec", 0.01, 2, 0.01, " s"],
-								["holdSec", 0, 3, 0.05, " s"],
-								["releaseSec", 0.01, 5, 0.01, " s"],
-							] as const
-						).map(([key, min, max, step, suffix]) => (
-							<label key={key} style={{ display: "grid", gap: 4, marginTop: 8 }}>
-								{ts(`ducking.${key}`)}
-								<input
-									type="number"
-									aria-label={ts(`ducking.${key}`)}
-									min={min}
-									max={max}
-									step={step}
-									defaultValue={trackDucking(track)[key]}
-									key={`${track.id}-${key}-${trackDucking(track)[key]}`}
-									onBlur={(e) => {
-										const value = Number(e.target.value);
-										if (e.target.value && Number.isFinite(value))
-											void tl.updateAudioTrack(track.id, {
-												ducking: {
-													...trackDucking(track),
-													[key]: Math.min(max, Math.max(min, value)),
-												},
-											});
-									}}
-								/>
-								<small>{suffix.trim()}</small>
-							</label>
-						))}
-				</fieldset>
-			)}
+						<details>
+							<summary>{ts("ducking.advanced")}</summary>
+							{(
+								[
+									["thresholdDbfs", -60, -10, 1, "dB"],
+									["attackSec", 0.01, 2, 0.01, "s"],
+									["holdSec", 0, 3, 0.05, "s"],
+									["releaseSec", 0.01, 5, 0.01, "s"],
+								] as const
+							).map(([key, min, max, step, suffix]) => (
+								<label key={key} style={{ display: "grid", gap: 4, marginTop: 8 }}>
+									{ts(`ducking.${key}`)} ({suffix})
+									<input
+										type="number"
+										aria-label={ts(`ducking.${key}`)}
+										min={min}
+										max={max}
+										step={step}
+										defaultValue={triggerDucking(track)[key]}
+										key={`${track.id}-${key}-${triggerDucking(track)[key]}`}
+										onBlur={(e) => {
+											const value = Number(e.target.value);
+											if (e.target.value && Number.isFinite(value))
+												void tl.updateAudioTrack(track.id, {
+													duckingTrigger: {
+														...triggerDucking(track),
+														[key]: Math.min(max, Math.max(min, value)),
+													},
+												});
+										}}
+									/>
+								</label>
+							))}
+						</details>
+					</>
+				)}
+			</fieldset>
+
 			{!track.recordingSource && (
 				<div className={styles.paneRow}>
 					<span className={styles.label}>{ts("audioTrack.loop")}</span>
@@ -3722,13 +3758,15 @@ export function AudioTrackPane({ tl, onClose }: { tl: TimelineApi; onClose?: () 
 				className={styles.secondaryBtn}
 				onClick={() => {
 					setLiveGain(null);
+					setLiveReduction(null);
+					if (trackId) useLiveDucking.getState().clear(trackId);
 					setLiveFadeIn(null);
 					setLiveFadeOut(null);
 					// Back to what a new track of this kind starts at: a bed returns UNDER the
 					// voice, not to a 0 dB level that buries it.
 					void tl.updateAudioTrack(track.id, {
 						...audioTrackDefaults(track.kind),
-						ducking: trackDucking({ kind: track.kind, recordingSource: track.recordingSource }),
+						duckingTrigger: DEFAULT_DUCKING_TRIGGER,
 						muted: false,
 						loop: false,
 					});

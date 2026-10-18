@@ -205,11 +205,15 @@ try {
 	await editor.getByText("Microphone", { exact: true }).last().click();
 	await editor.getByRole("slider").first().waitFor();
 	await editor.screenshot({ path: path.join(output, "separate-audio-editor.png") });
-	await editor.getByRole("button", { name: "Workspace", exact: true }).click();
 	const quality = editor.getByRole("combobox", { name: "Preview quality", exact: true });
 	await quality.selectOption("quarter");
 	await expect(quality).toHaveValue("quarter");
 	await quality.selectOption("auto");
+	const qualityBox = await quality.boundingBox();
+	const recordBox = await editor.getByRole("tab", { name: "Record", exact: true }).boundingBox();
+	if (!qualityBox || !recordBox || qualityBox.x < recordBox.x + recordBox.width)
+		throw new Error("Preview quality must be beside the mode controls");
+	await editor.getByRole("button", { name: "Workspace", exact: true }).click();
 	const proxies = editor.getByRole("checkbox", {
 		name: "Use lightweight editing copies (720p)",
 		exact: true,
@@ -350,30 +354,71 @@ try {
 	await editor.screenshot({ path: path.join(output, "library-track-controls.png") });
 	await editor
 		.locator('[data-timeline-kind="audio"]')
-		.filter({ hasText: "Desktop audio" })
+		.filter({ hasText: "Microphone" })
 		.first()
 		.click();
-	await editor.getByLabel("Lower this track while I speak", { exact: true }).click();
+	await editor.getByLabel("Use this audio to lower all other audio", { exact: true }).click();
 	await expect
 		.poll(
 			async () =>
 				(await getImportedDocument())?.audioTracks?.find(
-					(track) => track.recordingSource === "desktop",
-				)?.ducking?.enabled,
+					(track) => track.recordingSource === "microphone",
+				)?.duckingTrigger?.enabled,
 		)
 		.toBe(true);
-	const reduction = editor.getByRole("spinbutton", { name: "Reduction", exact: true });
-	await reduction.fill("-18");
+	const reduction = editor.getByRole("slider", { name: "Lower other audio by", exact: true });
+	await reduction.press("End");
 	await reduction.press("Tab");
 	await expect
 		.poll(
 			async () =>
 				(await getImportedDocument())?.audioTracks?.find(
-					(track) => track.recordingSource === "desktop",
-				)?.ducking?.depthDb,
+					(track) => track.recordingSource === "microphone",
+				)?.duckingTrigger?.reductionPercent,
 		)
-		.toBe(-18);
+		.toBe(100);
 	await editor.screenshot({ path: path.join(output, "audio-ducking.png") });
+	const stickerPath = path.join(recordings, "reaction-sticker-smoke.png");
+	await fs.writeFile(
+		stickerPath,
+		Buffer.from(
+			"iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAALElEQVR4nO3OsREAAAQEQf03jQ4EImZ3/vOLABhkb3MBAgQIECBAwP0A4L0C4RD+EDWrAHUAAAAASUVORK5CYII=",
+			"base64",
+		),
+	);
+	await editor.getByRole("tab", { name: "Stickers", exact: true }).click();
+	await editor
+		.locator('input[type="file"][accept="video/*,audio/*,image/*,.mkv,.flac,.opus"]')
+		.setInputFiles(stickerPath);
+	const sticker = editor.getByTitle("reaction-sticker-smoke.png", { exact: true });
+	await expect(sticker).toHaveAttribute("draggable", "true", { timeout: 60_000 });
+	const beforeStickers = (await getImportedDocument()).annotations.length;
+	const transfer = await editor.evaluateHandle(() => new DataTransfer());
+	await sticker.dispatchEvent("dragstart", { dataTransfer: transfer });
+	// Chromium may append an image-file payload to an internal asset drag.
+	await transfer.evaluate((data) =>
+		data.items.add(new File(["thumbnail"], "thumbnail.png", { type: "image/png" })),
+	);
+	const dropRect = await tracks.boundingBox();
+	await tracks.dispatchEvent("drop", {
+		dataTransfer: transfer,
+		clientX: dropRect.x + dropRect.width * 0.25,
+		clientY: dropRect.y + 20,
+	});
+	await transfer.dispose();
+	await expect
+		.poll(async () => (await getImportedDocument()).annotations.length)
+		.toBe(beforeStickers + 1);
+	const stickerDocument = await getImportedDocument();
+	const stickerAsset = stickerDocument.assets.find((asset) => asset.stillImagePath === stickerPath);
+	const stickerItem = stickerDocument.annotations.find(
+		(item) => item.mediaAssetId === stickerAsset?.id,
+	);
+	if (!stickerItem?.editorTrackId) throw new Error("Sticker drop did not create its visual track");
+	await expect(editor.locator(`[data-editor-track-id="${stickerItem.editorTrackId}"]`)).toHaveCount(
+		1,
+	);
+	await editor.screenshot({ path: path.join(output, "transparent-sticker-drop.png") });
 	console.log(
 		"Packaged Library has three columns; lock, mute, disable, and enable persist correctly.",
 	);

@@ -68,3 +68,15 @@ it("persists shared ducking across fragments and carries it to the export scene"
 	});
 	expect(buildSceneDescription(next).clips[0].screenPath).toBe("/original.mp4");
 });
+
+it("keeps a priority source unchanged and collectively lowers the rest by a percentage", async () => {
+	const { otherAudioDuckGain, triggerDucking } = await import("./ducking");
+	expect(triggerDucking({}).enabled).toBe(false);
+	const sources = new Map([["mic", 0.75]]);
+	expect(otherAudioDuckGain("mic", sources)).toBe(1);
+	expect(otherAudioDuckGain("music", sources)).toBe(0.75);
+	expect(otherAudioDuckGain(null, sources)).toBe(0.75);
+	sources.set("voiceover", 0.5);
+	expect(otherAudioDuckGain("music", sources)).toBe(0.5);
+	expect(otherAudioDuckGain("voiceover", sources)).toBe(0.75);
+});

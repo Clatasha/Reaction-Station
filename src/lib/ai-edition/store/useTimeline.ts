@@ -1730,7 +1730,14 @@ export function useTimeline() {
 			patch: Partial<
 				Pick<
 					AxcutAudioTrack,
-					"gainDb" | "muted" | "loop" | "fadeInMs" | "fadeOutMs" | "offsetMs" | "ducking"
+					| "gainDb"
+					| "muted"
+					| "loop"
+					| "fadeInMs"
+					| "fadeOutMs"
+					| "offsetMs"
+					| "ducking"
+					| "duckingTrigger"
 				>
 			>,
 		) => {

@@ -2546,7 +2546,7 @@ describe("buildSceneDescription.audioTracks", () => {
 
 	it("maps a track to the mix list with its resolved path and window", () => {
 		const doc = makeDoc({ assets: [audioAsset], audioTracks: [track] });
-		expect(buildSceneDescription(doc).audioTracks).toEqual([
+		expect(buildSceneDescription(doc).audioTracks).toMatchObject([
 			{
 				path: "/music.mp3",
 				startSec: 5,
@@ -2673,7 +2673,7 @@ describe("buildSceneDescription.audioTracks", () => {
 		const entries = buildSceneDescription(cutDoc([{ ...voice, kind: "music" }])).audioTracks;
 		// One contiguous entry, shortened at the tail by what the cut took — the behaviour
 		// `VirtualPreview` and `mix_external_tracks` have always had for a bed.
-		expect(entries).toEqual([
+		expect(entries).toMatchObject([
 			{
 				path: "/music.mp3",
 				startSec: 0,
@@ -2912,6 +2912,47 @@ describe("media animation scene contract", () => {
 			{ name: "fade", startSec: 0 },
 		]);
 	});
+	it("renders an imported transparent PNG from the original image, not its opaque video cache", () => {
+		const clips = [
+			makeClip({
+				id: "a",
+				assetId: "main",
+				sourceStartSec: 0,
+				sourceEndSec: 10,
+				timelineStartSec: 0,
+				timelineEndSec: 10,
+			}),
+		];
+		const annotation = annotationRegionSchema.parse({
+			id: "png",
+			style: {},
+			type: "image",
+			content: "Sticker",
+			startMs: 0,
+			endMs: 5000,
+			mediaAssetId: "sticker",
+			position: { x: 25, y: 25 },
+			size: { width: 50, height: 50 },
+			zIndex: 1,
+		});
+		const doc = makeDoc({
+			clips,
+			assets: [
+				makeAsset({ id: "main", originalPath: "/main.mp4", durationSec: 10 }),
+				makeAsset({
+					id: "sticker",
+					originalPath: "/cache/still.webm",
+					stillImagePath: "/original/transparent.png",
+					durationSec: 5,
+				}),
+			],
+			annotations: [annotation],
+		});
+		const result = buildSceneDescription(doc).annotations[0];
+		expect(result.imagePath).toBe("/original/transparent.png");
+		expect(result.videoPath).toBeUndefined();
+	});
+
 	it("serializes video overlay paths and continuous animation/source clocks", () => {
 		const clips = [
 			makeClip({

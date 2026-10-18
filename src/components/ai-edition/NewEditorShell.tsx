@@ -597,7 +597,10 @@ export function NewEditorShell() {
 						.then(() => undefined);
 				}
 				const asset = doc?.assets.find((a) => a.id === assetId);
-				if (placement === "overlay" && asset) {
+				if (
+					asset &&
+					(placement === "overlay" || asset.stillImagePath || asset.libraryCategory === "sticker")
+				) {
 					const durationSec =
 						asset.durationSec ?? (await probeVideoDuration(toFileUrl(asset.originalPath)));
 					if (superseded()) return;

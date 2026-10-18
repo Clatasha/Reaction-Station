@@ -616,6 +616,10 @@ export const duckingSchema = z.object({
 	releaseSec: z.number().min(0.01).max(5),
 });
 
+export const duckingTriggerSchema = duckingSchema
+	.omit({ depthDb: true })
+	.extend({ reductionPercent: z.number().min(0).max(100) });
+
 export const audioTrackSchema = endGteStart(
 	z.object({
 		...editorItemShape,
@@ -633,6 +637,7 @@ export const audioTrackSchema = endGteStart(
 		// Recorded sources follow video speed and retain their capture levels.
 		recordingSource: z.enum(["microphone", "desktop"]).optional(),
 		ducking: duckingSchema.optional(),
+		duckingTrigger: duckingTriggerSchema.optional(),
 		// Full source duration of the underlying file, cached here so the timeline
 		// can lay out the pill before the asset is re-probed on load.
 		durationSec: z.number().nonnegative().default(0),

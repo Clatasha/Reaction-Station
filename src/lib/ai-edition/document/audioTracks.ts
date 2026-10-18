@@ -297,7 +297,10 @@ export function patchAudioTrack(
 	doc: AxcutDocument,
 	trackId: string,
 	patch: Partial<
-		Pick<AxcutAudioTrack, "gainDb" | "muted" | "loop" | "fadeInMs" | "fadeOutMs" | "ducking">
+		Pick<
+			AxcutAudioTrack,
+			"gainDb" | "muted" | "loop" | "fadeInMs" | "fadeOutMs" | "ducking" | "duckingTrigger"
+		>
 	> & {
 		offsetMs?: number;
 	},
@@ -318,6 +321,7 @@ export function patchAudioTrack(
 				...(patch.gainDb === undefined ? {} : { gainDb: patch.gainDb }),
 				...(patch.muted === undefined ? {} : { muted: patch.muted }),
 				...(patch.ducking === undefined ? {} : { ducking: patch.ducking }),
+				...(patch.duckingTrigger === undefined ? {} : { duckingTrigger: patch.duckingTrigger }),
 				...(patch.loop === undefined ? {} : { loop: patch.loop }),
 				// Fades live on the outer edges; an interior fragment keeps none.
 				...(patch.fadeInMs === undefined ? {} : { fadeInMs: isFirst ? patch.fadeInMs : 0 }),

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { DEFAULT_DUCKING } from "@/lib/ai-edition/ducking";
+import { DEFAULT_DUCKING_TRIGGER } from "@/lib/ai-edition/ducking";
 import "@testing-library/jest-dom";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -127,7 +127,7 @@ describe("AudioTrackPane reset button", () => {
 		// defaults exist to avoid.
 		expect(updateAudioTrack).toHaveBeenCalledTimes(1);
 		expect(updateAudioTrack).toHaveBeenCalledWith("audio_track_1", {
-			ducking: DEFAULT_DUCKING,
+			duckingTrigger: DEFAULT_DUCKING_TRIGGER,
 			gainDb: -18,
 			fadeInMs: 1000,
 			fadeOutMs: 1000,
@@ -196,7 +196,7 @@ describe("AudioTrackPane reset button", () => {
 		);
 		fireEvent.click(screen.getByRole("button", { name: /reset/i }));
 		expect(updateAudioTrack).toHaveBeenCalledWith("audio_track_1", {
-			ducking: { ...DEFAULT_DUCKING, enabled: false },
+			duckingTrigger: DEFAULT_DUCKING_TRIGGER,
 			gainDb: 0,
 			fadeInMs: 0,
 			fadeOutMs: 0,
@@ -266,7 +266,7 @@ describe("AudioTrackPane reset button", () => {
 
 		expect(updateAudioTrack).toHaveBeenCalledTimes(1);
 		expect(updateAudioTrack).toHaveBeenCalledWith("audio_track_1", {
-			ducking: DEFAULT_DUCKING,
+			duckingTrigger: DEFAULT_DUCKING_TRIGGER,
 			gainDb: -18,
 			fadeInMs: 1000,
 			fadeOutMs: 1000,

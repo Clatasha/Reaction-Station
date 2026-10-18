@@ -315,6 +315,7 @@ class FakeAudioNode {
 class FakeGainNode extends FakeAudioNode {
 	gain = { value: 1 };
 }
+let analyserLevel = 0;
 let createdGains: FakeGainNode[] = [];
 let createdShapers: Array<FakeAudioNode & { curve: Float32Array | null }> = [];
 class FakeAudioContext {
@@ -330,7 +331,10 @@ class FakeAudioContext {
 	});
 	// The music ducker listens to the voice; silence here, so nothing ducks.
 	createAnalyser = vi.fn(() =>
-		Object.assign(new FakeAudioNode(), { fftSize: 2048, getFloatTimeDomainData: vi.fn() }),
+		Object.assign(new FakeAudioNode(), {
+			fftSize: 2048,
+			getFloatTimeDomainData: vi.fn((reading: Float32Array) => reading.fill(analyserLevel)),
+		}),
 	);
 	createWaveShaper = vi.fn(() => {
 		const node = Object.assign(new FakeAudioNode(), { curve: null });
@@ -341,6 +345,7 @@ class FakeAudioContext {
 
 describe("VirtualPreview imported audio track boost", () => {
 	beforeEach(() => {
+		analyserLevel = 0;
 		createdGains = [];
 		createdShapers = [];
 		vi.stubGlobal("AudioContext", FakeAudioContext);
@@ -365,6 +370,67 @@ describe("VirtualPreview imported audio track boost", () => {
 		label: "",
 		origin: "user" as const,
 	};
+
+	it.each([
+		false,
+		true,
+	])("keeps selected source unchanged and ducks other audio (embedded muted: %s)", (sourceAudioMuted) => {
+		let now = 1000;
+		const time = vi.spyOn(performance, "now").mockImplementation(() => now);
+		analyserLevel = 0.2;
+		const priority = {
+			...boosted,
+			id: "priority",
+			assetId: "voice",
+			startMs: 0,
+			endMs: 10000,
+			offsetMs: 0,
+			gainDb: 0,
+			duckingTrigger: {
+				enabled: true,
+				reductionPercent: 25,
+				thresholdDbfs: -35,
+				attackSec: 0.25,
+				holdSec: 0.5,
+				releaseSec: 0.6,
+			},
+		};
+		const background = {
+			...priority,
+			id: "background",
+			assetId: "music",
+			duckingTrigger: { ...priority.duckingTrigger, enabled: false },
+		};
+		const { container } = render(
+			<VirtualPreview
+				videoSources={[{ id: "a1", src: "file:///a.mp4", label: "Video", sourceAudioMuted }]}
+				audioTracks={[priority, background]}
+				audioSources={[
+					{ id: "voice", src: "file:///voice.wav", label: "Voice" },
+					{ id: "music", src: "file:///music.wav", label: "Music" },
+				]}
+				clips={[clip("c1", "a1", 0, 10, 0)]}
+				onTimeChange={vi.fn()}
+			/>,
+		);
+		const videoEl = container.querySelector("video")!;
+		const video = driveVideo(videoEl);
+		act(() => fireEvent.loadedMetadata(videoEl));
+		for (const audio of container.querySelectorAll("audio")) {
+			driveAudioEl(audio);
+			Object.defineProperty(audio, "readyState", { configurable: true, get: () => 4 });
+		}
+		video.play();
+		for (let index = 0; index < 6; index++) {
+			now += 100;
+			video.seekTo(index * 0.1);
+			tick();
+		}
+		expect(createdGains.at(-2)?.gain.value).toBeCloseTo(1, 4);
+		expect(createdGains.at(-1)?.gain.value).toBeCloseTo(0.75, 4);
+		expect(createdGains.at(-3)?.gain.value).toBeCloseTo(sourceAudioMuted ? 0 : 0.75, 4); // embedded desktop/camera mix
+		time.mockRestore();
+	});
 
 	it("drives a per-track gain node past unity instead of capping element.volume", () => {
 		const sources: VideoSource[] = [{ id: "a1", src: "file:///tmp/a1.mp4", label: "a1" }];

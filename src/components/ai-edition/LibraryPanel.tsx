@@ -234,6 +234,7 @@ export function LibraryPanel({
 								if (!busy && !missing.has(asset.id)) void onAdd(asset.id);
 							}}
 							onDragStart={(event) => {
+								event.dataTransfer.clearData();
 								event.dataTransfer.setData("application/x-axcut-asset", asset.id);
 								event.dataTransfer.effectAllowed = "copy";
 							}}

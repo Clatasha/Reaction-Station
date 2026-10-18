@@ -3111,14 +3111,15 @@ export function V4Timeline({
 						const dropTime = dropPreview?.time ?? time;
 						const targetTrack = dropPreview?.trackId;
 						setDropPreview(null);
-						const files = Array.from(e.dataTransfer.files);
-						if (files.length && onDropFiles) {
-							void onDropFiles(files, placement, dropTime, targetTrack);
+						// Imported assets win over Chromium's optional thumbnail file payload.
+						const id = e.dataTransfer.getData(ASSET_MIME);
+						if (id && onDropAsset) {
+							void onDropAsset(id, placement, dropTime, targetTrack).catch(() => undefined);
 							return;
 						}
-						const id = e.dataTransfer.getData(ASSET_MIME);
-						if (id && onDropAsset)
-							void onDropAsset(id, placement, dropTime, targetTrack).catch(() => undefined);
+						const files = Array.from(e.dataTransfer.files);
+						if (files.length && onDropFiles)
+							void onDropFiles(files, placement, dropTime, targetTrack);
 					}}
 				>
 					<div ref={canvasRef} className={styles.tlCanvas} style={canvasStyle}>

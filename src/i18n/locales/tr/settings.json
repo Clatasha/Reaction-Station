@@ -465,6 +465,10 @@
 		"thresholdDbfs": "Voice threshold",
 		"attackSec": "Fade down",
 		"holdSec": "Hold between words",
-		"releaseSec": "Fade up"
+		"releaseSec": "Fade up",
+		"triggerEnabled": "Use this audio to lower all other audio",
+		"triggerHelp": "When this audio is heard, lower every other audio source together. This audio keeps its own level.",
+		"reductionPercent": "Lower other audio by",
+		"advanced": "Timing and sensitivity"
 	}
 }

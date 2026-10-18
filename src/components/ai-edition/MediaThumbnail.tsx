@@ -14,9 +14,10 @@ export function MediaThumbnail({ asset, onError }: { asset: AxcutAsset; onError?
 			</>
 		);
 	if (asset.stillImagePath)
-		return <img alt="" src={mediaUrl(asset.stillImagePath)} onError={onError} />;
+		return <img draggable={false} alt="" src={mediaUrl(asset.stillImagePath)} onError={onError} />;
 	return (
 		<video
+			draggable={false}
 			aria-hidden
 			muted
 			preload="metadata"

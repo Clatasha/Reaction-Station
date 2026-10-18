@@ -656,6 +656,10 @@ pub struct SceneAudio {
 #[serde(rename_all = "camelCase")]
 pub struct SceneAudioTrack {
     #[serde(default)]
+    pub ducking_trigger: Option<SceneDuckingTrigger>,
+    #[serde(default)]
+    pub group_id: Option<String>,
+    #[serde(default)]
     pub ducking: Option<SceneDucking>,
     #[serde(default)]
     pub recording_source: Option<String>,
@@ -702,6 +706,18 @@ pub struct SceneDucking {
 }
 impl Default for SceneDucking {
     fn default() -> Self { Self { enabled: true, depth_db: -10.0, threshold_dbfs: -35.0, attack_sec: 0.25, hold_sec: 0.5, release_sec: 0.6 } }
+}
+
+/// A selected priority track lowers every other audio source collectively.
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SceneDuckingTrigger {
+    pub enabled: bool,
+    pub reduction_percent: f32,
+    pub threshold_dbfs: f32,
+    pub attack_sec: f64,
+    pub hold_sec: f64,
+    pub release_sec: f64,
 }
 
 /// `AxcutAudioTrack["kind"]` on the app side.
