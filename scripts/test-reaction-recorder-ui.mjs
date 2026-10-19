@@ -446,6 +446,16 @@ try {
 	await editor.screenshot({ path: path.join(output, "transparent-sticker-drop.png") });
 
 	// Timeline utility settings and marker edits use the real packaged project.
+	const transport = editor.getByRole("toolbar", { name: "Playback controls", exact: true });
+	const toolbar = editor.getByTestId("timeline-toolbar");
+	const transportBox = await transport.boundingBox();
+	const toolbarBox = await toolbar.boundingBox();
+	if (
+		!transportBox ||
+		!toolbarBox ||
+		Math.abs(transportBox.x + transportBox.width / 2 - toolbarBox.x - toolbarBox.width / 2) > 2
+	)
+		throw new Error("Playback and time must stay centred in the timeline toolbar");
 	const monitor = editor.getByRole("slider", {
 		name: "Preview volume (export unchanged)",
 		exact: true,

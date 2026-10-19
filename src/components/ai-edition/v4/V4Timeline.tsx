@@ -2745,7 +2745,10 @@ export function V4Timeline({
 				onAction={runContextAction}
 			/>
 
-			<div className={styles.tlToolbar}>
+			<div
+				className={`${styles.tlToolbar}${showLanes ? ` ${styles.tlToolbarEdit}` : ""}`}
+				data-testid="timeline-toolbar"
+			>
 				{showLanes ? (
 					// Its own provider rather than leaning on the app root's: the toolbar
 					// is the only thing here that needs one, and every test that renders
@@ -3017,19 +3020,24 @@ export function V4Timeline({
 								onTogglePlay={onTogglePlay}
 							/>
 						</TooltipProvider>
-						<TimelineUtilities
-							onVoiceover={onAddVoiceover}
-							onMarker={() =>
-								onMarkerEdit?.({ type: "add", timeSec: useProjectStore.getState().currentTimeSec })
-							}
-						/>
-						<div className={styles.tlHints}>
-							<span className={styles.tlHint}>
-								<span className={styles.tlKbd}>Shift+Scroll</span> {t("labels.pan")}
-							</span>
-							<span className={styles.tlHint}>
-								<span className={styles.tlKbd}>Ctrl+Scroll</span> {t("labels.zoom")}
-							</span>
+						<div className={styles.tlRightTools}>
+							<TimelineUtilities
+								onVoiceover={onAddVoiceover}
+								onMarker={() =>
+									onMarkerEdit?.({
+										type: "add",
+										timeSec: useProjectStore.getState().currentTimeSec,
+									})
+								}
+							/>
+							<div className={styles.tlHints}>
+								<span className={styles.tlHint}>
+									<span className={styles.tlKbd}>Shift+Scroll</span> {t("labels.pan")}
+								</span>
+								<span className={styles.tlHint}>
+									<span className={styles.tlKbd}>Ctrl+Scroll</span> {t("labels.zoom")}
+								</span>
+							</div>
 						</div>
 					</>
 				) : null}

@@ -2440,3 +2440,21 @@
  border: 2px solid var(--surface-1);
  box-shadow: 0 0 0 1px var(--accent);
 }
+
+/* Equal side columns keep playback centred independently of either tool group. */
+.tlToolbarEdit {
+ display: grid;
+ grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+}
+.tlRightTools {
+ display: flex;
+ align-items: center;
+ justify-content: flex-end;
+ gap: 8px;
+ min-width: 0;
+}
+.tlRightTools .timelineUtilities { margin-left: 0; }
+@media (max-width: 1250px) {
+ .tlRightTools .tlToolBtn { width: 26px; }
+ .tlRightTools { gap: 5px; }
+}
