@@ -419,6 +419,75 @@ try {
 		1,
 	);
 	await editor.screenshot({ path: path.join(output, "transparent-sticker-drop.png") });
+
+	// Timeline utility settings and marker edits use the real packaged project.
+	const monitor = editor.getByRole("slider", {
+		name: "Preview volume (export unchanged)",
+		exact: true,
+	});
+	await monitor.press("Home");
+	await expect(monitor).toHaveValue("0");
+	await monitor.press("End");
+	await expect(monitor).toHaveValue("100");
+	const beforeMarkers = (await getImportedDocument()).markers?.length ?? 0;
+	await editor.getByRole("button", { name: "Add marker at playhead", exact: true }).click();
+	await expect
+		.poll(async () => (await getImportedDocument()).markers?.length ?? 0)
+		.toBe(beforeMarkers + 1);
+	await editor.locator('[data-timeline-kind="marker"]').last().click({ button: "right" });
+	await editor.getByLabel("Marker name", { exact: true }).fill("Reaction begins");
+	await editor.getByRole("button", { name: "Purple", exact: true }).click();
+	await editor.getByRole("button", { name: "Save", exact: true }).click();
+	await expect
+		.poll(async () =>
+			(await getImportedDocument()).markers?.some(
+				(m) => m.name === "Reaction begins" && m.color === "purple",
+			),
+		)
+		.toBe(true);
+	await editor
+		.getByRole("button", { name: "Reaction begins", exact: true })
+		.click({ button: "right" });
+	await editor.getByRole("button", { name: "Delete marker", exact: true }).click();
+	await expect
+		.poll(async () => (await getImportedDocument()).markers?.length ?? 0)
+		.toBe(beforeMarkers);
+	await editor.getByRole("button", { name: "Add voiceover", exact: true }).click();
+	const voiceover = editor.getByRole("dialog", { name: "Add voiceover", exact: true });
+	await expect(voiceover.getByRole("combobox", { name: "Microphone", exact: true })).toBeVisible();
+	await expect(
+		voiceover.getByRole("checkbox", { name: "Mute project while recording", exact: true }),
+	).toBeChecked();
+	await voiceover
+		.getByRole("checkbox", { name: "Mute project while recording", exact: true })
+		.uncheck();
+	await editor.screenshot({ path: path.join(output, "voiceover-popup.png") });
+	await voiceover.getByRole("button", { name: "Close", exact: true }).click();
+	await editor
+		.locator('canvas[data-testid="native-compositor-mount"][data-painted="true"]')
+		.waitFor({ timeout: 60_000 });
+	await expect(editor.getByTestId("preview-preparing")).toBeHidden({ timeout: 60_000 });
+	const screenshotPath = path.join(output, "saved-preview.png");
+	await application.evaluate(({ dialog }, target) => {
+		const original = dialog.showSaveDialog;
+		dialog.showSaveDialog = async () => {
+			dialog.showSaveDialog = original;
+			return { canceled: false, filePath: target };
+		};
+	}, screenshotPath);
+	await editor.getByRole("button", { name: "Save preview screenshot", exact: true }).click();
+	await expect
+		.poll(async () => {
+			try {
+				return (await fs.readFile(screenshotPath)).subarray(0, 8).toString("hex");
+			} catch {
+				return "";
+			}
+		})
+		.toBe("89504e470d0a1a0a");
+	console.log(
+		"Packaged timeline markers persist edits/deletion; preview volume, voice-over settings and PNG snapshot work.",
+	);
 	console.log(
 		"Packaged Library has three columns; lock, mute, disable, and enable persist correctly.",
 	);

@@ -151,6 +151,8 @@ const DECLARED: WritePath[] = [
 	),
 	// Renaming the project from the title field.
 	w("src/components/ai-edition/NewEditorShell.tsx", "handleRenameProject", "save", "gesture"),
+	// Add, rename, recolor or delete a timeline marker is an explicit user edit.
+	w("src/components/ai-edition/NewEditorShell.tsx", "handleMarkerEdit", "save", "gesture"),
 	// Ctrl+S / File > Save.
 	w("src/components/ai-edition/NewEditorShell.tsx", "handleSave", "save", "gesture"),
 	// A word typed into the transcript pane, and the deletion of one. Both are the user's

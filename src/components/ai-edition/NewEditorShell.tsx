@@ -22,6 +22,7 @@ import {
 	setDocumentWordText,
 } from "@/lib/ai-edition/document/transcript";
 import { isModalOpen } from "@/lib/ai-edition/modalGuard";
+import { usePreviewMonitor } from "@/lib/ai-edition/previewMonitor";
 import {
 	PREVIEW_TRANSPORT_EVENT,
 	pausePreview,
@@ -88,6 +89,7 @@ import { type EditorMode, EditorTopBar } from "./v4/EditorTopBar";
 import { type Facet, FloatingInspector } from "./v4/FloatingInspector";
 import { MediaStage } from "./v4/MediaStage";
 import { RecStage } from "./v4/RecStage";
+import type { TimelineMarkerEdit } from "./v4/TimelineMarkers";
 import { V4Timeline } from "./v4/V4Timeline";
 
 interface SeekTarget {
@@ -112,9 +114,6 @@ interface SeekTarget {
  * handlers that need it. The store write cadence is unchanged — `currentTimeSec`
  * is still the source of truth, still updated every frame.
  */
-// Stable empty list: a fresh `[]` each render would churn the preview's audio
-// element set on every playhead tick.
-const NO_AUDIO_TRACKS: AxcutAudioTrack[] = [];
 
 function NativePlaybackSync({
 	visibleClips,
@@ -204,6 +203,7 @@ export async function runLoadedMetadataWrite(
 export function NewEditorShell() {
 	usePreparePreviewProxies();
 	const te = useScopedT("editor");
+	const tt = useScopedT("timeline");
 	useMcpDocumentHost();
 	const document = useProjectStore((s) => s.document);
 	const projectId = useProjectStore((s) => s.projectId);
@@ -1131,20 +1131,26 @@ export function NewEditorShell() {
 		setVoiceoverFlow({ maxDurationSec: Math.max(0.5, total - playhead) });
 	}, []);
 
-	// Silences the timeline's own audio tracks for the duration of a take — see
-	// where it is passed to the preview.
-	const [voiceoverRecording, setVoiceoverRecording] = useState(false);
+	// Temporary monitoring mute covers embedded audio and every timeline track.
+
+	const handleVoiceoverMuteChange = useCallback(
+		(recordingMuted: boolean) => usePreviewMonitor.setState({ recordingMuted }),
+		[],
+	);
 
 	const handleVoiceoverRecordingStart = useCallback(() => {
 		// Re-capture: the user may have scrubbed between opening the dialog and
 		// hitting Record, and playback starts from wherever the playhead is now.
-		voiceoverStartSecRef.current = useProjectStore.getState().currentTimeSec;
-		setVoiceoverRecording(true);
+		const state = useProjectStore.getState();
+		voiceoverStartSecRef.current = state.currentTimeSec;
+		const total =
+			state.document?.timeline.clips.reduce((end, clip) => Math.max(end, clip.timelineEndSec), 0) ??
+			0;
+		setVoiceoverFlow({ maxDurationSec: Math.max(0.5, total - state.currentTimeSec) });
 		if (videoElement?.paused) playPreview(videoElement);
 	}, [videoElement]);
 
 	const handleVoiceoverRecordingStop = useCallback(() => {
-		setVoiceoverRecording(false);
 		if (videoElement) pausePreview(videoElement);
 	}, [videoElement]);
 
@@ -1158,6 +1164,32 @@ export function NewEditorShell() {
 			});
 		},
 		[tl],
+	);
+
+	const handleMarkerEdit = useCallback(
+		(action: TimelineMarkerEdit) => {
+			void enqueueTimelineWrite(async () => {
+				const state = useProjectStore.getState();
+				if (!state.document) return;
+				const markers = state.document.markers ?? [];
+				const next =
+					action.type === "add"
+						? [
+								...markers,
+								{
+									id: crypto.randomUUID(),
+									timeSec: action.timeSec,
+									name: tt("utilities.marker"),
+									color: "blue" as const,
+								},
+							]
+						: action.type === "delete"
+							? markers.filter((m) => m.id !== action.id)
+							: markers.map((m) => (m.id === action.id ? { ...m, ...action.patch } : m));
+				await state.saveDocument({ ...state.document, markers: next }, { history: true });
+			}).catch(() => toast.error("Could not save marker"));
+		},
+		[enqueueTimelineWrite, tt],
 	);
 
 	const pasteRegion = useCallback(async () => {
@@ -1705,7 +1737,12 @@ export function NewEditorShell() {
 	return (
 		<div
 			className={v4.app}
-			style={{ gridTemplateRows: `58px 1fr ${showTimeline ? timelineRow : "0px"}` }}
+			style={
+				{
+					gridTemplateRows: `58px 1fr ${showTimeline ? timelineRow : "0px"}`,
+					"--timeline-height": timelineRow,
+				} as React.CSSProperties
+			}
 		>
 			<NativePlaybackSync visibleClips={visibleClips} clips={clips} />
 			<EditorTopBar
@@ -1795,14 +1832,8 @@ export function NewEditorShell() {
 									// Imported audio tracks (issue #350). `videoSources` already
 									// resolves a URL for every asset (audio included), so it doubles as
 									// the audio source list; VirtualPreview looks each track up by assetId.
-									// Nothing already on the timeline plays while a take is being
-									// recorded. On speakers it bleeds straight into the microphone
-									// and lands in the new take; even on headphones, narrating over
-									// an earlier voiceover is not what the button offers. The video
-									// itself keeps playing — that is what the user is narrating to.
-									audioTracks={
-										voiceoverRecording ? NO_AUDIO_TRACKS : (playbackDocument?.audioTracks ?? [])
-									}
+									// Voice-over monitoring mutes the output bus without unmounting tracks.
+									audioTracks={playbackDocument?.audioTracks ?? []}
 									audioSources={videoSources}
 									clips={clips}
 									zoomRegions={playbackDocument?.zoomRanges ?? []}
@@ -1895,6 +1926,7 @@ export function NewEditorShell() {
 						playing={playing}
 						onTogglePlay={togglePlay}
 						onAddVoiceover={openVoiceoverFlow}
+						onMarkerEdit={handleMarkerEdit}
 						onEditClip={setEditClipTarget}
 					/>
 				</div>
@@ -1962,13 +1994,14 @@ export function NewEditorShell() {
 				onClose={() => {
 					// Belt and braces: the recorder's own stop handler clears this, but a
 					// flow that ends any other way must not leave the timeline muted.
-					setVoiceoverRecording(false);
+					usePreviewMonitor.setState({ recordingMuted: false });
 					setVoiceoverFlow(null);
 				}}
 				onComplete={(assetId, durationSec) => {
 					void handleVoiceoverReady(assetId, durationSec);
 				}}
 				onRecordingStart={handleVoiceoverRecordingStart}
+				onMuteProjectChange={handleVoiceoverMuteChange}
 				onRecordingStop={handleVoiceoverRecordingStop}
 			/>
 		</div>

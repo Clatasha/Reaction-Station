@@ -941,3 +941,19 @@ Desktop scope: Workspace → preview quality Auto/Full/Half/Quarter; compare sha
 | 0.9.3 / feat/creator-audio-and-media-polish | Windows / macOS / Linux | Partial automated; desktop skipped | Coverage includes the always-visible preview selector, imported asset drag priority, visual track creation, original PNG image paths and decoded alpha, and source-driven percentage ducking. Preview and native export tests check that the selected source retains its level while other layers drop collectively, with strongest-reduction behavior for overlapping triggers. Windows CI runs native audio/image tests and packaged import/drop/control persistence checks. Native desktop APIs and local Rust tooling are unavailable, so physical drag behavior, hardware alpha composition and audible export comparisons remain desktop checks. |
 
 Desktop scope: preview quality stays immediately beside Media/Edit/Record at supported window sizes. Select microphone, desktop or imported audio, open its Audio controls, enable priority ducking and drag the percentage live. A 25% reduction leaves all other audio at 75% while preserving the selected source; check silence, fade down/up, 0%, 100%, mute/disable, split fragments, undo and reopen. Multiple triggers use the strongest reduction from other sources rather than multiplying reductions. This source-driven mode replaces the previous per-background-track ducking controls; select the source to prioritize when updating an old project. Import a transparent PNG under Stickers and drag it to several timeline levels: no dropped-file error, a visual track appears automatically when needed, the original recording remains in place, animation controls work and transparent areas reveal the composition. Compare PNG edges and ducking in a short export.
+
+### Reaction Station 0.9.4 timeline utilities and voice-over
+
+| Build / branch | Platform | Result | Scope / skipped checks |
+| --- | --- | --- | --- |
+| 0.9.4 / feat/timeline-utilities | Linux development; Windows/macOS desktop unavailable | Partial automated; desktop skipped | Unit coverage checks marker schema round-trip, right-click naming/seven colors/deletion, monitor gain and temporary mute restoration, composited PNG saving/cancellation/payload validation, microphone selection, processing, confirmation and late-permission cleanup. Packaged Windows smoke checks exercise marker persistence, monitoring controls, the voice-over settings popup and a saved PNG. Real desktop APIs and a physical microphone are unavailable here; audible recording sync, device permissions, preview pixels and OS dialogs require desktop verification. |
+
+Desktop scope: save a screenshot while paused and playing and compare it with the
+preview (no selection handles). Cancel the save dialog. Adjust monitoring volume and
+mute while embedded, desktop, microphone and imported audio play; export levels must
+stay unchanged. Add markers at different playheads, seek by clicking, edit names and
+all seven colors, delete, undo/redo and reopen. Open the microphone popup, refresh and
+select devices, compare speech/raw processing, record with project monitoring on and
+off, stop, confirm and check take placement. Cancel a take, deny permission, close
+while permission is pending and repeat. Confirm that the mic indicator ends and
+monitoring restores after each exit. Compare narration timing on a short export.

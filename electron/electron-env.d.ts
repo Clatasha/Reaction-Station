@@ -342,6 +342,9 @@ interface Window {
 		}>;
 		// Persist an in-editor voiceover take (raw MediaRecorder bytes) under the
 		// recordings dir, so it outlives the session like every other asset.
+		savePreviewScreenshot: (
+			data: ArrayBuffer,
+		) => Promise<{ success: boolean; path?: string; canceled?: boolean; message?: string }>;
 		saveRecordedVoiceover: (data: ArrayBuffer) => Promise<{
 			success: boolean;
 			path?: string;

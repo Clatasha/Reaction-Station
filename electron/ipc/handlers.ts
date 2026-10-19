@@ -82,6 +82,7 @@ import {
 } from "../media/cursorSidecar";
 import { findMediaLinksByFingerprint, registerMediaLinks } from "../media/mediaLinksRegistry";
 import { PreviewProxyService } from "../media/previewProxy";
+import { previewScreenshotBytes } from "../media/previewScreenshot";
 import { relinkProjectMedia } from "../media/projectMediaRelinker";
 import { showOpenDialogOver, showSaveDialogOver } from "../messageBox";
 import {
@@ -4151,6 +4152,29 @@ export function registerIpcHandlers(
 			}
 		},
 	);
+
+	ipcMain.handle("save-preview-screenshot", async (event, data: ArrayBuffer) => {
+		try {
+			const bytes = previewScreenshotBytes(data);
+			const result = await showSaveDialogOver(BrowserWindow.fromWebContents(event.sender), {
+				title: "Save screenshot",
+				defaultPath: path.join(
+					app.getPath("pictures"),
+					`Reaction-Station-${new Date().toISOString().replace(/[:.]/g, "-")}.png`,
+				),
+				filters: [{ name: "PNG image", extensions: ["png"] }],
+				properties: ["createDirectory", "showOverwriteConfirmation"],
+			});
+			if (result.canceled || !result.filePath) return { success: false, canceled: true };
+			const filePath = result.filePath.toLowerCase().endsWith(".png")
+				? result.filePath
+				: `${result.filePath}.png`;
+			await fs.writeFile(filePath, bytes);
+			return { success: true, path: filePath };
+		} catch (error) {
+			return { success: false, message: String(error) };
+		}
+	});
 
 	ipcMain.handle("write-export-to-path", async (_, videoData: ArrayBuffer, filePath: string) => {
 		try {

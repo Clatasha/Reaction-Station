@@ -374,6 +374,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
 	openAudioFilePicker: () => {
 		return ipcRenderer.invoke("open-audio-file-picker");
 	},
+	savePreviewScreenshot: (data: ArrayBuffer) => ipcRenderer.invoke("save-preview-screenshot", data),
 	saveRecordedVoiceover: (data: ArrayBuffer) => {
 		return ipcRenderer.invoke("save-recorded-voiceover", data);
 	},

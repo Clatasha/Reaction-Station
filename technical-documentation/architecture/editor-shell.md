@@ -206,3 +206,25 @@ raw colours.
   toggles `chatOpen`, but the column will not appear until the user returns
   to `edit`. This is intentional (the AI-edition chat reads from the
   in-edit document state), not a bug.
+## Timeline utilities
+
+The right side of the Edit timeline toolbar, immediately before the pan/zoom hints,
+contains a preview PNG snapshot, voice-over recording, add-marker, and preview
+monitoring controls. Snapshots save the painted native compositor canvas, excluding
+selection handles and editor UI. Saving is unavailable while the native preview is
+loading or buffering. The PNG uses the current preview resolution.
+
+Markers live in the document's optional `markers` array as absolute raw timeline
+seconds, with an id, name and one of seven colors. They are project notes rather
+than rendered content. Clicking a ruler marker seeks to its time; its context
+popover edits the name/color or deletes it. Changes use the shell's shared write
+queue and normal project undo/history. Timeline edits do not relocate markers.
+
+The voice-over popup selects a microphone and speech processing or unprocessed
+input, refreshes the device list, and optionally mutes project monitoring during a
+take. It remains nonmodal so the preview stays visible. Recording starts playback
+and captures the placement playhead when microphone acquisition completes. Stop
+releases the microphone and holds the take in memory; Add to timeline persists the
+WebM/Opus take and adds a voice-over audio layer at the captured position. Closing
+discards an unconfirmed take. The existing Add Audio menu and shortcut also open
+this popup.

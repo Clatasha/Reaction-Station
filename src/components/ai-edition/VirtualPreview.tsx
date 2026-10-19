@@ -14,6 +14,7 @@ import {
 	resolvePlaybackSegments,
 } from "@/lib/ai-edition/document/timeline";
 import { advanceDuckDb, otherAudioDuckGain, triggerDucking } from "@/lib/ai-edition/ducking";
+import { monitorGainDb, usePreviewMonitor } from "@/lib/ai-edition/previewMonitor";
 import {
 	attachPreviewTransport,
 	pausePreview,
@@ -534,6 +535,8 @@ export function VirtualPreview({
 	const [supplementalAudioEl, setSupplementalAudioEl] = useState<HTMLAudioElement | null>(null);
 	const [supplementalAudioSrc, setSupplementalAudioSrc] = useState<string | null>(null);
 	const [audioProbeComplete, setAudioProbeComplete] = useState(false);
+	const monitorVolume = usePreviewMonitor((s) => s.volume);
+	const monitorMuted = usePreviewMonitor((s) => s.muted || s.recordingMuted);
 	const audioGainDbRef = useRef(settings.audioGainDb);
 	useEffect(() => {
 		audioGainDbRef.current = settings.audioGainDb;
@@ -740,7 +743,12 @@ export function VirtualPreview({
 		if (!graph) {
 			// WebAudio can be unavailable in unit tests or under a denied audio policy. No source
 			// node was created, so `volume` still reaches the output — capped at 0 dB.
-			applyPreviewAudioSettings(null, elements, audioGainDbRef.current, voiceGainDbRef.current);
+			applyPreviewAudioSettings(
+				null,
+				elements,
+				audioGainDbRef.current + monitorGainDb(),
+				voiceGainDbRef.current,
+			);
 			return;
 		}
 
@@ -795,7 +803,12 @@ export function VirtualPreview({
 			}
 		}
 		audioGraphRef.current = graph;
-		applyPreviewAudioSettings(graph, elements, audioGainDbRef.current, voiceGainDbRef.current);
+		applyPreviewAudioSettings(
+			graph,
+			elements,
+			audioGainDbRef.current + monitorGainDb(),
+			voiceGainDbRef.current,
+		);
 		return () => {
 			audioGraphRef.current = null;
 			for (const source of connectedSources) source.disconnect();
@@ -848,10 +861,11 @@ export function VirtualPreview({
 		applyPreviewAudioSettings(
 			audioGraphRef.current,
 			[primaryAudioRef.current, supplementalAudioRef.current],
-			settings.audioGainDb,
+			settings.audioGainDb +
+				(monitorMuted || monitorVolume === 0 ? -Infinity : 20 * Math.log10(monitorVolume)),
 			voiceGainDb,
 		);
-	}, [settings.audioGainDb, voiceGainDb]);
+	}, [settings.audioGainDb, voiceGainDb, monitorVolume, monitorMuted]);
 
 	const setPrimaryAudioElement = useCallback((element: HTMLAudioElement | null) => {
 		primaryAudioRef.current = element;
@@ -1108,7 +1122,8 @@ export function VirtualPreview({
 			// rides a per-track gain node (which CAN boost past 0 dB, and the output node
 			// applies the global gain on top, matching the export); the `.volume` path is
 			// the fallback for when the graph is unavailable — there a boost caps at 0 dB.
-			const globalGain = audioGainScalar(audioGainDbRef.current);
+			const globalGain = audioGainScalar(audioGainDbRef.current + monitorGainDb());
+			if (audioGraphRef.current) audioGraphRef.current.gain.gain.value = globalGain;
 			// Speed-aware: under a 2x region the raw playhead races, and a projection
 			// blind to speed raced the audio's target position with it — the track
 			// was never given a faster `playbackRate`, but seeking it twice as fast

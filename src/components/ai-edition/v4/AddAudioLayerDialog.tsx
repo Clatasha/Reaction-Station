@@ -10,7 +10,7 @@
 // `onComplete` — placing the track on the timeline (span, anchor, inspector
 // selection) is the caller's job, exactly like the other add* flows.
 
-import { Mic, StopCircle, Upload } from "lucide-react";
+import { Mic, RefreshCw, StopCircle, Upload, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { toFileUrl } from "@/components/video-editor/projectPersistence";
@@ -49,6 +49,7 @@ export function AddAudioLayerDialog({
 	onComplete,
 	onRecordingStart,
 	onRecordingStop,
+	onMuteProjectChange,
 }: {
 	open: boolean;
 	maxDurationSec: number;
@@ -56,11 +57,36 @@ export function AddAudioLayerDialog({
 	onComplete: (assetId: string, durationSec: number) => void;
 	onRecordingStart: () => void;
 	onRecordingStop: () => void;
+	onMuteProjectChange?: (muted: boolean) => void;
 }) {
 	const t = useScopedT("timeline");
 	const tc = useScopedT("common");
 	const [busy, setBusy] = useState(false);
+	const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
+	const [deviceId, setDeviceId] = useState("");
+	const [muteProject, setMuteProject] = useState(true);
+	const [cleanInput, setCleanInput] = useState(true);
+	const [pendingTake, setPendingTake] = useState<{ blob: Blob; duration: number } | null>(null);
+	const openRef = useRef(open);
+	openRef.current = open;
+	const requestRef = useRef(0);
+	const refreshDevices = useCallback(async () => {
+		try {
+			const all = await navigator.mediaDevices?.enumerateDevices?.();
+			if (all) setDevices(all.filter((d) => d.kind === "audioinput"));
+		} catch {
+			toast.error(t("audio.devicesFailed"));
+		}
+	}, [t]);
+	useEffect(() => {
+		if (open) void refreshDevices();
+	}, [open, refreshDevices]);
+
 	const [recording, setRecording] = useState(false);
+	useEffect(() => {
+		onMuteProjectChange?.(recording && muteProject);
+		return () => onMuteProjectChange?.(false);
+	}, [recording, muteProject, onMuteProjectChange]);
 	const [elapsedSec, setElapsedSec] = useState(0);
 	const recorderRef = useRef<MediaRecorder | null>(null);
 	const streamRef = useRef<MediaStream | null>(null);
@@ -82,8 +108,10 @@ export function AddAudioLayerDialog({
 			setRecording(false);
 			recordingRef.current = false;
 			setElapsedSec(0);
+			setPendingTake(null);
 		}
 		return () => {
+			requestRef.current++;
 			if (timerRef.current) clearInterval(timerRef.current);
 			timerRef.current = null;
 			// Stop the RECORDER, not just the stream. Tearing the dialog down
@@ -159,11 +187,25 @@ export function AddAudioLayerDialog({
 			toast.error(t("audio.recordingUnavailable"));
 			return;
 		}
+		if (busy || recordingRef.current) return;
+		const request = ++requestRef.current;
+		setBusy(true);
 		try {
 			const stream = await navigator.mediaDevices.getUserMedia({
-				audio: { echoCancellation: true, noiseSuppression: true },
+				audio: {
+					deviceId: deviceId ? { exact: deviceId } : undefined,
+					echoCancellation: cleanInput,
+					noiseSuppression: cleanInput,
+					autoGainControl: cleanInput,
+				},
 			});
+			if (!openRef.current || request !== requestRef.current) {
+				stream.getTracks().forEach((track) => track.stop());
+				return;
+			}
 			streamRef.current = stream;
+			void refreshDevices();
+			setPendingTake(null);
 			const mimeType = pickRecorderMimeType();
 			const recorder = mimeType
 				? new MediaRecorder(stream, { mimeType })
@@ -185,27 +227,7 @@ export function AddAudioLayerDialog({
 				setElapsedSec(0);
 				onRecordingStop();
 				if (discarded) return;
-				void (async () => {
-					try {
-						const data = await blob.arrayBuffer();
-						const saved = window.electronAPI?.saveRecordedVoiceover
-							? await window.electronAPI.saveRecordedVoiceover(data)
-							: { success: false as const };
-						if (saved.success && saved.path) {
-							await finishWithPath(saved.path, duration);
-						} else {
-							// Browser-mode fallback: no main process to persist the
-							// blob, so the layer references the in-memory blob URL —
-							// good for the session, gone on reload.
-							const url = URL.createObjectURL(blob);
-							await finishWithPath(url, duration);
-						}
-					} catch (err) {
-						toast.error(t("audio.saveFailed"), {
-							description: err instanceof Error ? err.message : String(err),
-						});
-					}
-				})();
+				setPendingTake({ blob, duration });
 			};
 			startedAtRef.current = performance.now();
 			discardRef.current = false;
@@ -218,9 +240,30 @@ export function AddAudioLayerDialog({
 				setElapsedSec((performance.now() - startedAtRef.current) / 1000);
 			}, 200);
 		} catch {
+			for (const track of streamRef.current?.getTracks() ?? []) track.stop();
+			streamRef.current = null;
 			toast.error(t("audio.micDenied"));
+		} finally {
+			if (request === requestRef.current) setBusy(false);
 		}
-	}, [finishWithPath, onRecordingStart, onRecordingStop, t]);
+	}, [busy, deviceId, cleanInput, refreshDevices, onRecordingStart, onRecordingStop, t]);
+	const saveTake = async () => {
+		if (!pendingTake || busy) return;
+		const request = requestRef.current;
+		setBusy(true);
+		try {
+			const saved = await window.electronAPI?.saveRecordedVoiceover?.(
+				await pendingTake.blob.arrayBuffer(),
+			);
+			if (!openRef.current || request !== requestRef.current) return;
+			if (!saved?.success || !saved.path) throw new Error(saved?.message || t("audio.saveFailed"));
+			await finishWithPath(saved.path, pendingTake.duration);
+		} catch (err) {
+			toast.error(t("audio.saveFailed"), { description: String(err) });
+		} finally {
+			setBusy(false);
+		}
+	};
 
 	// Stop by itself at the end of the timeline so a layer can never outlive
 	// the video it was recorded over.
@@ -271,63 +314,119 @@ export function AddAudioLayerDialog({
 	if (!open) return null;
 
 	return (
-		// A toolbar, not a dialog: no backdrop, nothing dimmed, and the preview
-		// keeps playing behind it. `aria-live` so a screen reader hears the take
-		// start and stop without the focus trap a modal would impose.
-		<div className={styles.voiceoverBar} role="group" aria-label={t("audio.addVoiceover")}>
-			<span className={styles.voiceoverBarTitle}>
+		<section className={styles.voiceoverPopup} role="dialog" aria-label={t("audio.addVoiceover")}>
+			<header>
 				<strong>{t("audio.addVoiceover")}</strong>
-				<span>{recording ? t("audio.recordingHint") : t("audio.subtitle")}</span>
-			</span>
-			{recording ? (
-				<>
-					<span className={styles.voiceoverBarLive} aria-live="polite">
-						<span className={`${styles.voiceoverBarDot} animate-pulse`} />
-						{t("audio.recording")} {elapsedSec.toFixed(1)}s
-					</span>
+				<button
+					type="button"
+					aria-label={tc("actions.close")}
+					disabled={busy}
+					onClick={() => {
+						if (recordingRef.current) cancelRecording();
+						onClose();
+					}}
+				>
+					<X size={17} />
+				</button>
+			</header>
+			<label>
+				{t("audio.device")}
+				<div className={styles.voiceoverDevice}>
+					<select
+						aria-label={t("audio.device")}
+						value={deviceId}
+						disabled={recording || busy}
+						onChange={(e) => setDeviceId(e.target.value)}
+					>
+						<option value="">{t("audio.defaultDevice")}</option>
+						{devices
+							.filter((d) => d.deviceId && d.deviceId !== "default")
+							.map((d, i) => (
+								<option key={d.deviceId} value={d.deviceId}>
+									{d.label || `${t("audio.device")} ${i + 1}`}
+								</option>
+							))}
+					</select>
 					<button
 						type="button"
-						onClick={stopRecording}
-						className={`${styles.voiceoverBarBtn} ${styles.voiceoverBarBtnDanger}`}
+						aria-label={t("audio.refreshDevices")}
+						title={t("audio.refreshDevices")}
+						disabled={recording || busy}
+						onClick={() => void refreshDevices()}
 					>
-						<StopCircle size={16} />
-						{t("audio.stop")}
+						<RefreshCw size={16} />
 					</button>
-					<button
-						type="button"
-						onClick={() => {
-							cancelRecording();
-							onClose();
-						}}
-						className={styles.voiceoverBarBtn}
-					>
-						{tc("actions.cancel")}
-					</button>
-				</>
-			) : (
-				<>
-					<button
-						type="button"
-						onClick={() => void startRecording()}
-						className={styles.voiceoverBarBtn}
-					>
-						<Mic size={16} />
-						{t("audio.record")}
-					</button>
-					<button
-						type="button"
-						onClick={() => void importFile()}
-						disabled={busy}
-						className={styles.voiceoverBarBtn}
-					>
-						<Upload size={16} />
-						{t("audio.importFile")}
-					</button>
-					<button type="button" onClick={onClose} className={styles.voiceoverBarBtn}>
-						{tc("actions.close")}
-					</button>
-				</>
-			)}
-		</div>
+				</div>
+			</label>
+			<label>
+				{t("audio.input")}
+				<select
+					aria-label={t("audio.input")}
+					disabled={recording || busy}
+					value={cleanInput ? "clean" : "raw"}
+					onChange={(e) => setCleanInput(e.target.value === "clean")}
+				>
+					<option value="clean">{t("audio.cleanInput")}</option>
+					<option value="raw">{t("audio.rawInput")}</option>
+				</select>
+			</label>
+			<label className={styles.voiceoverCheck}>
+				<input
+					type="checkbox"
+					checked={muteProject}
+					disabled={busy}
+					onChange={(e) => setMuteProject(e.target.checked)}
+				/>
+				{t("audio.muteProject")}
+			</label>
+			<div className={styles.voiceoverRecordArea}>
+				<button
+					type="button"
+					className={styles.voiceoverRecordButton}
+					disabled={busy}
+					aria-label={recording ? t("audio.stop") : t("audio.record")}
+					onClick={() => (recording ? stopRecording() : void startRecording())}
+				>
+					{recording ? <StopCircle size={32} /> : <Mic size={30} />}
+					<span>{recording ? t("audio.stop") : t("audio.record")}</span>
+				</button>
+				<output aria-live={recording ? "off" : "polite"}>
+					{t("audio.recordTime")}{" "}
+					{Math.floor((pendingTake?.duration ?? elapsedSec) / 60)
+						.toString()
+						.padStart(2, "0")}
+					:
+					{Math.floor((pendingTake?.duration ?? elapsedSec) % 60)
+						.toString()
+						.padStart(2, "0")}
+				</output>
+				<p>
+					{recording
+						? t("audio.recordingHint")
+						: pendingTake
+							? t("audio.takeReady")
+							: t("audio.subtitle")}
+				</p>
+			</div>
+			<footer>
+				<button
+					type="button"
+					disabled={busy || recording}
+					className={styles.voiceoverBarBtn}
+					onClick={() => void importFile()}
+				>
+					<Upload size={15} />
+					{t("audio.importFile")}
+				</button>
+				<button
+					type="button"
+					disabled={busy || recording || !pendingTake}
+					className={styles.voiceoverConfirm}
+					onClick={() => void saveTake()}
+				>
+					{t("audio.addTake")}
+				</button>
+			</footer>
+		</section>
 	);
 }

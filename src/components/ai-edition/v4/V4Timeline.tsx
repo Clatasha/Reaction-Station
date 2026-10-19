@@ -111,6 +111,8 @@ import {
 	type TimelineContextTarget,
 	type TimelineMenuAction,
 } from "./TimelineContextMenu";
+import { type TimelineMarkerEdit, TimelineMarkerPin } from "./TimelineMarkers";
+import { TimelineUtilities } from "./TimelineUtilities";
 
 // The AI option's prompt — sent straight to the chat agent via the prompt-bus.
 //
@@ -656,6 +658,7 @@ export function V4Timeline({
 	onTogglePlay,
 	onEditClip,
 	onAddVoiceover,
+	onMarkerEdit,
 }: {
 	tl: TimelineApi;
 	setCurrentTime: (sec: number) => void;
@@ -681,6 +684,7 @@ export function V4Timeline({
 	/** Opens the voiceover recorder. Shell-level like the clip editor: the
 	 *  dialog owns the microphone and the shell owns the transport. */
 	onAddVoiceover: () => void;
+	onMarkerEdit?: (action: TimelineMarkerEdit) => void;
 }) {
 	const t = useScopedT("timeline");
 	const workspace = useWorkspace();
@@ -3013,6 +3017,12 @@ export function V4Timeline({
 								onTogglePlay={onTogglePlay}
 							/>
 						</TooltipProvider>
+						<TimelineUtilities
+							onVoiceover={onAddVoiceover}
+							onMarker={() =>
+								onMarkerEdit?.({ type: "add", timeSec: useProjectStore.getState().currentTimeSec })
+							}
+						/>
 						<div className={styles.tlHints}>
 							<span className={styles.tlHint}>
 								<span className={styles.tlKbd}>Shift+Scroll</span> {t("labels.pan")}
@@ -3043,6 +3053,16 @@ export function V4Timeline({
 				>
 					<div className={styles.tlCanvas} style={canvasStyle}>
 						<div className={styles.tlRuler}>
+							{(doc.markers ?? []).map((marker) => (
+								<TimelineMarkerPin
+									key={marker.id}
+									marker={marker}
+									left={pctAt(marker.timeSec)}
+									onSeek={() => setCurrentTime(marker.timeSec)}
+									onChange={(patch) => onMarkerEdit?.({ type: "update", id: marker.id, patch })}
+									onDelete={() => onMarkerEdit?.({ type: "delete", id: marker.id })}
+								/>
+							))}
 							{rulerTicks.ticks.map((tick) => (
 								<div
 									key={tick.sec}

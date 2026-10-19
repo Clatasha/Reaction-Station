@@ -102,7 +102,18 @@
 		"micDenied": "Se denegó el acceso al micrófono",
 		"recordingUnavailable": "La grabación no está disponible aquí",
 		"saveFailed": "No se pudo guardar la grabación",
-		"importFailed": "No se pudo importar el archivo de audio"
+		"importFailed": "No se pudo importar el archivo de audio",
+		"device": "Microphone",
+		"defaultDevice": "System default",
+		"refreshDevices": "Refresh microphones",
+		"devicesFailed": "Could not list microphones",
+		"input": "Input processing",
+		"cleanInput": "Speech (noise suppression and echo cancellation)",
+		"rawInput": "Unprocessed microphone",
+		"muteProject": "Mute project while recording",
+		"recordTime": "Record time",
+		"takeReady": "Take ready. Add it to the timeline or record again.",
+		"addTake": "Add to timeline"
 	},
 	"context": {
 		"title": "Timeline actions",
@@ -143,5 +154,27 @@
 		"remove": "Remove track",
 		"removeProtected": "Unlock this track and its linked items before removing it. Original recording tracks are protected.",
 		"confirmRemove": "Remove \"{{name}}\" and its items, including linked media? You can undo this."
+	},
+	"utilities": {
+		"screenshot": "Save preview screenshot",
+		"screenshotSaved": "Screenshot saved",
+		"screenshotFailed": "Could not save screenshot. Wait for the preview to finish loading and try again.",
+		"addMarker": "Add marker at playhead",
+		"mutePreview": "Mute preview audio",
+		"previewVolume": "Preview volume (export unchanged)",
+		"marker": "Marker",
+		"markerName": "Marker name",
+		"markerColor": "Marker color",
+		"deleteMarker": "Delete marker",
+		"saveMarker": "Save",
+		"colors": {
+			"red": "Red",
+			"orange": "Orange",
+			"yellow": "Yellow",
+			"green": "Green",
+			"blue": "Blue",
+			"purple": "Purple",
+			"pink": "Pink"
+		}
 	}
 }

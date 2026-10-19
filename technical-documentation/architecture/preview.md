@@ -435,3 +435,12 @@ sequenceDiagram
     Overlay->>IPC: setPlaying(viewId, playing) (per play/pause)
     IPC->>Svc: dispatch
 ```
+
+## Preview monitoring
+
+`previewMonitor.ts` stores a separate 0–100% monitoring level and mute preference
+outside the project document. Temporary voice-over recording mute is not persisted.
+`VirtualPreview` applies their gain to the common WebAudio output bus, or each media
+element in the fallback path. Track levels, source ducking detection and export
+settings remain independent. Ending or cancelling a muted voice-over take restores
+the previous monitoring level.

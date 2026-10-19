@@ -4,8 +4,9 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AddAudioLayerDialog } from "./AddAudioLayerDialog";
 
+const translate = vi.hoisted(() => (key: string) => key);
 vi.mock("@/contexts/I18nContext", () => ({
-	useScopedT: () => (key: string) => key,
+	useScopedT: () => translate,
 	useI18n: () => ({ locale: "en", setLocale: () => undefined }),
 }));
 
@@ -69,6 +70,7 @@ function renderDialog(over: Partial<Parameters<typeof AddAudioLayerDialog>[0]> =
 		onComplete: vi.fn(),
 		onRecordingStart: vi.fn(),
 		onRecordingStop: vi.fn(),
+		onMuteProjectChange: vi.fn(),
 		...over,
 	};
 	const view = render(<AddAudioLayerDialog {...props} />);
@@ -127,4 +129,68 @@ describe("AddAudioLayerDialog", () => {
 		unmount();
 		expect(addAudioAsset).not.toHaveBeenCalled();
 	});
+});
+
+it("uses the chosen microphone and processing, with optional project monitoring", async () => {
+	const enumerate = vi.fn(async () => [
+		{ kind: "audioinput", deviceId: "studio", label: "Studio mic" },
+	]);
+	Object.assign(navigator.mediaDevices, { enumerateDevices: enumerate });
+	const { props } = renderDialog();
+	await vi.waitFor(() => expect(screen.getByText("Studio mic")).toBeTruthy());
+	fireEvent.change(screen.getByLabelText("audio.device"), { target: { value: "studio" } });
+	fireEvent.change(screen.getByLabelText("audio.input"), { target: { value: "raw" } });
+	fireEvent.click(screen.getByText("audio.record"));
+	await vi.waitFor(() => expect(props.onRecordingStart).toHaveBeenCalledOnce());
+	expect(navigator.mediaDevices.getUserMedia).toHaveBeenCalledWith({
+		audio: {
+			deviceId: { exact: "studio" },
+			echoCancellation: false,
+			noiseSuppression: false,
+			autoGainControl: false,
+		},
+	});
+	expect(props.onMuteProjectChange).toHaveBeenLastCalledWith(true);
+	fireEvent.click(screen.getByLabelText("audio.muteProject"));
+	expect(props.onMuteProjectChange).toHaveBeenLastCalledWith(false);
+	fireEvent.click(screen.getByText("audio.stop"));
+	expect(props.onComplete).not.toHaveBeenCalled();
+	expect(screen.getByText("audio.addTake")).not.toBeDisabled();
+});
+it("requires confirmation before saving and placing a finished take", async () => {
+	vi.stubGlobal(
+		"Blob",
+		class extends Blob {
+			async arrayBuffer() {
+				return new ArrayBuffer(8);
+			}
+		},
+	);
+	const save = vi.fn(async () => ({ success: true, path: "/recordings/take.webm" }));
+	window.electronAPI = { saveRecordedVoiceover: save } as unknown as typeof window.electronAPI;
+	addAudioAsset.mockResolvedValue({ id: "take" });
+	const { props } = renderDialog();
+	fireEvent.click(screen.getByText("audio.record"));
+	await vi.waitFor(() => expect(FakeRecorder.instances).toHaveLength(1));
+	fireEvent.click(screen.getByText("audio.stop"));
+	expect(save).not.toHaveBeenCalled();
+	expect(props.onComplete).not.toHaveBeenCalled();
+	fireEvent.click(screen.getByText("audio.addTake"));
+	await vi.waitFor(() => expect(props.onComplete).toHaveBeenCalledWith("take", expect.any(Number)));
+	expect(save).toHaveBeenCalledOnce();
+});
+it("releases a microphone granted after the popup has closed", async () => {
+	let grant: ((stream: MediaStream) => void) | undefined;
+	vi.mocked(navigator.mediaDevices.getUserMedia).mockImplementation(
+		() =>
+			new Promise((resolve) => {
+				grant = resolve;
+			}),
+	);
+	const { unmount, props } = renderDialog();
+	fireEvent.click(screen.getByText("audio.record"));
+	unmount();
+	grant?.({ getTracks: () => [{ stop: stopTrack }] } as unknown as MediaStream);
+	await vi.waitFor(() => expect(stopTrack).toHaveBeenCalled());
+	expect(props.onRecordingStart).not.toHaveBeenCalled();
 });

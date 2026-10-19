@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { usePreviewMonitor } from "@/lib/ai-edition/previewMonitor";
 import "@testing-library/jest-dom";
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -24,6 +25,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+	usePreviewMonitor.setState({ volume: 1, muted: false, recordingMuted: false });
 	cleanup();
 	vi.unstubAllGlobals();
 });
@@ -429,6 +431,18 @@ describe("VirtualPreview imported audio track boost", () => {
 		expect(createdGains.at(-2)?.gain.value).toBeCloseTo(1, 4);
 		expect(createdGains.at(-1)?.gain.value).toBeCloseTo(0.75, 4);
 		expect(createdGains.at(-3)?.gain.value).toBeCloseTo(sourceAudioMuted ? 0 : 0.75, 4); // embedded desktop/camera mix
+		// The monitor controls the common output without changing source/duck levels.
+		act(() => usePreviewMonitor.getState().setVolume(0.25));
+		tick();
+		expect(createdGains.at(-4)?.gain.value).toBeCloseTo(0.25);
+		expect(createdGains.at(-2)?.gain.value).toBeCloseTo(1);
+		act(() => usePreviewMonitor.setState({ recordingMuted: true }));
+		tick();
+		expect(createdGains.at(-4)?.gain.value).toBe(0);
+		act(() => usePreviewMonitor.setState({ recordingMuted: false }));
+		tick();
+		expect(createdGains.at(-4)?.gain.value).toBeCloseTo(0.25);
+
 		time.mockRestore();
 	});
 

@@ -689,6 +689,16 @@ const documentSchemaShape = z.object({
 	// Imported audio tracks (issue #350). Defaulted so every document written
 	// before this loads unchanged; an older build simply strips the key on save.
 	audioTracks: z.array(audioTrackSchema).default([]),
+	markers: z
+		.array(
+			z.object({
+				id: z.string().min(1),
+				timeSec: z.number().min(0),
+				name: z.string().max(120),
+				color: z.enum(["red", "orange", "yellow", "green", "blue", "purple", "pink"]),
+			}),
+		)
+		.optional(),
 	legacyEditor: legacyEditorSchema.nullable().default(null),
 });
 
