@@ -1,8 +1,7 @@
 name: Discord Weekly Leaderboard
 
 on:
-  schedule:
-    - cron: "0 12 * * 1"
+  # Reaction Station does not run the inherited Discord leaderboard automatically.
   workflow_dispatch:
 
 permissions:
