@@ -228,3 +228,9 @@ releases the microphone and holds the take in memory; Add to timeline persists t
 WebM/Opus take and adds a voice-over audio layer at the captured position. Closing
 discards an unconfirmed take. The existing Add Audio menu and shortcut also open
 this popup.
+
+Library import and relink buttons use the native media picker, which returns file
+paths directly (including multi-select and an image-only sticker filter). External
+drops continue to resolve real OS File paths. Browser-mode imports retain the HTML
+file input fallback. The packaged smoke uses the native picker flow and checks that
+the imported sticker is persisted in the correct bin before dragging it.

@@ -2424,3 +2424,19 @@
 	opacity: .4;
 	cursor: default;
 }
+
+/* Explicit track and thumb contrast in both light and dark themes. */
+.timelineUtilities { flex-shrink: 0; }
+.timelineUtilities input[type="range"] {
+ height: 5px;
+ border-radius: 999px;
+ background: var(--border);
+ cursor: pointer;
+}
+.timelineUtilities input[type="range"]::-webkit-slider-thumb {
+ width: 13px;
+ height: 13px;
+ background: var(--accent);
+ border: 2px solid var(--surface-1);
+ box-shadow: 0 0 0 1px var(--accent);
+}

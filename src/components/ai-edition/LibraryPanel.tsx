@@ -43,7 +43,7 @@ export function LibraryPanel({
 		new DOMRect(displayedContext?.x ?? 0, displayedContext?.y ?? 0, 0, 0);
 	const picker = useRef<HTMLInputElement>(null);
 	const relinkId = useRef<string>();
-	const importFiles = async (files: File[]) => {
+	const importPaths = async (files: Array<{ name: string; path: string }>) => {
 		setBusy(true);
 		const project = useProjectStore.getState().projectId;
 		try {
@@ -51,7 +51,7 @@ export function LibraryPanel({
 				const kind = droppedMediaKind(file.name);
 				if (!kind || (tab === "sticker" && kind !== "image"))
 					throw new Error(t("library.unsupported"));
-				const path = window.electronAPI.getPathForFile(file);
+				const path = file.path;
 				if (!path) throw new Error(t("library.unreadable"));
 				const state = useProjectStore.getState();
 				const old = state.document?.assets.find((asset) => asset.id === relinkId.current);
@@ -79,6 +79,7 @@ export function LibraryPanel({
 					});
 			}
 		} catch (error) {
+			console.error("[library] Import failed:", error);
 			toast.error(error instanceof Error ? error.message : String(error));
 		} finally {
 			setBusy(false);
@@ -86,9 +87,39 @@ export function LibraryPanel({
 			if (picker.current) picker.current.value = "";
 		}
 	};
+	const importFiles = async (files: File[]) => {
+		await importPaths(
+			files.map((file) => ({ name: file.name, path: window.electronAPI.getPathForFile(file) })),
+		);
+	};
+	const choosingRef = useRef(false);
+	const chooseFiles = async () => {
+		if (choosingRef.current) return;
+		if (!window.electronAPI?.openLibraryFilePicker) {
+			picker.current?.click();
+			return;
+		}
+		choosingRef.current = true;
+		setBusy(true);
+		try {
+			const result = await window.electronAPI.openLibraryFilePicker(
+				tab === "sticker",
+				!relinkId.current,
+			);
+			if (result.success && result.files) await importPaths(result.files);
+			else if (!result.canceled) throw new Error(result.message || t("library.unreadable"));
+		} catch (error) {
+			console.error("[library] Import failed:", error);
+			toast.error(error instanceof Error ? error.message : String(error));
+		} finally {
+			choosingRef.current = false;
+			setBusy(false);
+			relinkId.current = undefined;
+		}
+	};
 	const locate = (asset: AxcutAsset) => {
 		relinkId.current = asset.id;
-		picker.current?.click();
+		void chooseFiles();
 	};
 	const rows = assets.filter(
 		(asset) =>
@@ -167,7 +198,7 @@ export function LibraryPanel({
 					disabled={busy}
 					onClick={() => {
 						relinkId.current = undefined;
-						picker.current?.click();
+						void chooseFiles();
 					}}
 					title={t("library.import")}
 				>

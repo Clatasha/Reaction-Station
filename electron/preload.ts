@@ -368,6 +368,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
 	writeExportToPath: (videoData: ArrayBuffer, filePath: string) => {
 		return ipcRenderer.invoke("write-export-to-path", videoData, filePath);
 	},
+	openLibraryFilePicker: (imagesOnly: boolean, multiple: boolean) =>
+		ipcRenderer.invoke("open-library-file-picker", imagesOnly, multiple),
 	openVideoFilePicker: () => {
 		return ipcRenderer.invoke("open-video-file-picker");
 	},

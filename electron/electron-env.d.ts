@@ -324,6 +324,15 @@ interface Window {
 			message?: string;
 			error?: string;
 		}>;
+		openLibraryFilePicker: (
+			imagesOnly: boolean,
+			multiple: boolean,
+		) => Promise<{
+			success: boolean;
+			canceled?: boolean;
+			message?: string;
+			files?: Array<{ name: string; path: string }>;
+		}>;
 		openVideoFilePicker: () => Promise<{
 			success: boolean;
 			path?: string;

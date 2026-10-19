@@ -4209,6 +4209,54 @@ export function registerIpcHandlers(
 
 	// The media tab imports VIDEO (it arranges clips). Audio is imported from the
 	// timeline toolbar instead (issue #350) — see `open-audio-file-picker` below.
+	ipcMain.handle(
+		"open-library-file-picker",
+		async (event, imagesOnly: boolean, multiple: boolean) => {
+			try {
+				const images = ["png", "jpg", "jpeg", "webp", "gif"];
+				const extensions = imagesOnly
+					? images
+					: [
+							...images,
+							"webm",
+							"mp4",
+							"mov",
+							"avi",
+							"mkv",
+							"m4v",
+							"mp3",
+							"wav",
+							"m4a",
+							"aac",
+							"flac",
+							"ogg",
+							"opus",
+						];
+				const result = await showOpenDialogOver(BrowserWindow.fromWebContents(event.sender), {
+					title: imagesOnly ? "Import stickers" : "Import media",
+					defaultPath: RECORDINGS_DIR,
+					filters: [{ name: imagesOnly ? "Images" : "Media", extensions }],
+					properties: multiple ? ["openFile", "multiSelections"] : ["openFile"],
+				});
+				if (result.canceled || !result.filePaths.length) return { success: false, canceled: true };
+				const files = [];
+				for (const source of result.filePaths) {
+					const filePath = path.normalize(source);
+					if (
+						!path.isAbsolute(filePath) ||
+						!extensions.includes(path.extname(filePath).slice(1).toLowerCase()) ||
+						!(await fs.stat(filePath)).isFile()
+					)
+						throw new Error("Unsupported media file");
+					files.push({ path: filePath, name: path.basename(filePath) });
+				}
+				return { success: true, files };
+			} catch (error) {
+				return { success: false, message: String(error) };
+			}
+		},
+	);
+
 	ipcMain.handle("open-video-file-picker", async (event) => {
 		try {
 			const dialogOptions: Electron.OpenDialogOptions = {

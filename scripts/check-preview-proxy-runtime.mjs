@@ -7,6 +7,7 @@ import path from "node:path";
 import { build } from "esbuild";
 
 const ffmpeg = path.resolve(process.argv[2]);
+await fs.mkdir(path.resolve("release"), { recursive: true });
 const directory = await fs.mkdtemp(path.resolve("release/proxy-runtime-"));
 let service;
 try {
@@ -62,6 +63,33 @@ try {
 		stdio: "pipe",
 		timeout: 30000,
 	});
+	const stillBundle = path.join(directory, "still.cjs");
+	await build({
+		entryPoints: ["electron/media/stillImageClip.ts"],
+		outfile: stillBundle,
+		bundle: true,
+		platform: "node",
+		format: "cjs",
+		packages: "external",
+		logLevel: "silent",
+	});
+	const { ensureStillImageClip } = createRequire(import.meta.url)(stillBundle);
+	const sticker = path.join(directory, "transparent sticker.png");
+	await fs.writeFile(
+		sticker,
+		Buffer.from(
+			"iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAALElEQVR4nO3OsREAAAQEQf03jQ4EImZ3/vOLABhkb3MBAgQIECBAwP0A4L0C4RD+EDWrAHUAAAAASUVORK5CYII=",
+			"base64",
+		),
+	);
+	const still = await ensureStillImageClip(sticker, path.join(directory, "images"));
+	execFileSync(ffmpeg, ["-v", "error", "-i", still, "-f", "null", "-"], {
+		stdio: "pipe",
+		timeout: 30000,
+	});
+	console.log(
+		"Vendored FFmpeg transparent PNG sticker import passed using the production image service.",
+	);
 	console.log("Vendored FFmpeg proxy encode/decode passed using the production proxy service.");
 } finally {
 	service?.cancel();

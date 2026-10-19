@@ -19,6 +19,8 @@ const application = await electron.launch({
 let editor;
 let lastProxyStatus;
 const editorErrors = [];
+const mainOutput = [];
+application.process().stderr?.on("data", (chunk) => mainOutput.push(String(chunk)));
 try {
 	const page = await application.firstWindow();
 	const errors = [];
@@ -178,6 +180,9 @@ try {
 	await page.getByTestId("launch-open-studio-button").click();
 	editor = await editorWindow;
 	editor.on("pageerror", (error) => editorErrors.push(error.message));
+	editor.on("console", (message) => {
+		if (message.text().startsWith("[library]")) editorErrors.push(message.text());
+	});
 	await editor.getByText("Microphone", { exact: true }).last().waitFor({ timeout: 60_000 });
 	await editor.getByText("Desktop audio", { exact: true }).last().waitFor({ timeout: 60_000 });
 	const projectsDirectory = path.join(path.dirname(recordings), "projects");
@@ -387,9 +392,29 @@ try {
 		),
 	);
 	await editor.getByRole("tab", { name: "Stickers", exact: true }).click();
-	await editor
-		.locator('input[type="file"][accept="video/*,audio/*,image/*,.mkv,.flac,.opus"]')
-		.setInputFiles(stickerPath);
+	await application.evaluate(({ dialog }, filePath) => {
+		const original = dialog.showOpenDialog;
+		dialog.showOpenDialog = async () => {
+			dialog.showOpenDialog = original;
+			return { canceled: false, filePaths: [filePath] };
+		};
+	}, stickerPath);
+	await editor.getByTitle("Import media", { exact: true }).click();
+	await expect
+		.poll(
+			async () => {
+				const asset = (await getImportedDocument())?.assets?.find(
+					(asset) => asset.stillImagePath === stickerPath,
+				);
+				const errors = await editor
+					.locator("[data-sonner-toast][data-type='error']")
+					.allTextContents();
+				if (errors.length) throw new Error(`Sticker import: ${errors.join("; ")}`);
+				return asset?.libraryCategory;
+			},
+			{ timeout: 60_000, message: "Native sticker import must persist in the sticker bin" },
+		)
+		.toBe("sticker");
 	const sticker = editor.getByTitle("reaction-sticker-smoke.png", { exact: true });
 	await expect(sticker).toHaveAttribute("draggable", "true", { timeout: 60_000 });
 	const beforeStickers = (await getImportedDocument()).annotations.length;
@@ -425,6 +450,17 @@ try {
 		name: "Preview volume (export unchanged)",
 		exact: true,
 	});
+	const volumeTrack = await monitor.evaluate((element) => ({
+		width: element.getBoundingClientRect().width,
+		height: element.getBoundingClientRect().height,
+		background: getComputedStyle(element).backgroundColor,
+	}));
+	if (
+		volumeTrack.width < 50 ||
+		volumeTrack.height < 4 ||
+		volumeTrack.background === "rgba(0, 0, 0, 0)"
+	)
+		throw new Error("Preview volume must have a visible track");
 	await monitor.press("Home");
 	await expect(monitor).toHaveValue("0");
 	await monitor.press("End");
@@ -514,6 +550,7 @@ try {
 			"Editor diagnostics:",
 			JSON.stringify({
 				errors: editorErrors,
+				mainOutput: mainOutput.join("").slice(-12000),
 				proxyStatus: lastProxyStatus,
 				toasts: await editor
 					.locator("[data-sonner-toast]")

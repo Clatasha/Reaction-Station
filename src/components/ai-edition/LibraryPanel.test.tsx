@@ -151,3 +151,42 @@ it("deletes the selected bin entry through its context menu and retains its sour
 	).toMatchObject({ libraryHidden: true, originalPath: "/reaction.mp4" });
 	expect(edit).toHaveBeenCalledTimes(1);
 });
+
+it("imports stickers through native paths without depending on browser File metadata", async () => {
+	const sticker = assetSchema.parse({
+		id: "native-sticker",
+		origin: "user",
+		kind: "video",
+		label: "Overlay.png",
+		originalPath: "/cache/still.webm",
+		stillImagePath: "/pictures/Overlay.png",
+	});
+	const importAsset = vi.fn(async () => {
+		const doc = useProjectStore.getState().document!;
+		useProjectStore.setState({ document: { ...doc, assets: [...doc.assets, sticker] } });
+		return sticker;
+	});
+	useProjectStore.setState({ addAsset: importAsset });
+	const picker = vi.fn(async () => ({
+		success: true,
+		files: [{ name: "Overlay.png", path: "/pictures/Overlay.png" }],
+	}));
+	const getPathForFile = vi.fn(() => "");
+	Object.defineProperty(window, "electronAPI", {
+		configurable: true,
+		value: { openLibraryFilePicker: picker, getPathForFile },
+	});
+	render(<LibraryPanel onAdd={add} editDocument={edit} />);
+	fireEvent.click(screen.getByRole("tab", { name: "library.stickers" }));
+	fireEvent.click(screen.getByTitle("library.import"));
+	await waitFor(() =>
+		expect(screen.getByTitle("Overlay.png")).toHaveAttribute("draggable", "true"),
+	);
+	expect(picker).toHaveBeenCalledWith(true, true);
+	expect(importAsset).toHaveBeenCalledWith("/pictures/Overlay.png", "Overlay.png");
+	expect(getPathForFile).not.toHaveBeenCalled();
+	expect(
+		useProjectStore.getState().document?.assets.find((asset) => asset.id === sticker.id)
+			?.libraryCategory,
+	).toBe("sticker");
+});
