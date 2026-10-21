@@ -1,3 +1,4 @@
+import { creativeClipPath } from "@/lib/ai-edition/creative/settings";
 // Hidden-window runner for `openscreen export`. Loads an .openscreen project,
 // migrates it to the AxcutDocument the native Rust compositor consumes, and
 // drives exportMultiNative/exportGifNative — mirroring the v4 ExportDialog so
@@ -90,7 +91,7 @@ function buildNativeClipList(axcutDocument: AxcutDocument): CompositorClipInput[
 		const sourceEndSec = resolveClipSourceEndSec(clip, asset);
 		return [
 			{
-				screenPath: asset.originalPath,
+				screenPath: creativeClipPath(clip, asset.originalPath),
 				webcamPath: camera.path,
 				sourceStartSec: clip.sourceStartSec,
 				sourceEndSec,

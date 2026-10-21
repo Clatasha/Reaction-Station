@@ -957,3 +957,19 @@ select devices, compare speech/raw processing, record with project monitoring on
 off, stop, confirm and check take placement. Cancel a take, deny permission, close
 while permission is pending and repeat. Confirm that the mic indicator ends and
 monitoring restores after each exit. Compare narration timing on a short export.
+
+### Reaction Station 0.9.5 creative tools and Shorts
+
+| Build / branch | Platform | Result | Scope / skipped checks |
+| --- | --- | --- | --- |
+| 0.9.5 / feat/creative-tools-shorts | Linux development; Windows/macOS desktop unavailable | Partial; native desktop skipped | Automated checks cover selected-range reverse across chunk boundaries, embedded audio retention, deterministic transparent effects, real FFmpeg preparation/decoding with the pinned 8.1 runtime, native source clock fixtures, queued clip persistence, preparation errors, portrait slot geometry and independent Fit/Fill. Desktop computer-use APIs and the Rust compiler are unavailable here. Real GPU playback/export pixels, native seek/sync, OS dialogs and packaged Windows interaction require the CI artifact and desktop verification. |
+
+Desktop scope: apply each mirror direction, reverse a nonzero in/out range, try each
+overlay and its controls, cancel a preparation, clear effects, undo/redo and reopen.
+Confirm webcam, captions, microphone and original source audio keep their direction.
+Split a prepared clip and trim each half. Apply effects to a late range of a longer
+recording and confirm preparation does not generate its preceding duration. Scrub,
+play and stop across clip boundaries, compare the native preview with exported frames
+and verify no end truncation or audio drift. Choose Shorts with/without a camera,
+compare Fit/Fill independently, crop source and camera, and verify a 1080p export is
+1080 × 1920. Compare source-only effects against webcam and caption boundaries.

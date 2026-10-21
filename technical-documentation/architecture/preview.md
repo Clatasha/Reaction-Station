@@ -444,3 +444,29 @@ outside the project document. Temporary voice-over recording mute is not persist
 element in the fallback path. Track levels, source ducking detection and export
 settings remain independent. Ending or cancelling a muted voice-over take restores
 the previous monitoring level.
+
+### Prepared creative clips and portrait output
+
+`clip.creativeSource` stores a full-resolution derivative for per-clip mirroring,
+reverse source video, and procedural transparent overlays. Preparation runs in a
+cancellable main-process FFmpeg job. Reverse uses bounded source windows and disk
+concatenation. Effects are composited into source footage before the normal native
+composition, leaving camera, captions and independent audio tracks untouched.
+
+The derivative retains the original window's timestamps with a mux timestamp offset,
+so a late selection does not require encoding its preceding hours as blank frames.
+Native decoder availability is an absolute stream end (`start_time + duration`), not
+just the stream's length. `creativeClipPath` is shared by the preview scene, active
+source switches, GUI export and CLI export. The original asset remains unchanged;
+undo or clearing the effects restores it. A replacement asset invalidates an old
+creative source. Preparation must finish successfully before a single queued
+trim/crop/effect document write commits. Its UI disables editing while the footer's
+Cancel remains reachable. Generated copies persist in the application's creative
+media directory and are not disposable preview proxies.
+
+The explicit Shorts preset sets a 9:16 output and a vertical stack. Shared
+`computeCompositeLayout` places source footage in the top 60% and the webcam in the
+bottom 40%, or uses the whole output without a webcam. Independent Fit/Fill choices
+contain or crop each source within its slot. The same geometry feeds preview handles
+and the native preview/export scene; the existing 1080p export tier produces
+1080 × 1920. Standard layout sizing remains available.

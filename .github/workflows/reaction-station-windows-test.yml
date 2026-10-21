@@ -1,5 +1,5 @@
 name: Reaction Station Windows test installer
-run-name: Reaction Station 0.9.4 timeline tools and voice-over test (${{ github.ref_name }})
+run-name: Reaction Station 0.9.5 creative tools and Shorts test (${{ github.ref_name }})
 
 on:
   workflow_dispatch:
@@ -17,6 +17,7 @@ on:
       - feat/preview-quality-ducking
       - feat/creator-audio-and-media-polish
       - feat/timeline-utilities
+      - feat/creative-tools-shorts
     paths:
       - .github/workflows/reaction-station-windows-test.yml
       - scripts/test-reaction-recorder-ui.mjs

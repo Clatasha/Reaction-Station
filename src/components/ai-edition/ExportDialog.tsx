@@ -1,3 +1,4 @@
+import { creativeClipPath } from "@/lib/ai-edition/creative/settings";
 // Export dialog for the new editor. Wires together:
 // 1. pickExportSavePath (native save dialog)
 // 2. the native D3D exporter (exportMultiNative / exportGifNative)
@@ -126,7 +127,7 @@ function buildNativeClipList(document: AxcutDocument): CompositorClipInput[] {
 		// native side degrades cleanly on a stream-less file.
 		return [
 			{
-				screenPath: asset.originalPath,
+				screenPath: creativeClipPath(clip, asset.originalPath),
 				webcamPath: camera.path,
 				sourceStartSec: clip.sourceStartSec,
 				sourceEndSec,

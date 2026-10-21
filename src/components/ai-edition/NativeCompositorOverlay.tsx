@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import { useScopedT } from "@/contexts/I18nContext";
+import { creativeClipPath } from "@/lib/ai-edition/creative/settings";
 import { readSpeedRegions } from "@/lib/ai-edition/document/timeline";
 import { noteUiProbeClipSwitch } from "@/lib/ai-edition/perf/uiFrameProbe";
 import { usePreviewPlayback } from "@/lib/ai-edition/previewPlayback";
@@ -157,7 +158,7 @@ export function NativeCompositorOverlay() {
 		// screen path (and therefore the view id) changing.
 		previousActiveClipIdRef.current = null;
 		previousActiveClipIndexRef.current = null;
-	}, [proxyPaths]);
+	}, [proxyPaths, activeClip?.creativeSource?.path]);
 
 	// Pousse la scène (document → SceneDescription → JSON) au natif quand le document change,
 	// la vue s'active, OU que la taille réelle de la webcam active vient d'être sondée (voir
@@ -308,7 +309,8 @@ export function NativeCompositorOverlay() {
 
 		setActiveClip(
 			viewId,
-			proxyPaths[asset.originalPath] ?? asset.originalPath,
+			proxyPaths[creativeClipPath(activeClip, asset.originalPath)] ??
+				creativeClipPath(activeClip, asset.originalPath),
 			proxyPaths[camera.path] ?? camera.path,
 			camera.offsetSec,
 			activeClipIndex,
@@ -388,7 +390,8 @@ export function NativeCompositorOverlay() {
 		const camera = assetCameraSource(asset);
 		setActiveClip(
 			viewId,
-			proxyPaths[asset.originalPath] ?? asset.originalPath,
+			proxyPaths[creativeClipPath(activeClip, asset.originalPath)] ??
+				creativeClipPath(activeClip, asset.originalPath),
 			proxyPaths[camera.path] ?? camera.path,
 			camera.offsetSec,
 			activeClipIndex,

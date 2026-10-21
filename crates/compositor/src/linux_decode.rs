@@ -646,13 +646,7 @@ impl SwDecoder {
                 return None;
             }
             let duration = (*stream).duration;
-            if duration > 0 && self.stream_timebase > 0.0 {
-                let s = duration as f64 * self.stream_timebase;
-                if s.is_finite() && s > 0.0 {
-                    return Some(s);
-                }
-            }
-            None
+            crate::timeline_walk::stream_end_sec((*stream).start_time, duration, self.stream_timebase)
         }
     }
 

@@ -108,6 +108,30 @@ mod tests {
         assert_eq!(again, red);
     }
     #[test]
+    fn creative_source_keeps_a_nonzero_clock_without_padding() {
+        if std::process::Command::new("ffmpeg").arg("-version").output().is_err() {
+            assert!(std::env::var("REACTION_STATION_MEDIA_TESTS").as_deref() != Ok("1"), "CI must provide FFmpeg");
+            return;
+        }
+        let stamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
+        let file = std::env::temp_dir().join(format!("reaction-creative-clock-{}-{stamp}.mp4", std::process::id()));
+        let encoded = std::process::Command::new("ffmpeg").args([
+            "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=red:s=32x24:r=10:d=1",
+            "-c:v", "mpeg4", "-output_ts_offset", "5",
+        ]).arg(&file).output().unwrap();
+        assert!(encoded.status.success(), "{}", String::from_utf8_lossy(&encoded.stderr));
+        let path = file.to_string_lossy();
+        {
+            let decoder = SwDecoder::open(&path).unwrap();
+            assert!((decoder.duration_sec().unwrap() - 6.0).abs() < 0.01);
+            assert!((decoder.fps() - 10.0).abs() < 0.01);
+        }
+        let frame = load(&video_source(&path, 5.5)).unwrap();
+        assert!(frame.get_pixel(10, 10)[0] > 200);
+        VIDEOS.with(|cache| cache.borrow_mut().remove(path.as_ref()));
+        std::fs::remove_file(&file).unwrap();
+    }
+    #[test]
     fn escaped_video_paths_roundtrip() {
         let source = video_source(r#"C:\clips\a "reaction".mp4"#, -1.0);
         let value: (String, f64) = serde_json::from_str(source.strip_prefix(VIDEO_PREFIX).unwrap()).unwrap();

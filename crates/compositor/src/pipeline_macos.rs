@@ -623,16 +623,13 @@ impl Decoder {
         let stream = crate::ffi::sn_fmt_stream(self.fmt, self.vidx);
         let duration = (*stream).duration;
         let tb_sec = self.tb_sec();
-        if duration > 0 && tb_sec > 0.0 {
-            let seconds = duration as f64 * tb_sec;
-            if seconds.is_finite() && seconds > 0.0 {
-                return Some(seconds);
-            }
+        if let Some(end) = crate::timeline_walk::stream_end_sec((*stream).start_time, duration, tb_sec) {
+            return Some(end);
         }
         let nb_frames = (*stream).nb_frames;
         let fps = self.fps();
         if nb_frames > 0 && fps.is_finite() && fps > 0.0 {
-            Some(nb_frames as f64 / fps)
+            Some(nb_frames as f64 / fps + (*stream).start_time.max(0) as f64 * tb_sec)
         } else {
             None
         }

@@ -1,6 +1,7 @@
 import { DEFAULT_DUCKING_TRIGGER, triggerDucking } from "@/lib/ai-edition/ducking";
 import { useLiveAudioGains } from "@/lib/ai-edition/store/liveAudioGains";
 import { useLiveDucking } from "@/lib/ai-edition/store/liveDucking";
+import { ShortsOutputControls } from "./ShortsOutputControls";
 // Six right-rail panes matching design/openscreen-editor.html. Each control
 // reads from + writes to the project document via `useEditorSettings`, so the
 // design's UI is the canonical surface (no more "more options" link to a
@@ -2462,6 +2463,7 @@ export function VideoEffectsPane() {
 						void set(aspectRatio === "auto" ? { aspectRatio } : { aspectRatio, ...fillDefault })
 					}
 				/>
+				<ShortsOutputControls />
 				{/* The timeline's own shapes. Token first, then the pixel size: here a button names
 				    an output FORMAT, so the ratio is the identity. */}
 				{nativeFormats.length > 0 ? (
@@ -2869,6 +2871,7 @@ export function LayoutPane({ selectedClipId = null }: { selectedClipId?: string 
 	};
 	return (
 		<Pane title={ts("layout.title")} icon={<Camera size={16} />} helpText={helpText}>
+			<ShortsOutputControls />
 			<div className={styles.sectionLabel}>
 				{selectedClip ? ts("layout.selectedClipScope") : ts("layout.projectScope")}
 			</div>

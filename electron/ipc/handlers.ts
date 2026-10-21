@@ -75,6 +75,7 @@ import { EditorDocumentHost } from "../mcp/editor-document-host";
 import { McpController } from "../mcp/mcp-controller";
 import { McpSettingsStore } from "../mcp/mcp-settings-store";
 import { type AudioPeaksResult, getAudioPeaks } from "../media/audioPeaks";
+import { type CreativeClipRequest, CreativeClipService } from "../media/creativeClip";
 import {
 	readCursorRecordingFile as readCursorRecordingFileFrom,
 	readCursorSidecar,
@@ -451,6 +452,15 @@ function readableApprovedPath(filePath?: string | null): string | null {
 function approveDocumentMedia(document: AxcutDocument, trustedDirs?: string[]): void {
 	const trusted = (filePath: string) =>
 		!trustedDirs || trustedDirs.some((dir) => isPathWithinDir(filePath, dir));
+	for (const clip of document.timeline.clips) {
+		const copy = normalizeVideoSourcePath(clip.creativeSource?.path);
+		if (
+			copy &&
+			isPathWithinDir(copy, path.join(app.getPath("userData"), "creative-clips")) &&
+			hasAllowedImportVideoExtension(copy)
+		)
+			approveFilePath(copy);
+	}
 	for (const asset of document.assets ?? []) {
 		const media = normalizeVideoSourcePath(asset.originalPath);
 		if (media && hasAllowedImportMediaExtension(media) && trusted(media)) approveFilePath(media);
@@ -4460,6 +4470,20 @@ export function registerIpcHandlers(
 			};
 		}
 	});
+
+	const creativeClips = new CreativeClipService(
+		path.join(app.getPath("userData"), "creative-clips"),
+	);
+	app.once("before-quit", () => creativeClips.cancel());
+	ipcMain.handle("prepare-creative-clip", async (_, request: CreativeClipRequest) => {
+		const approved = readableApprovedPath(request?.path);
+		if (!approved || !hasAllowedImportVideoExtension(approved))
+			throw new Error("Video path is not approved");
+		const result = await creativeClips.prepare({ ...request, path: approved });
+		approveFilePath(result.path);
+		return result;
+	});
+	ipcMain.handle("cancel-creative-clip", () => creativeClips.cancel());
 
 	const previewProxies = new PreviewProxyService(
 		path.join(app.getPath("userData"), "preview-proxies"),

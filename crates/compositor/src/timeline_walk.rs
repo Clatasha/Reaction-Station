@@ -454,3 +454,25 @@ mod tests {
         );
     }
 }
+
+/// Absolute end on the source clock, including nonzero stream origins. Prepared
+/// creative clips retain their authored clock without encoding hours of padding.
+pub(crate) fn stream_end_sec(start: i64, duration: i64, time_base: f64) -> Option<f64> {
+    if duration <= 0 || !time_base.is_finite() || time_base <= 0.0 { return None; }
+    let end = (duration as f64 + start.max(0) as f64) * time_base;
+    (end.is_finite() && end > 0.0).then_some(end)
+}
+
+#[cfg(test)]
+mod source_clock_tests {
+    use super::stream_end_sec;
+    #[test]
+    fn availability_includes_a_positive_source_origin() {
+        assert_eq!(stream_end_sec(5000, 3000, 0.001), Some(8.0));
+        assert_eq!(stream_end_sec(0, 3000, 0.001), Some(3.0));
+        assert_eq!(stream_end_sec(i64::MIN, 3000, 0.001), Some(3.0));
+        assert_eq!(stream_end_sec(-10, 3000, 0.001), Some(3.0));
+        assert_eq!(stream_end_sec(5000, 0, 0.001), None);
+        assert_eq!(stream_end_sec(5000, 3000, f64::NAN), None);
+    }
+}

@@ -470,5 +470,35 @@
 		"triggerHelp": "When this audio is heard, lower every other audio source together. This audio keeps its own level.",
 		"reductionPercent": "Lower other audio by",
 		"advanced": "Timing and sensitivity"
+	},
+	"creative": {
+		"title": "Creative effects",
+		"flipHorizontal": "Mirror horizontally",
+		"flipVertical": "Flip vertically",
+		"reverse": "Reverse source video",
+		"overlay": "Animated overlay",
+		"none": "None",
+		"matrix": "Falling numbers",
+		"dots": "Floating dots",
+		"particles": "Soft particles",
+		"color": "Color",
+		"opacity": "Opacity",
+		"speed": "Speed",
+		"density": "Density",
+		"size": "Size",
+		"help": "Applies to this clip's source footage. Webcam, captions, microphone and audio keep their original direction. Apply prepares a copy; the original stays intact.",
+		"clear": "Clear effects",
+		"preparing": "Preparing creative clip… This may take a while. Cancel stops preparation.",
+		"unavailable": "Creative clip preparation is unavailable for this source.",
+		"processing": "Preparing…"
+	},
+	"shorts": {
+		"preset": "YouTube Shorts · 9:16",
+		"help": "Portrait output, 1080 × 1920 at 1080p export quality. Source above, camera below. Use Edit clip for source cropping and Camera framing below for the webcam.",
+		"source": "Source framing",
+		"camera": "Camera framing",
+		"fit": "Fit entire image",
+		"fill": "Fill slot (crop)",
+		"standard": "Use standard layout sizing"
 	}
 }

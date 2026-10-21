@@ -13,8 +13,14 @@ import {
 	type AnnotationTextAnimation,
 	TEXT_ANIMATION_VALUES,
 } from "@/lib/ai-edition/annotations/textAnimation";
+import {
+	type CreativeSource,
+	DEFAULT_CREATIVE_SETTINGS,
+	hasCreativeEffects,
+} from "@/lib/ai-edition/creative/settings";
 import type { AxcutClip } from "@/lib/ai-edition/schema";
 import { formatSeconds } from "@/lib/ai-edition/timeline/format";
+import { CreativeClipControls } from "./CreativeClipControls";
 import { cropDraftFromRegion, cropDraftToPct, previewBoxStyle } from "./cropDraft";
 import styles from "./NewEditorShell.module.css";
 import { ChoiceRow } from "./RightPanes";
@@ -46,8 +52,10 @@ export function ModalShell({
 	wide,
 	footer,
 	children,
+	busy = false,
 }: BaseModalProps & {
 	title: string;
+	busy?: boolean;
 	subtitle?: string;
 	wide?: boolean;
 	/** Off for a dialog that handles Escape itself — two listeners both fire for one
@@ -111,7 +119,9 @@ export function ModalShell({
 						<X size={18} />
 					</button>
 				</header>
-				<div className={styles.modalBody}>{children}</div>
+				<div className={styles.modalBody} {...(busy ? { inert: "" } : {})}>
+					{children}
+				</div>
 				{footer ? <footer className={styles.modalFoot}>{footer}</footer> : null}
 			</div>
 		</div>
@@ -660,6 +670,7 @@ interface EditClipModalProps extends BaseModalProps {
 		sourceEndSec: number,
 		cropRegion?: CropRegion | null,
 		mediaAnimation?: AxcutClip["mediaAnimation"],
+		creativeSource?: CreativeSource | null,
 	) => void;
 }
 
@@ -684,6 +695,9 @@ export function EditClipModal({
 	const trackRef = useRef<HTMLDivElement | null>(null);
 	const [mediaAnimation, setMediaAnimation] =
 		useState<NonNullable<AxcutClip["mediaAnimation"]>>("none");
+	const [creative, setCreative] = useState({ ...DEFAULT_CREATIVE_SETTINGS });
+	const [preparing, setPreparing] = useState(false);
+	const [creativeError, setCreativeError] = useState("");
 	const [draftStart, setDraftStart] = useState(0);
 	const [draftEnd, setDraftEnd] = useState(0);
 	const [activeEdge, setActiveEdge] = useState<"start" | "end" | null>(null);
@@ -712,6 +726,8 @@ export function EditClipModal({
 	useEffect(() => {
 		if (!open || !clip) return;
 		setMediaAnimation(clip.mediaAnimation ?? "none");
+		setCreative(clip.creativeSource?.settings ?? { ...DEFAULT_CREATIVE_SETTINGS });
+		setCreativeError("");
 		setDraftStart(clip.sourceStartSec);
 		setDraftEnd(clip.sourceEndSec ?? clip.sourceStartSec);
 		setActiveEdge(null);
@@ -789,7 +805,11 @@ export function EditClipModal({
 		Math.abs(draftStart - clip.sourceStartSec) > 0.001 ||
 		Math.abs(draftEnd - (clip.sourceEndSec ?? 0)) > 0.001;
 	const hasChanges =
-		hasTrimChanges || cropTouched || mediaAnimation !== (clip.mediaAnimation ?? "none");
+		hasTrimChanges ||
+		cropTouched ||
+		mediaAnimation !== (clip.mediaAnimation ?? "none") ||
+		JSON.stringify(creative) !==
+			JSON.stringify(clip.creativeSource?.settings ?? DEFAULT_CREATIVE_SETTINGS);
 	const clipSources = videoSources.filter((s) => s.id === clip.assetId);
 	const cropPreviewSource = clipSources[0] ?? null;
 
@@ -936,6 +956,9 @@ export function EditClipModal({
 	};
 
 	const handleReset = () => {
+		setCreative(clip.creativeSource?.settings ?? { ...DEFAULT_CREATIVE_SETTINGS });
+		setMediaAnimation(clip.mediaAnimation ?? "none");
+		setCreativeError("");
 		setDraftStart(clip.sourceStartSec);
 		setDraftEnd(clip.sourceEndSec ?? clip.sourceStartSec);
 		const region = clip.cropRegion ?? IDENTITY_CROP;
@@ -947,7 +970,48 @@ export function EditClipModal({
 		setCropRatio(detectRatio(region, videoAspectRatio));
 		setCropTouched(false);
 	};
-	const handleApply = () => {
+	const handleApply = async () => {
+		if (preparing) return;
+		setCreativeError("");
+		let creativeSource: CreativeSource | null | undefined;
+		try {
+			if (hasCreativeEffects(creative)) {
+				const previous = clip.creativeSource;
+				const retainedWindow =
+					previous &&
+					previous.sourcePath === cropPreviewSource?.filePath &&
+					previous.startSec <= draftStart &&
+					previous.endSec >= draftEnd;
+				if (
+					previous &&
+					retainedWindow &&
+					JSON.stringify(previous.settings) === JSON.stringify(creative)
+				)
+					creativeSource = previous;
+				else {
+					if (!window.electronAPI?.prepareCreativeClip || !cropPreviewSource?.filePath)
+						throw new Error(ts("creative.unavailable"));
+					setPreparing(true);
+					creativeSource = await window.electronAPI.prepareCreativeClip({
+						path: cropPreviewSource.filePath,
+						startSec:
+							retainedWindow && creative.reverse && previous.settings.reverse
+								? previous.startSec
+								: draftStart,
+						endSec:
+							retainedWindow && creative.reverse && previous.settings.reverse
+								? previous.endSec
+								: draftEnd,
+						settings: creative,
+					});
+				}
+			} else if (clip.creativeSource) creativeSource = null;
+		} catch (error) {
+			setCreativeError(String(error));
+			setPreparing(false);
+			return;
+		}
+		setPreparing(false);
 		const nextCrop: CropRegion = {
 			x: Math.max(0, Math.min(1, cropXPct / 100)),
 			y: Math.max(0, Math.min(1, cropYPct / 100)),
@@ -957,7 +1021,9 @@ export function EditClipModal({
 		const isIdentity =
 			nextCrop.x === 0 && nextCrop.y === 0 && nextCrop.width === 1 && nextCrop.height === 1;
 		const cropChange = cropTouched ? (isIdentity ? null : nextCrop) : undefined;
-		if (mediaAnimation !== (clip.mediaAnimation ?? "none")) {
+		if (creativeSource !== undefined) {
+			onApply(draftStart, draftEnd, cropChange, mediaAnimation, creativeSource);
+		} else if (mediaAnimation !== (clip.mediaAnimation ?? "none")) {
 			onApply(draftStart, draftEnd, cropChange, mediaAnimation);
 		} else {
 			onApply(draftStart, draftEnd, cropChange);
@@ -968,11 +1034,15 @@ export function EditClipModal({
 	return (
 		<ModalShell
 			open={open}
-			onClose={onClose}
+			onClose={() => {
+				if (preparing) void window.electronAPI?.cancelCreativeClip?.();
+				else onClose();
+			}}
 			closeOnBackdrop={!hasChanges}
 			title={t("editClipDialog.title")}
 			subtitle={assetMeta?.label ?? undefined}
 			wide
+			busy={preparing}
 			footer={
 				<div
 					style={{
@@ -987,7 +1057,7 @@ export function EditClipModal({
 						type="button"
 						className={`${styles.btn} ${styles.btnSecondary}`}
 						onClick={handleReset}
-						disabled={!hasChanges}
+						disabled={!hasChanges || preparing}
 					>
 						{t("editClipDialog.reset")}
 					</button>
@@ -995,7 +1065,10 @@ export function EditClipModal({
 						<button
 							type="button"
 							className={`${styles.btn} ${styles.btnSecondary}`}
-							onClick={onClose}
+							onClick={() => {
+								if (preparing) void window.electronAPI?.cancelCreativeClip?.();
+								else onClose();
+							}}
 						>
 							{tc("actions.cancel")}
 						</button>
@@ -1003,10 +1076,10 @@ export function EditClipModal({
 							type="button"
 							className={`${styles.btn} ${styles.btnPrimary}`}
 							onClick={handleApply}
-							disabled={!hasChanges}
+							disabled={!hasChanges || preparing}
 						>
 							<Pencil size={14} />
-							{t("editClipDialog.apply")}
+							{preparing ? ts("creative.processing") : t("editClipDialog.apply")}
 						</button>
 					</div>
 				</div>
@@ -1232,6 +1305,9 @@ export function EditClipModal({
 					borderTop: "1px solid var(--border-soft)",
 				}}
 			>
+				<CreativeClipControls value={creative} onChange={setCreative} disabled={preparing} />
+				{preparing && <p role="status">{ts("creative.preparing")}</p>}
+				{creativeError && <p role="alert">{creativeError}</p>}
 				<ChoiceRow<AnnotationTextAnimation>
 					label={ts("mediaAnimation.title")}
 					options={TEXT_ANIMATION_VALUES.filter((v) => v !== "typewriter").map((value) => ({

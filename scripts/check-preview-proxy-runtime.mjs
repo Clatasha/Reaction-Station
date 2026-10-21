@@ -91,6 +91,39 @@ try {
 		"Vendored FFmpeg transparent PNG sticker import passed using the production image service.",
 	);
 	console.log("Vendored FFmpeg proxy encode/decode passed using the production proxy service.");
+	const creativeBundle = path.join(directory, "creative.cjs");
+	await build({
+		entryPoints: ["electron/media/creativeClip.ts"],
+		outfile: creativeBundle,
+		bundle: true,
+		platform: "node",
+		format: "cjs",
+		packages: "external",
+		logLevel: "silent",
+	});
+	const { CreativeClipService } = createRequire(import.meta.url)(creativeBundle);
+	const creative = new CreativeClipService(path.join(directory, "creative"));
+	const prepared = await creative.prepare({
+		path: source,
+		startSec: 0.5,
+		endSec: 1.5,
+		settings: {
+			flipHorizontal: true,
+			flipVertical: true,
+			reverse: true,
+			overlay: "matrix",
+			opacity: 0.2,
+			color: "#67e8a5",
+			speed: 1,
+			density: 0.5,
+			size: 1,
+		},
+	});
+	execFileSync(ffmpeg, ["-v", "error", "-i", prepared.path, "-f", "null", "-"], {
+		stdio: "pipe",
+		timeout: 30000,
+	});
+	console.log("Vendored FFmpeg reverse, mirror and transparent overlay production path passed.");
 } finally {
 	service?.cancel();
 	await fs.rm(directory, { recursive: true, force: true });

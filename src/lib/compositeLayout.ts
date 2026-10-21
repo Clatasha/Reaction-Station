@@ -402,6 +402,7 @@ export function autoFormatAspect(
 }
 
 export function computeCompositeLayout(params: {
+	shorts?: { screenFit: "fit" | "fill"; cameraFit: "fit" | "fill" };
 	canvasSize: Size;
 	maxContentSize?: Size;
 	screenSize: Size;
@@ -436,6 +437,54 @@ export function computeCompositeLayout(params: {
 	} = params;
 	const { width: canvasWidth, height: canvasHeight } = canvasSize;
 	const { width: screenWidth, height: screenHeight } = screenSize;
+
+	// A portrait canvas and a top/bottom layout are separate choices. Shorts gives the
+	// two sources explicit slots, with independent contain/cover framing.
+	if (params.shorts && (layoutPreset === "vertical-stack" || layoutPreset === "no-webcam")) {
+		const content = maxContentSize;
+		const left = (canvasWidth - content.width) / 2;
+		const top = (canvasHeight - content.height) / 2;
+		const camera =
+			layoutPreset !== "no-webcam" && webcamSize && webcamSize.width > 0 && webcamSize.height > 0
+				? webcamSize
+				: null;
+		const screenHeight = camera ? content.height * 0.6 : content.height;
+		const fitRect = (slot: RenderRect, source: Size, mode: "fit" | "fill"): RenderRect => {
+			if (mode === "fill") return slot;
+			const scale = Math.min(slot.width / source.width, slot.height / source.height);
+			const width = source.width * scale,
+				height = source.height * scale;
+			return {
+				x: slot.x + (slot.width - width) / 2,
+				y: slot.y + (slot.height - height) / 2,
+				width,
+				height,
+			};
+		};
+		const screenRect = fitRect(
+			{ x: left, y: top, width: content.width, height: screenHeight },
+			screenSize,
+			params.shorts.screenFit,
+		);
+		const webcamRect = camera
+			? fitRect(
+					{
+						x: left,
+						y: top + screenHeight,
+						width: content.width,
+						height: content.height - screenHeight,
+					},
+					camera,
+					params.shorts.cameraFit,
+				)
+			: null;
+		return {
+			screenRect,
+			screenCover: params.shorts.screenFit === "fill",
+			screenBorderRadius: 0,
+			webcamRect: webcamRect ? { ...webcamRect, borderRadius: 0, maskShape: "rectangle" } : null,
+		};
+	}
 
 	// no-webcam: hide the webcam, screen fills the canvas normally.
 	if (layoutPreset === "no-webcam") {

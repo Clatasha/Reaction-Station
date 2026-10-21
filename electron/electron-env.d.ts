@@ -396,6 +396,10 @@ interface Window {
 			message?: string;
 			error?: string;
 		}>;
+		prepareCreativeClip?: (
+			request: import("./media/creativeClip").CreativeClipRequest,
+		) => Promise<import("../src/lib/ai-edition/creative/settings").CreativeSource>;
+		cancelCreativeClip?: () => Promise<void>;
 		preparePreviewProxy?: (
 			filePath: string,
 			durationSec: number,

@@ -402,6 +402,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
 		return ipcRenderer.invoke("get-readable-file-info", filePath);
 	},
 	/** Native waveform peaks, disk-cached. See electron/media/audioPeaks.ts. */
+	prepareCreativeClip: (request: import("./media/creativeClip").CreativeClipRequest) =>
+		ipcRenderer.invoke("prepare-creative-clip", request),
+	cancelCreativeClip: () => ipcRenderer.invoke("cancel-creative-clip"),
 	preparePreviewProxy: (filePath: string, durationSec: number) =>
 		ipcRenderer.invoke("preview-proxy", filePath, durationSec),
 	cancelPreviewProxies: () => ipcRenderer.invoke("cancel-preview-proxies"),

@@ -3044,3 +3044,29 @@ describe("independent layouts on split recording clips", () => {
 		expect(scene.layout.layoutByClip?.[1]?.webcamRect).toBeNull();
 	});
 });
+
+it("uses a creative copy in the native scene while retaining its source clock and webcam", async () => {
+	const { DEFAULT_CREATIVE_SETTINGS } = await import("@/lib/ai-edition/creative/settings");
+	const asset = makeAsset({ id: "creative_asset", originalPath: "/original.mp4" });
+	const clip = makeClip({
+		id: "creative_clip",
+		assetId: asset.id,
+		sourceStartSec: 2,
+		sourceEndSec: 5,
+		timelineStartSec: 0,
+		timelineEndSec: 3,
+		creativeSource: {
+			path: "/creative.mp4",
+			sourcePath: "/original.mp4",
+			startSec: 2,
+			endSec: 5,
+			settings: { ...DEFAULT_CREATIVE_SETTINGS, reverse: true },
+		},
+	});
+	const scene = buildSceneDescription(makeDoc({ assets: [asset], clips: [clip] }));
+	expect(scene.clips[0]).toMatchObject({
+		screenPath: "/creative.mp4",
+		sourceStartSec: 2,
+		sourceEndSec: 5,
+	});
+});

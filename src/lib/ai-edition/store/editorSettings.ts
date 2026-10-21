@@ -94,6 +94,9 @@ export interface EditorSettingsSnapshot {
 	/** Light or dark, for whichever frame is on. Inert with `frame: "none"`. */
 	frameTheme: FrameTheme;
 	aspectRatio: AspectRatio;
+	shortsMode: boolean;
+	shortsScreenFit: "fit" | "fill";
+	shortsCameraFit: "fit" | "fill";
 	/**
 	 * Under a fixed format that is not the recording's shape: fill the frame with a window of
 	 * the recording that follows the smoothed cursor (true), or show it whole (false). `null`
@@ -145,6 +148,9 @@ export const DEFAULT_EDITOR_SETTINGS: EditorSettingsSnapshot = {
 	webcamCropPan: DEFAULT_CROP_PAN,
 	audioGainDb: 0,
 	formatFollowCursor: null,
+	shortsMode: false,
+	shortsScreenFit: "fit",
+	shortsCameraFit: "fill",
 };
 
 interface LegacyShape {
@@ -154,6 +160,9 @@ interface LegacyShape {
 	frame?: unknown;
 	frameTheme?: FrameTheme;
 	aspectRatio?: AspectRatio;
+	shortsMode?: boolean;
+	shortsScreenFit?: "fit" | "fill";
+	shortsCameraFit?: "fit" | "fill";
 	formatFollowCursor?: boolean;
 	shadowIntensity?: number;
 	backgroundBlur?: number;
@@ -269,6 +278,9 @@ export function getEditorSettings(doc: AxcutDocument | null | undefined): Editor
 			? legacy.frameTheme
 			: (stored?.theme ?? DEFAULT_EDITOR_SETTINGS.frameTheme),
 		aspectRatio: legacy?.aspectRatio ?? DEFAULT_EDITOR_SETTINGS.aspectRatio,
+		shortsMode: legacy?.shortsMode === true && legacy?.aspectRatio === "9:16",
+		shortsScreenFit: legacy?.shortsScreenFit === "fill" ? "fill" : "fit",
+		shortsCameraFit: legacy?.shortsCameraFit === "fit" ? "fit" : "fill",
 		formatFollowCursor:
 			typeof legacy?.formatFollowCursor === "boolean" ? legacy.formatFollowCursor : null,
 		// Every number below is read into its `SETTING_BOUNDS` range: the slider's range, and the
@@ -338,6 +350,9 @@ export interface EditorSettingsPatch {
 	frame?: RecordingFrame;
 	frameTheme?: FrameTheme;
 	aspectRatio?: AspectRatio;
+	shortsMode?: boolean;
+	shortsScreenFit?: "fit" | "fill";
+	shortsCameraFit?: "fit" | "fill";
 	formatFollowCursor?: boolean;
 	shadowIntensity?: number;
 	backgroundBlur?: number;

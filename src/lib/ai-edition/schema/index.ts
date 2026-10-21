@@ -1,3 +1,4 @@
+import { creativeSourceSchema } from "../creative/settings";
 // Vendored from @axcut/schema (https://github.com/EtienneLescot/axcut) —
 // original file: packages/axcut-schema/src/index.ts. Modifications for
 // OpenScreen's AI-edition merge (Phase 0, see technical-documentation/architecture/document-model.md):
@@ -249,6 +250,7 @@ export const clipSchema = z
 		// storing the identity explicitly, so untouched clips stay lean.
 		cropRegion: clipCropRegionSchema.optional(),
 		mediaAnimation: z.enum(["none", "fade", "rise", "pop", "slide-left", "pulse"]).optional(),
+		creativeSource: creativeSourceSchema.optional(),
 		keepSeparate: z.boolean().optional(),
 		webcamLayoutPreset: z
 			.enum(["picture-in-picture", "vertical-stack", "dual-frame", "no-webcam"])

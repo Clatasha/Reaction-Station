@@ -282,6 +282,9 @@ export function PreviewCanvas(props: PreviewCanvasProps) {
 			height: Math.max(1, Math.round(fullScreenSize.height * cropRegion.height)),
 		};
 		return computeCompositeLayout({
+			shorts: settings.shortsMode
+				? { screenFit: settings.shortsScreenFit, cameraFit: settings.shortsCameraFit }
+				: undefined,
 			canvasSize: frameSize,
 			maxContentSize,
 			// Same box as the scene: a filled format gives the screen the whole padded area.
@@ -302,6 +305,9 @@ export function PreviewCanvas(props: PreviewCanvasProps) {
 		activeClipHasCamera,
 		webcamSourceSize,
 		activeLayoutPreset,
+		settings.shortsMode,
+		settings.shortsScreenFit,
+		settings.shortsCameraFit,
 		settings.webcamMaskShape,
 		settings.webcamSizePreset,
 		settings.webcamAnchor,

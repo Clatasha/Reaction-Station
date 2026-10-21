@@ -612,6 +612,33 @@ describe("useTimeline.applyClipEdit (Edit-clip modal)", () => {
 		vi.clearAllMocks();
 	});
 
+	it("saves creative edits atomically with trimming and restores the original on clear", async () => {
+		const { DEFAULT_CREATIVE_SETTINGS } = await import("../creative/settings");
+		const { result } = renderTimeline();
+		const originalAsset = useProjectStore.getState().document?.assets[0];
+		const copy = {
+			path: "/copy.mp4",
+			sourcePath: originalAsset?.originalPath ?? "/original.mp4",
+			startSec: 0,
+			endSec: 4,
+			settings: { ...DEFAULT_CREATIVE_SETTINGS, reverse: true },
+		};
+		await act(async () => {
+			await result.current.applyClipEdit("clip_a", 0, 4, undefined, "fade", copy);
+		});
+		expect(useProjectStore.getState().document?.timeline.clips[0]).toMatchObject({
+			sourceEndSec: 4,
+			mediaAnimation: "fade",
+			creativeSource: copy,
+		});
+		expect(useProjectStore.getState().document?.assets[0]).toEqual(originalAsset);
+		expect(bridgeMocks.save).toHaveBeenCalledTimes(1);
+		await act(async () => {
+			await result.current.applyClipEdit("clip_a", 0, 4, undefined, undefined, null);
+		});
+		expect(useProjectStore.getState().document?.timeline.clips[0].creativeSource).toBeUndefined();
+	});
+
 	it("shrinks the clip's timeline width to match the narrowed source window", async () => {
 		const { result } = renderTimeline();
 		// Trim the 10s clip down to its first 4s of source.

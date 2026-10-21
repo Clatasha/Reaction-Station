@@ -1963,7 +1963,7 @@ export function NewEditorShell() {
 						: null
 				}
 				videoSources={videoSources}
-				onApply={(sStart, sEnd, cropRegion, mediaAnimation) => {
+				onApply={(sStart, sEnd, cropRegion, mediaAnimation, creativeSource) => {
 					if (!editClipTarget) return;
 					const clipId = editClipTarget.id;
 					// One user action, one document, one save. This used to be two calls —
@@ -1973,7 +1973,7 @@ export function NewEditorShell() {
 					// shared write queue for the same reason every other timeline edit does:
 					// so it can't clobber, or be clobbered by, a save already in flight.
 					void enqueueTimelineWrite(() =>
-						tl.applyClipEdit(clipId, sStart, sEnd, cropRegion, mediaAnimation),
+						tl.applyClipEdit(clipId, sStart, sEnd, cropRegion, mediaAnimation, creativeSource),
 					);
 					setEditClipTarget(null);
 				}}

@@ -291,3 +291,87 @@ describe("Edit Clip playable preview", () => {
 		}
 	});
 });
+
+describe("creative effects application", () => {
+	it("prepares a source copy before saving and keeps the original source path", async () => {
+		const { DEFAULT_CREATIVE_SETTINGS } = await import("@/lib/ai-edition/creative/settings");
+		const prepared = {
+			path: "/copy.mp4",
+			sourcePath: "/original.mp4",
+			startSec: 20,
+			endSec: 105,
+			settings: { ...DEFAULT_CREATIVE_SETTINGS, flipHorizontal: true },
+		};
+		const previousApi = window.electronAPI;
+		const prepareCreativeClip = vi.fn().mockResolvedValue(prepared);
+		window.electronAPI = { ...previousApi, prepareCreativeClip };
+		const apply = vi.fn(),
+			close = vi.fn();
+		try {
+			renderWithI18n(
+				<EditClipModal
+					open
+					clip={CLIP}
+					assetMeta={ASSET}
+					videoSources={[
+						{
+							id: CLIP.assetId,
+							src: "file:///original.mp4",
+							filePath: "/original.mp4",
+							label: "Original",
+						},
+					]}
+					onApply={apply}
+					onClose={close}
+				/>,
+			);
+			fireEvent.click(screen.getByLabelText("Mirror horizontally"));
+			await act(async () => fireEvent.click(screen.getByRole("button", { name: "Apply" })));
+			expect(prepareCreativeClip).toHaveBeenCalledWith({
+				path: "/original.mp4",
+				startSec: 20,
+				endSec: 105,
+				settings: prepared.settings,
+			});
+			expect(apply).toHaveBeenCalledWith(20, 105, undefined, "none", prepared);
+			expect(close).toHaveBeenCalledOnce();
+		} finally {
+			window.electronAPI = previousApi;
+		}
+	});
+	it("keeps the edit open if preparing the copy fails", async () => {
+		const previousApi = window.electronAPI;
+		window.electronAPI = {
+			...previousApi,
+			prepareCreativeClip: vi.fn().mockRejectedValue(new Error("Cannot decode source")),
+		};
+		const apply = vi.fn(),
+			close = vi.fn();
+		try {
+			renderWithI18n(
+				<EditClipModal
+					open
+					clip={CLIP}
+					assetMeta={ASSET}
+					videoSources={[
+						{
+							id: CLIP.assetId,
+							src: "file:///original.mp4",
+							filePath: "/original.mp4",
+							label: "Original",
+						},
+					]}
+					onApply={apply}
+					onClose={close}
+				/>,
+			);
+			fireEvent.click(screen.getByLabelText("Reverse source video"));
+			await act(async () => fireEvent.click(screen.getByRole("button", { name: "Apply" })));
+			expect(screen.getByRole("alert")).toHaveTextContent("Cannot decode source");
+			expect(apply).not.toHaveBeenCalled();
+			expect(close).not.toHaveBeenCalled();
+		} finally {
+			window.electronAPI = previousApi;
+		}
+	});
+});

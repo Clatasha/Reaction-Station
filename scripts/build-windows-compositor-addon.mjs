@@ -111,6 +111,9 @@ if (process.env.REACTION_STATION_MEDIA_TESTS === "1") {
 	await runInVsEnv(
 		`set "PATH=${sdk};%PATH%"\r\n${cargoExeQuoted} test -p openscreen-compositor --lib --release media_image::tests::`,
 	);
+	await runInVsEnv(
+		`set "PATH=${sdk};%PATH%"\r\n${cargoExeQuoted} test -p openscreen-compositor --lib --release timeline_walk::source_clock_tests::`,
+	);
 }
 
 const builtDll = path.join(CRATES_DIR, "target", "release", "compositor_view.dll");

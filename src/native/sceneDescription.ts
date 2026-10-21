@@ -1,3 +1,4 @@
+import { creativeClipPath } from "@/lib/ai-edition/creative/settings";
 import {
 	editorTracks,
 	isItemEnabled,
@@ -1022,7 +1023,7 @@ export function buildSceneDescription(
 		// probe fills it in.
 		return [
 			{
-				screenPath: asset.originalPath,
+				screenPath: creativeClipPath(clip, asset.originalPath),
 				...(!isItemEnabled(document, clip, "clip") ? { screenHidden: true } : {}),
 				...(clip.mediaAnimation && clip.mediaAnimation !== "none"
 					? {
@@ -1231,6 +1232,9 @@ export function buildSceneDescription(
 			hasCamera,
 		);
 		return computeCompositeLayout({
+			shorts: settings.shortsMode
+				? { screenFit: settings.shortsScreenFit, cameraFit: settings.shortsCameraFit }
+				: undefined,
 			canvasSize: outputDims,
 			maxContentSize,
 			// Filled, the screen takes the whole padded area; the compositor cuts the window.

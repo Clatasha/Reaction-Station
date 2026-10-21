@@ -441,3 +441,20 @@ describe("patchEditorSettings", () => {
 		expect(getEditorSettings(negative).webcamBlurIntensity).toBe(0);
 	});
 });
+
+it("persists independent Shorts framing and deactivates Shorts outside portrait format", () => {
+	const patched = patchEditorSettings(baseDoc, {
+		aspectRatio: "9:16",
+		shortsMode: true,
+		shortsScreenFit: "fill",
+		shortsCameraFit: "fit",
+	});
+	expect(getEditorSettings(patched)).toMatchObject({
+		shortsMode: true,
+		shortsScreenFit: "fill",
+		shortsCameraFit: "fit",
+	});
+	expect(getEditorSettings(patchEditorSettings(patched, { aspectRatio: "16:9" })).shortsMode).toBe(
+		false,
+	);
+});
