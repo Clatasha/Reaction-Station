@@ -123,7 +123,7 @@ try {
 		stdio: "pipe",
 		timeout: 30000,
 	});
-	console.log("Vendored FFmpeg reverse, mirror and transparent overlay production path passed.");
+	console.log("Vendored FFmpeg cached reverse production path passed.");
 } finally {
 	service?.cancel();
 	await fs.rm(directory, { recursive: true, force: true });

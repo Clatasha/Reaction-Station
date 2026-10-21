@@ -1,4 +1,4 @@
-import { creativeClipPath } from "@/lib/ai-edition/creative/settings";
+import { type CreativeSettings, creativeClipPath } from "@/lib/ai-edition/creative/settings";
 import {
 	editorTracks,
 	isItemEnabled,
@@ -474,6 +474,7 @@ export interface SceneCursor {
 
 /** Everything native needs to compose the scene, serialized from one document. */
 export interface SceneClipInput extends CompositorClipInput {
+	creative?: CreativeSettings;
 	mediaAnimation?: { name: string; startSec: number };
 }
 
@@ -1024,6 +1025,7 @@ export function buildSceneDescription(
 		return [
 			{
 				screenPath: creativeClipPath(clip, asset.originalPath),
+				...(clip.creativeSettings ? { creative: clip.creativeSettings } : {}),
 				...(!isItemEnabled(document, clip, "clip") ? { screenHidden: true } : {}),
 				...(clip.mediaAnimation && clip.mediaAnimation !== "none"
 					? {

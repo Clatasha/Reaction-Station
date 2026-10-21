@@ -5,10 +5,9 @@ import path from "node:path";
 import {
 	type CreativeSettings,
 	type CreativeSource,
-	creativeSettingsSchema,
+	DEFAULT_CREATIVE_SETTINGS,
 } from "../../src/lib/ai-edition/creative/settings";
 import { resolveFfmpeg } from "./audioPeaks";
-import { OVERLAY_HEIGHT, OVERLAY_WIDTH, overlayFrame } from "./creativeOverlay";
 
 export interface CreativeClipRequest {
 	path: string;
@@ -16,36 +15,32 @@ export interface CreativeClipRequest {
 	endSec: number;
 	settings: CreativeSettings;
 }
-const VIDEO_ENCODING = [
-	"-c:v",
-	"mpeg4",
-	"-q:v",
-	"2",
-	"-pix_fmt",
-	"yuv420p",
-	"-threads",
-	"2",
-	"-g",
-	"30",
-	"-bf",
-	"0",
-];
-/** Disk-backed, bounded reverse chunks avoid buffering an entire recording in RAM. */
+export interface CreativeClipProgress {
+	state: "idle" | "reversing" | "finishing" | "ready" | "cancelled" | "error";
+	progress: number;
+}
+/** Only reverse needs preparation. Mirrors and overlays are live native effects. */
 export class CreativeClipService {
 	private child: ChildProcess | null = null;
 	private busy = false;
 	private cancelled = false;
+	private status: CreativeClipProgress = { state: "idle", progress: 0 };
 	constructor(private directory: string) {}
+	getProgress(): CreativeClipProgress {
+		return { ...this.status };
+	}
 	cancel() {
 		this.cancelled = true;
 		this.child?.kill();
 	}
-	private async run(ffmpeg: string, args: string[], frames?: CreativeSettings): Promise<void> {
+	private async run(ffmpeg: string, args: string[]): Promise<void> {
 		if (this.cancelled) throw new Error("Preparation cancelled");
 		await new Promise<void>((resolve, reject) => {
-			const child = spawn(ffmpeg, ["-hide_banner", "-loglevel", "error", "-y", ...args], {
-				stdio: [frames ? "pipe" : "ignore", "ignore", "pipe"],
-			});
+			const child = spawn(
+				ffmpeg,
+				["-nostdin", "-hide_banner", "-loglevel", "error", "-y", ...args],
+				{ stdio: ["ignore", "ignore", "pipe"] },
+			);
 			this.child = child;
 			let stderr = "";
 			const timer = setTimeout(() => child.kill(), 30 * 60 * 1000);
@@ -65,41 +60,34 @@ export class CreativeClipService {
 						new Error(
 							this.cancelled
 								? "Preparation cancelled"
-								: `Creative clip preparation failed (${code}): ${stderr}`,
+								: `Reverse preparation failed (${code}): ${stderr}`,
 						),
 					);
 			});
-			// EPIPE is reported by the process close handler with FFmpeg's useful error.
-			child.stdin?.on("error", () => {
-				/* Process close supplies FFmpeg diagnostics. */
-			});
-			if (frames)
-				void (async () => {
-					for (let frame = 0; frame < 90 && !this.cancelled; frame++) {
-						await new Promise<void>((resolve, reject) => {
-							child.stdin!.write(overlayFrame(frames, frame), (error) =>
-								error ? reject(error) : resolve(),
-							);
-						});
-					}
-					child.stdin?.end();
-				})().catch(() => child.kill());
 		});
 	}
 	async prepare(request: CreativeClipRequest): Promise<CreativeSource> {
-		if (this.busy) throw new Error("Another creative clip is being prepared");
+		if (this.busy) throw new Error("Another reverse clip is being prepared");
+		if (!request.settings?.reverse) throw new Error("Live effects do not need preparation");
 		this.busy = true;
 		this.cancelled = false;
+		this.status = { state: "reversing", progress: 0 };
 		try {
 			const result = await this.prepareOne(request);
 			if (this.cancelled) throw new Error("Preparation cancelled");
+			this.status = { state: "ready", progress: 100 };
 			return result;
+		} catch (error) {
+			this.status = {
+				state: this.cancelled ? "cancelled" : "error",
+				progress: this.status.progress,
+			};
+			throw error;
 		} finally {
 			this.busy = false;
 		}
 	}
 	private async prepareOne(request: CreativeClipRequest): Promise<CreativeSource> {
-		const settings = creativeSettingsSchema.parse(request.settings);
 		const { startSec, endSec } = request;
 		if (
 			!Number.isFinite(startSec) ||
@@ -111,123 +99,99 @@ export class CreativeClipService {
 		const ffmpeg = resolveFfmpeg();
 		if (!ffmpeg) throw new Error("Bundled FFmpeg is unavailable");
 		const stat = await fs.stat(request.path);
+		// Live settings are deliberately absent from the key. A color/opacity/flip change
+		// can never invalidate a prepared reverse or start another encode.
 		const key = createHash("sha256")
 			.update(
-				JSON.stringify([
-					"creative-v2",
-					request.path,
-					stat.size,
-					stat.mtimeMs,
-					startSec,
-					endSec,
-					settings,
-				]),
+				JSON.stringify(["reverse-v3", request.path, stat.size, stat.mtimeMs, startSec, endSec]),
 			)
 			.digest("hex");
 		const output = path.join(this.directory, `${key}.mp4`);
-		const result = { path: output, sourcePath: request.path, startSec, endSec, settings };
+		const result = {
+			path: output,
+			sourcePath: request.path,
+			startSec,
+			endSec,
+			settings: { ...DEFAULT_CREATIVE_SETTINGS, reverse: true },
+		};
 		try {
 			await fs.access(output);
 			return result;
 		} catch {
-			/* Generate once. */
+			/* Prepare a missing copy. */
 		}
 		const work = path.join(this.directory, randomUUID());
 		try {
 			await fs.mkdir(work, { recursive: true });
 			const duration = endSec - startSec;
-			let input = request.path;
-			let offset = startSec;
-			if (settings.reverse) {
-				const pieces: string[] = [];
-				// Read the chunks from the end, reverse each, then concatenate in that order.
-				for (let end = endSec; end > startSec + 0.000001; ) {
-					const begin = Math.max(startSec, end - 1);
-					const file = path.join(work, `part-${pieces.length}.mp4`);
-					await this.run(ffmpeg, [
-						"-ss",
-						String(begin),
-						"-t",
-						String(end - begin),
-						"-i",
-						request.path,
-						"-an",
-						"-vf",
-						"reverse,setpts=PTS-STARTPTS",
-						...VIDEO_ENCODING,
-						file,
-					]);
-					pieces.push(file);
-					end = begin;
-				}
-				const list = path.join(work, "concat.txt");
-				await fs.writeFile(list, pieces.map((file) => `file '${path.basename(file)}'`).join("\n"));
-				input = path.join(work, "reverse.mp4");
-				offset = 0;
-				await this.run(ffmpeg, ["-f", "concat", "-safe", "1", "-i", list, "-c", "copy", input]);
+			const pieces: string[] = [];
+			const total = Math.ceil(duration);
+			for (let end = endSec; end > startSec + 0.000001; ) {
+				const begin = Math.max(startSec, end - 1);
+				const file = path.join(work, `part-${pieces.length}.mp4`);
+				await this.run(ffmpeg, [
+					"-ss",
+					String(begin),
+					"-t",
+					String(end - begin),
+					"-i",
+					request.path,
+					"-an",
+					"-vf",
+					"reverse,setpts=PTS-STARTPTS",
+					"-c:v",
+					"mpeg4",
+					"-q:v",
+					"2",
+					"-pix_fmt",
+					"yuv420p",
+					"-threads",
+					"2",
+					"-g",
+					"30",
+					"-bf",
+					"0",
+					file,
+				]);
+				pieces.push(file);
+				end = begin;
+				this.status = { state: "reversing", progress: Math.min(90, (pieces.length / total) * 90) };
 			}
-			const args = ["-ss", String(offset), "-t", String(duration), "-i", input];
-			const filters: string[] = [];
-			if (settings.flipHorizontal) filters.push("hflip");
-			if (settings.flipVertical) filters.push("vflip");
-			let video = "[0:v]";
-			let audioInput = 0;
-			if (settings.overlay !== "none") {
-				const overlay = path.join(work, "overlay.mov");
-				await this.run(
-					ffmpeg,
-					[
-						"-f",
-						"rawvideo",
-						"-pixel_format",
-						"rgba",
-						"-video_size",
-						`${OVERLAY_WIDTH}x${OVERLAY_HEIGHT}`,
-						"-framerate",
-						"30",
-						"-i",
-						"pipe:0",
-						"-an",
-						"-c:v",
-						"qtrle",
-						overlay,
-					],
-					settings,
-				);
-				args.push("-stream_loop", "-1", "-i", overlay);
-				// The expression scales to the reference video's visible dimensions, preserving alpha.
-				filters.push("null");
-				video = `[0:v]${filters.join(",")}[base];[1:v]setpts=PTS/${settings.speed}[effect];[effect][base]scale2ref[scaled][screen];[screen][scaled]overlay=shortest=1:format=auto`;
-				audioInput = 2;
-			} else {
-				video += filters.length ? filters.join(",") : "null";
-				audioInput = 1;
-			}
-			// Original audio keeps its clock/direction. Mic/camera and linked tracks remain independent.
-			args.push("-ss", String(startSec), "-t", String(duration), "-i", request.path);
-			video += ",setpts=PTS-STARTPTS[video]";
+			const list = path.join(work, "concat.txt");
+			await fs.writeFile(list, pieces.map((file) => `file '${path.basename(file)}'`).join("\n"));
+			this.status = { state: "finishing", progress: 95 };
 			const temporary = path.join(work, "finished.mp4");
+			// Concatenate without re-encoding the video a second time. Keep source audio
+			// forward and retain the authored source clock without blank-frame padding.
 			await this.run(ffmpeg, [
-				...args,
-				"-filter_complex_threads",
+				"-f",
+				"concat",
+				"-safe",
 				"1",
-				"-filter_complex",
-				video,
-				"-map",
-				"[video]",
-				"-map",
-				`${audioInput}:a?`,
-				"-af",
-				"asetpts=PTS-STARTPTS",
+				"-i",
+				list,
+				"-ss",
+				String(startSec),
 				"-t",
 				String(duration),
-				"-output_ts_offset",
-				String(startSec),
-				...VIDEO_ENCODING,
+				"-i",
+				request.path,
+				"-map",
+				"0:v:0",
+				"-map",
+				"1:a?",
+				"-c:v",
+				"copy",
+				"-af",
+				"asetpts=PTS-STARTPTS",
 				"-c:a",
 				"aac",
 				"-b:a",
 				"320k",
+				"-t",
+				String(duration),
+				"-output_ts_offset",
+				String(startSec),
 				"-movflags",
 				"+faststart",
 				temporary,

@@ -610,3 +610,19 @@ describe("useNativeCompositorView", () => {
 		});
 	});
 });
+
+it("isolates a clip dialog from the editor's status and playback position", async () => {
+	mocks.createCompositorView.mockResolvedValue({ id: 7 });
+	mocks.readCompositorFrame.mockResolvedValue(null);
+	usePreviewPlayback.setState({ nativeStatus: "ready" });
+	const { unmount } = renderHook(() =>
+		useNativeCompositorView(stubCanvasRef(), {
+			sources: { screenPath: "dialog.mp4" },
+			isolated: true,
+		}),
+	);
+	await waitFor(() => expect(mocks.createCompositorView).toHaveBeenCalled());
+	expect(usePreviewPlayback.getState().nativeStatus).toBe("ready");
+	unmount();
+	expect(usePreviewPlayback.getState().nativeStatus).toBe("ready");
+});

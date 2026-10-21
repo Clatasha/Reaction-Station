@@ -6,7 +6,6 @@ import path from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
 import { DEFAULT_CREATIVE_SETTINGS } from "../../src/lib/ai-edition/creative/settings";
 import { CreativeClipService } from "./creativeClip";
-import { overlayFrame } from "./creativeOverlay";
 
 vi.mock("./audioPeaks", () => ({ resolveFfmpeg: () => "/usr/bin/ffmpeg" }));
 const directories: string[] = [];
@@ -14,18 +13,6 @@ afterEach(async () => {
 	await Promise.all(
 		directories.splice(0).map((dir) => fs.rm(dir, { recursive: true, force: true })),
 	);
-});
-it("makes deterministic transparent effects with bounded opacity", () => {
-	for (const overlay of ["matrix", "dots", "particles"] as const) {
-		const settings = { ...DEFAULT_CREATIVE_SETTINGS, overlay };
-		const frame = overlayFrame(settings, 0);
-		expect(frame).toEqual(overlayFrame(settings, 0));
-		expect(frame).not.toEqual(overlayFrame(settings, 20));
-		const alphas = frame.filter((_, i) => i % 4 === 3);
-		expect(Math.max(...alphas)).toBeLessThanOrEqual(51);
-		expect(alphas.some((alpha) => alpha > 0)).toBe(true);
-		expect(alphas.some((alpha) => alpha === 0)).toBe(true);
-	}
 });
 const available = existsSync("/usr/bin/ffmpeg") && existsSync("/usr/bin/ffprobe");
 it.skipIf(!available)(
@@ -113,21 +100,13 @@ it.skipIf(!available)(
 			30,
 		);
 		expect(await service.prepare(request)).toEqual(result);
-		// Every overlay is exercised against a real filter graph, not just inspected as strings.
-		for (const overlay of ["matrix", "dots", "particles"] as const) {
-			const styled = await service.prepare({
-				path: source,
-				startSec: 0,
-				endSec: 0.3,
-				settings: {
-					...DEFAULT_CREATIVE_SETTINGS,
-					overlay,
-					flipHorizontal: true,
-					flipVertical: true,
-				},
-			});
-			execFileSync("/usr/bin/ffmpeg", ["-v", "error", "-i", styled.path, "-f", "null", "-"]);
-		}
+		expect(service.getProgress()).toEqual({ state: "ready", progress: 100 });
+		// Live changes never invalidate the reverse cache.
+		const adjusted = await service.prepare({
+			...request,
+			settings: { ...request.settings, opacity: 0.8, flipHorizontal: true, overlay: "dots" },
+		});
+		expect(adjusted.path).toBe(result.path);
 	},
 	30000,
 );
@@ -140,7 +119,24 @@ it("rejects invalid or zero-length windows before encoding", async () => {
 		[0, Infinity],
 	]) {
 		await expect(
-			service.prepare({ path: "unused", startSec, endSec, settings: DEFAULT_CREATIVE_SETTINGS }),
+			service.prepare({
+				path: "unused",
+				startSec,
+				endSec,
+				settings: { ...DEFAULT_CREATIVE_SETTINGS, reverse: true },
+			}),
 		).rejects.toThrow("Invalid clip range");
 	}
+});
+
+it("does not encode live effects", async () => {
+	const service = new CreativeClipService("unused");
+	await expect(
+		service.prepare({
+			path: "unused",
+			startSec: 0,
+			endSec: 1,
+			settings: { ...DEFAULT_CREATIVE_SETTINGS, flipHorizontal: true },
+		}),
+	).rejects.toThrow("Live effects do not need preparation");
 });

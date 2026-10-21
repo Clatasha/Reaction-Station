@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "@/contexts/I18nContext";
@@ -293,7 +293,7 @@ describe("Edit Clip playable preview", () => {
 });
 
 describe("creative effects application", () => {
-	it("prepares a source copy before saving and keeps the original source path", async () => {
+	it("saves mirroring instantly without preparing a source copy", async () => {
 		const { DEFAULT_CREATIVE_SETTINGS } = await import("@/lib/ai-edition/creative/settings");
 		const prepared = {
 			path: "/copy.mp4",
@@ -327,13 +327,8 @@ describe("creative effects application", () => {
 			);
 			fireEvent.click(screen.getByLabelText("Mirror horizontally"));
 			await act(async () => fireEvent.click(screen.getByRole("button", { name: "Apply" })));
-			expect(prepareCreativeClip).toHaveBeenCalledWith({
-				path: "/original.mp4",
-				startSec: 20,
-				endSec: 105,
-				settings: prepared.settings,
-			});
-			expect(apply).toHaveBeenCalledWith(20, 105, undefined, "none", prepared);
+			expect(prepareCreativeClip).not.toHaveBeenCalled();
+			expect(apply).toHaveBeenCalledWith(20, 105, undefined, "none", null, prepared.settings);
 			expect(close).toHaveBeenCalledOnce();
 		} finally {
 			window.electronAPI = previousApi;
@@ -366,7 +361,9 @@ describe("creative effects application", () => {
 				/>,
 			);
 			fireEvent.click(screen.getByLabelText("Reverse source video"));
-			await act(async () => fireEvent.click(screen.getByRole("button", { name: "Apply" })));
+			await act(async () =>
+				fireEvent.click(screen.getByRole("button", { name: "Prepare reverse preview" })),
+			);
 			expect(screen.getByRole("alert")).toHaveTextContent("Cannot decode source");
 			expect(apply).not.toHaveBeenCalled();
 			expect(close).not.toHaveBeenCalled();
@@ -374,4 +371,104 @@ describe("creative effects application", () => {
 			window.electronAPI = previousApi;
 		}
 	});
+});
+
+it("prepares reverse explicitly, then applies cached reverse and live settings without another encode", async () => {
+	const { DEFAULT_CREATIVE_SETTINGS } = await import("@/lib/ai-edition/creative/settings");
+	const prepared = {
+		path: "/reverse.mp4",
+		sourcePath: "/original.mp4",
+		startSec: 20,
+		endSec: 105,
+		settings: { ...DEFAULT_CREATIVE_SETTINGS, reverse: true },
+	};
+	const previousApi = window.electronAPI;
+	const prepareCreativeClip = vi.fn().mockResolvedValue(prepared),
+		apply = vi.fn();
+	window.electronAPI = { ...previousApi, prepareCreativeClip };
+	try {
+		renderWithI18n(
+			<EditClipModal
+				open
+				clip={CLIP}
+				assetMeta={ASSET}
+				videoSources={[
+					{
+						id: CLIP.assetId,
+						src: "file:///original.mp4",
+						filePath: "/original.mp4",
+						label: "Original",
+					},
+				]}
+				onApply={apply}
+				onClose={vi.fn()}
+			/>,
+		);
+		fireEvent.click(screen.getByLabelText("Reverse source video"));
+		expect(screen.getByRole("button", { name: "Apply" })).toBeDisabled();
+		expect(prepareCreativeClip).not.toHaveBeenCalled();
+		await act(async () =>
+			fireEvent.click(screen.getByRole("button", { name: "Prepare reverse preview" })),
+		);
+		fireEvent.click(screen.getByLabelText("Mirror horizontally"));
+		fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+		expect(prepareCreativeClip).toHaveBeenCalledTimes(1);
+		expect(apply).toHaveBeenCalledWith(20, 105, undefined, "none", prepared, {
+			...prepared.settings,
+			flipHorizontal: true,
+		});
+	} finally {
+		window.electronAPI = previousApi;
+	}
+});
+
+it("shows reverse progress and cancels without applying the draft", async () => {
+	const previousApi = window.electronAPI;
+	let rejectPreparation: (reason: Error) => void = () => {
+		/* Set by the preparation promise. */
+	};
+	const prepareCreativeClip = vi.fn(
+		() =>
+			new Promise<never>((_resolve, reject) => {
+				rejectPreparation = reject;
+			}),
+	);
+	const cancelCreativeClip = vi.fn(async () => {
+		rejectPreparation(new Error("Preparation cancelled"));
+	});
+	window.electronAPI = {
+		...previousApi,
+		prepareCreativeClip,
+		cancelCreativeClip,
+		getCreativeClipProgress: vi.fn(async () => ({ state: "reversing" as const, progress: 45 })),
+	};
+	const apply = vi.fn();
+	try {
+		renderWithI18n(
+			<EditClipModal
+				open
+				clip={CLIP}
+				assetMeta={ASSET}
+				videoSources={[
+					{
+						id: CLIP.assetId,
+						src: "file:///original.mp4",
+						filePath: "/original.mp4",
+						label: "Original",
+					},
+				]}
+				onApply={apply}
+				onClose={vi.fn()}
+			/>,
+		);
+		fireEvent.click(screen.getByLabelText("Reverse source video"));
+		fireEvent.click(screen.getByRole("button", { name: "Prepare reverse preview" }));
+		await waitFor(() => expect(screen.getByRole("progressbar")).toHaveAttribute("value", "45"));
+		await act(async () => fireEvent.click(screen.getByRole("button", { name: "Cancel" })));
+		expect(cancelCreativeClip).toHaveBeenCalledOnce();
+		expect(apply).not.toHaveBeenCalled();
+		expect(screen.getByRole("alert")).toHaveTextContent("Preparation cancelled");
+	} finally {
+		window.electronAPI = previousApi;
+	}
 });

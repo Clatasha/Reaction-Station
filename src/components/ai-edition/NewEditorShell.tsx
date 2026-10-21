@@ -270,6 +270,10 @@ export function NewEditorShell() {
 	// "Edit clip" rail button — a single shell-level instance instead of one
 	// mounted per trigger site.
 	const [editClipTarget, setEditClipTarget] = useState<AxcutClip | null>(null);
+	const openClipEditor = useCallback((clip: AxcutClip) => {
+		useProjectStore.getState().setPlaying(false);
+		setEditClipTarget(clip);
+	}, []);
 	const [exportOpen, setExportOpen] = useState(false);
 	const [unsavedPrompt, setUnsavedPrompt] = useState<{
 		action: "close" | "new" | "open" | "record";
@@ -1881,7 +1885,7 @@ export function NewEditorShell() {
 								}}
 								onToggleOpen={() => setInspectorOpen((v) => !v)}
 								clips={tl.clips}
-								onEditClip={setEditClipTarget}
+								onEditClip={openClipEditor}
 								transcriptProps={transcriptProps}
 							/>
 						</>
@@ -1927,7 +1931,7 @@ export function NewEditorShell() {
 						onTogglePlay={togglePlay}
 						onAddVoiceover={openVoiceoverFlow}
 						onMarkerEdit={handleMarkerEdit}
-						onEditClip={setEditClipTarget}
+						onEditClip={openClipEditor}
 					/>
 				</div>
 			) : null}
@@ -1963,7 +1967,7 @@ export function NewEditorShell() {
 						: null
 				}
 				videoSources={videoSources}
-				onApply={(sStart, sEnd, cropRegion, mediaAnimation, creativeSource) => {
+				onApply={(sStart, sEnd, cropRegion, mediaAnimation, creativeSource, creativeSettings) => {
 					if (!editClipTarget) return;
 					const clipId = editClipTarget.id;
 					// One user action, one document, one save. This used to be two calls —
@@ -1973,7 +1977,15 @@ export function NewEditorShell() {
 					// shared write queue for the same reason every other timeline edit does:
 					// so it can't clobber, or be clobbered by, a save already in flight.
 					void enqueueTimelineWrite(() =>
-						tl.applyClipEdit(clipId, sStart, sEnd, cropRegion, mediaAnimation, creativeSource),
+						tl.applyClipEdit(
+							clipId,
+							sStart,
+							sEnd,
+							cropRegion,
+							mediaAnimation,
+							creativeSource,
+							creativeSettings,
+						),
 					);
 					setEditClipTarget(null);
 				}}

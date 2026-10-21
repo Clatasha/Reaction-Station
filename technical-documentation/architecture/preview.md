@@ -445,28 +445,33 @@ element in the fallback path. Track levels, source ducking detection and export
 settings remain independent. Ending or cancelling a muted voice-over take restores
 the previous monitoring level.
 
-### Prepared creative clips and portrait output
+### Live creative effects and portrait output
 
-`clip.creativeSource` stores a full-resolution derivative for per-clip mirroring,
-reverse source video, and procedural transparent overlays. Preparation runs in a
-cancellable main-process FFmpeg job. Reverse uses bounded source windows and disk
-concatenation. Effects are composited into source footage before the normal native
-composition, leaving camera, captions and independent audio tracks untouched.
+`clip.creativeSettings` is serialized into each native scene clip. Horizontal and
+vertical mirroring change source UVs in the shared geometry path, including motion
+blur and tilted views. Procedural numbers, dots and soft particles use the shared
+`creative.rs` rasterizer and RGBA sprite pass on the footage, before webcam and
+captions. Alpha, colors, density, size, speed and source rounding are identical in
+preview and export. Dynamic sprites bypass the static image cache without retaining
+an unbounded frame history.
 
-The derivative retains the original window's timestamps with a mux timestamp offset,
-so a late selection does not require encoding its preceding hours as blank frames.
-Native decoder availability is an absolute stream end (`start_time + duration`), not
-just the stream's length. `creativeClipPath` is shared by the preview scene, active
-source switches, GUI export and CLI export. The original asset remains unchanged;
-undo or clearing the effects restores it. A replacement asset invalidates an old
-creative source. Preparation must finish successfully before a single queued
-trim/crop/effect document write commits. Its UI disables editing while the footer's
-Cancel remains reachable. Generated copies persist in the application's creative
-media directory and are not disposable preview proxies.
+Edit clip owns an isolated compositor view with an unsaved source-only scene. The
+Effects preview and Crop & trim tabs share the clip's play/pause/scrub controls.
+Changing live settings re-composes the current frame; Apply performs one queued
+trim/crop/settings write without encoding. The isolated view never publishes editor
+transport positions, loading state or footage handles. Shared-texture subscribers
+coexist in the preload, so closing the dialog does not unsubscribe the main preview.
 
-The explicit Shorts preset sets a 9:16 output and a vertical stack. Shared
-`computeCompositeLayout` places source footage in the top 60% and the webcam in the
-bottom 40%, or uses the whole output without a webcam. Independent Fit/Fill choices
-contain or crop each source within its slot. The same geometry feeds preview handles
-and the native preview/export scene; the existing 1080p export tier produces
-1080 × 1920. Standard layout sizing remains available.
+Only reverse needs a prepared derivative. Preparation is explicit before Apply,
+reports progress, supports cancellation and reuses a disk-cached reverse when live
+settings change. Its video is encoded in bounded chunks then muxed without a second
+video encode. The copy retains original source timestamps and forward audio. The
+reverse-only cache is independent of opacity, color, flips and overlay choices.
+`creativeClipPath` is shared by GUI preview, active source switches and both export
+entry points. Pre-0.9.6 baked creative sources remain unchanged until edited; their
+live settings are not applied twice.
+
+The Shorts preset sets a 9:16 output and vertical stack. Shared
+`computeCompositeLayout` places footage in the top 60% and webcam in the bottom 40%,
+or uses the entire output without a webcam. Independent Fit/Fill choices contain or
+crop each source within its slot. The 1080p export tier produces 1080 × 1920.

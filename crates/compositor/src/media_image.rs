@@ -13,6 +13,7 @@ pub fn video_source(path: &str, time: f64) -> String {
 }
 
 pub fn load(path: &str) -> Result<image::RgbaImage> {
+    if let Some(image) = crate::creative::load(path) { return image; }
     if let Some(request) = path.strip_prefix(VIDEO_PREFIX) {
         let (path, time): (String, f64) = serde_json::from_str(request)?;
         return VIDEOS.with(|videos| -> Result<image::RgbaImage> {

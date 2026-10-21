@@ -43,6 +43,8 @@ import { publishNativePosition } from "../nativeSync";
 import { computeDeviceRect, rectsEqual } from "../nativeViewRect";
 
 export interface UseNativeCompositorViewOptions {
+	/** A dialog preview owns its view without publishing the editor playback clock or handles. */
+	isolated?: boolean;
 	/** When false, the hook does nothing on mount and destroys nothing on
 	 * unmount. Defaults to true. */
 	enabled?: boolean;
@@ -111,6 +113,7 @@ export function useNativeCompositorView(
 	opts: UseNativeCompositorViewOptions = {},
 ): UseNativeCompositorViewResult {
 	const enabled = opts.enabled !== false;
+	const isolated = opts.isolated === true;
 	const quality = usePreviewPreferences((s) => s.quality);
 	const qualityRef = useRef(quality);
 	qualityRef.current = quality;
@@ -144,12 +147,26 @@ export function useNativeCompositorView(
 			return;
 		}
 
+		const publishStatus = (patch: {
+			nativeStatus: ReturnType<typeof usePreviewPlayback.getState>["nativeStatus"];
+		}) => {
+			if (!isolated)
+				usePreviewPlayback.setState((state) =>
+					state.nativeStatus === patch.nativeStatus ? state : patch,
+				);
+		};
+		const publishQuad = (...args: Parameters<typeof publishFootageQuad>) => {
+			if (!isolated) publishFootageQuad(...args);
+		};
+		const publishPosition = (...args: Parameters<typeof publishNativePosition>) => {
+			if (!isolated) publishNativePosition(...args);
+		};
 		let rectRafHandle = 0;
 		let pullRafHandle = 0;
 		let lastPullAt = Number.NEGATIVE_INFINITY;
 		let lastRect: CompositorViewRect | null = null;
 		let disposed = false;
-		usePreviewPlayback.setState({ nativeStatus: "loading" });
+		publishStatus({ nativeStatus: "loading" });
 		// Fresh view (source or enablement changed) → the previous view's fatal error
 		// says nothing about this one.
 		setError(null);
@@ -160,9 +177,7 @@ export function useNativeCompositorView(
 		// fresh view, whose bitmap stays empty until that view paints.
 		const markPainted = () => {
 			canvas.dataset.painted = "true";
-			usePreviewPlayback.setState((state) =>
-				state.nativeStatus === "ready" ? state : { nativeStatus: "ready" },
-			);
+			publishStatus({ nativeStatus: "ready" });
 		};
 		delete canvas.dataset.painted;
 
@@ -266,8 +281,8 @@ export function useNativeCompositorView(
 				}
 				sharedTransport = true;
 				lastGen = Math.max(lastGen, meta.gen);
-				publishFootageQuad(meta.footage, meta.footageProjective);
-				publishNativePosition(meta);
+				publishQuad(meta.footage, meta.footageProjective);
+				publishPosition(meta);
 				const fresh = canvas.dataset.painted === undefined;
 				const drawn = paint(meta.gen, meta.width, meta.height, () => ctx.drawImage(frame, 0, 0));
 				if (drawn && fresh && !sharedChecked) {
@@ -277,7 +292,7 @@ export function useNativeCompositorView(
 					// opaque everywhere, so a transparent pixel on this fresh canvas is that failure.
 					if (ctx.getImageData(meta.width >> 1, meta.height >> 1, 1, 1).data[3] === 0) {
 						sharedTransport = false;
-						usePreviewPlayback.setState({ nativeStatus: "loading" });
+						publishStatus({ nativeStatus: "loading" });
 						safelyCall("stopSharedFrames", () => stopSharedCompositorFrames(id));
 					}
 				}
@@ -337,8 +352,8 @@ export function useNativeCompositorView(
 						return;
 					}
 					// Where the footage lies in this frame: a privacy blur's gimbal follows it.
-					publishFootageQuad(frame.footage, frame.footageProjective);
-					publishNativePosition(frame);
+					publishQuad(frame.footage, frame.footageProjective);
+					publishPosition(frame);
 					// Wrap the received buffer DIRECTLY — no intermediate copy. `data` is a
 					// fresh per-frame Buffer from IPC (never pooled or reused across frames),
 					// so a view over it is valid for the lifetime of this paint, and nothing
@@ -381,7 +396,7 @@ export function useNativeCompositorView(
 					cancelAnimationFrame(pullRafHandle);
 					pullRafHandle = 0;
 					setError(cause instanceof Error ? cause.message : String(cause));
-					usePreviewPlayback.setState({ nativeStatus: "error" });
+					publishStatus({ nativeStatus: "error" });
 				});
 		};
 
@@ -432,10 +447,10 @@ export function useNativeCompositorView(
 
 		return () => {
 			disposed = true;
-			usePreviewPlayback.setState({ nativeStatus: "inactive" });
+			publishStatus({ nativeStatus: "inactive" });
 			unsubscribeShared();
-			publishFootageQuad(null);
-			publishNativePosition(null);
+			publishQuad(null);
+			publishPosition(null);
 			if (rectRafHandle !== 0) {
 				cancelAnimationFrame(rectRafHandle);
 			}
@@ -452,7 +467,7 @@ export function useNativeCompositorView(
 		};
 		// `canvasRef` is a stable RefObject; we re-run (destroy + re-create the view) when the
 		// enabled flag flips or the screen source changes.
-	}, [enabled, canvasRef, screenPath]);
+	}, [enabled, canvasRef, screenPath, isolated]);
 
 	const setParam = useCallback((key: string, value: CompositorParamValue) => {
 		const id = viewIdRef.current;

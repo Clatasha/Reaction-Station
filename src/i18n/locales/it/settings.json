@@ -486,11 +486,15 @@
 		"speed": "Speed",
 		"density": "Density",
 		"size": "Size",
-		"help": "Applies to this clip's source footage. Webcam, captions, microphone and audio keep their original direction. Apply prepares a copy; the original stays intact.",
+		"help": "Mirroring and overlays preview live. Apply saves settings instantly. Reverse needs a prepared preview. Webcam, captions and audio keep their direction.",
 		"clear": "Clear effects",
-		"preparing": "Preparing creative clip… This may take a while. Cancel stops preparation.",
+		"preparing": "Preparing reverse preview… Cancel stops preparation.",
 		"unavailable": "Creative clip preparation is unavailable for this source.",
-		"processing": "Preparing…"
+		"processing": "Preparing reverse…",
+		"livePreview": "Effects preview",
+		"cropPreview": "Crop & trim",
+		"prepareReverse": "Prepare reverse preview",
+		"reverseNeeded": "Prepare reverse preview to see and apply the reversed footage. Mirroring and overlays preview instantly."
 	},
 	"shorts": {
 		"preset": "YouTube Shorts · 9:16",

@@ -1849,6 +1849,7 @@ pub struct FrameGeometryInput<'a> {
 /// produit, 60 meurent avant le premier draw — ce sont ceux-là, et seulement ceux-là,
 /// qui traversent.
 pub struct FrameGeometry {
+    pub screen_flips: [bool; 2],
     pub media_opacity: f32,
     pub screen_hidden: bool,
     pub scene_preset: Option<String>,
@@ -1999,7 +2000,15 @@ pub fn annotation_dst_in(anchor: [f32; 4], x: f32, y: f32, w: f32, h: f32) -> [f
 }
 
 impl FrameGeometry {
+    pub fn creative_uv(&self, uv: [f32; 4]) -> [f32; 4] {
+        let mut mirrored = uv;
+        if self.screen_flips[0] { mirrored[0] = self.cut[0]+self.cut[2]-uv[0]; mirrored[2] = self.cut[0]+self.cut[2]-uv[2]; }
+        if self.screen_flips[1] { mirrored[1] = self.cut[1]+self.cut[3]-uv[1]; mirrored[3] = self.cut[1]+self.cut[3]-uv[3]; }
+        mirrored
+    }
     pub fn animated_screen_layer(&self, mut cb: LayerCB) -> LayerCB {
+        cb.src = self.creative_uv(cb.src);
+        if cb.mode == 0.0 { cb.src_prev = self.creative_uv(cb.src_prev); }
         if cb.mode == 8.0 { cb.trail_mb[2] = 1.0 - self.media_opacity; }
         else { cb.color[3] *= self.media_opacity; }
         cb
@@ -2175,7 +2184,7 @@ impl FrameGeometry {
         let s_px = [self.s_dst[2] * render_px[0], self.s_dst[3] * render_px[1]];
         let flat = LayerCB {
             dst: [0.0, 0.0, 1.0, 1.0],
-            src: self.cut,
+            src: self.creative_uv(self.cut),
             quad_px: s_px,
             radius_px: self.s_radius,
             mode: 18.0,
@@ -3495,6 +3504,7 @@ pub fn plan_frame(input: &FrameGeometryInput) -> FrameGeometry {
     } else { s_dst_prev };
     let screen_hidden = scene.and_then(|s| s.clips.get(s.active_clip_index)).map(|c| c.screen_hidden).unwrap_or(false);
     FrameGeometry {
+        screen_flips: scene.and_then(|s| s.clips.get(s.active_clip_index)).and_then(|c| c.creative.as_ref()).map(|c| [c.flip_horizontal, c.flip_vertical]).unwrap_or([false;2]),
         screen_hidden,
         media_opacity: if screen_hidden { 0.0 } else { media_opacity },
         scene_preset,
@@ -3702,6 +3712,8 @@ pub fn plan_cursor(g: &FrameGeometry, input: &CursorPlanInput) -> Option<CursorP
     let place = |cxy: Option<(f32, f32)>, dst: [f32; 4]| -> Option<CursorPlacement> {
         cxy.and_then(|p| {
             let [fx, fy] = cursor_plane_point(g.cut, [input.u_max, input.v_max], p)?;
+            let fx = if g.screen_flips[0] { 1.0-fx } else { fx };
+            let fy = if g.screen_flips[1] { 1.0-fy } else { fy };
             Some(match tilt.as_ref() {
                 Some(&quad) => CursorPlacement::Tilted {
                     plane_pt: [fx, fy],
@@ -7741,8 +7753,22 @@ mod tests {
     }
 
     /// Écran droit plein cadre, sans zoom : le curseur y tombe toujours dans le rect source.
+    #[test]
+    fn creative_mirroring_preserves_the_authored_crop_and_masks() {
+        let mut geometry = full_frame_geometry();
+        geometry.cut = [0.2, 0.1, 0.8, 0.9];
+        geometry.screen_flips = [true, true];
+        let uv = geometry.creative_uv([0.3, 0.2, 0.7, 0.8]);
+        for (actual, expected) in uv.iter().zip([0.7, 0.8, 0.3, 0.2]) { assert!((*actual-expected).abs()<1e-6); }
+        let cb = geometry.animated_screen_layer(LayerCB { mode: 0.0, src: geometry.cut, src_prev: geometry.cut, color: [1.0;4], ..Default::default() });
+        assert_eq!(cb.src, geometry.creative_uv(geometry.cut));
+        assert_eq!(cb.src_prev, cb.src);
+        assert_eq!(geometry.cut, [0.2, 0.1, 0.8, 0.9]);
+    }
+
     fn full_frame_geometry() -> FrameGeometry {
         FrameGeometry {
+            screen_flips: [false;2],
             scene_preset: None,
             mb_taps: 1.0,
             mb_amount: 0.0,

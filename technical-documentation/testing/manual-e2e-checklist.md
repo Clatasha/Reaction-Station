@@ -973,3 +973,20 @@ play and stop across clip boundaries, compare the native preview with exported f
 and verify no end truncation or audio drift. Choose Shorts with/without a camera,
 compare Fit/Fill independently, crop source and camera, and verify a 1080p export is
 1080 × 1920. Compare source-only effects against webcam and caption boundaries.
+
+### Reaction Station 0.9.6 live creative preview
+
+| Build / branch | Platform | Result | Scope / skipped checks |
+| --- | --- | --- | --- |
+| 0.9.6 / fix/live-creative-preview | Linux development; native desktop and Rust compiler unavailable | Partial; native desktop skipped | Automated checks cover Apply without encoding, isolated draft-scene updates, reverse cache reuse, explicit preparation/errors/progress, preview subscriptions surviving dialog close, clip persistence, and Rust syntax. Native tests for source UV mirroring, scoped effects and deterministic alpha sprites are included in Windows CI. GPU pixels, audible sync, native playback while moving sliders and real packaged dialogs are skipped because desktop computer-use APIs and the native toolchain are unavailable here. |
+
+Desktop scope: open Edit clip from paused and playing timelines. Switch Effects
+preview / Crop & trim, play/pause/scrub, and change mirror, overlay, opacity, color,
+speed, density and size while paused and playing. Verify immediate visual updates,
+no preparation for live controls and instant Apply. Cancel unsaved edits. Prepare
+reverse, check percent/cancellation, preview the result, adjust other controls and
+Apply without preparing again. Reopen a 0.9.5 project without double effects, split
+reversed clips, trim and reuse their copies. Close and reopen dialogs repeatedly;
+the main timeline must remain responsive and keep its own playhead. Compare the
+resulting MP4/GIF with the native preview, including camera/caption boundaries and
+rounded source corners. Check crop, zoom, animation and mirrored cursor placement.

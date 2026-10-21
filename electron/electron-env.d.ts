@@ -400,6 +400,7 @@ interface Window {
 			request: import("./media/creativeClip").CreativeClipRequest,
 		) => Promise<import("../src/lib/ai-edition/creative/settings").CreativeSource>;
 		cancelCreativeClip?: () => Promise<void>;
+		getCreativeClipProgress?: () => Promise<import("./media/creativeClip").CreativeClipProgress>;
 		preparePreviewProxy?: (
 			filePath: string,
 			durationSec: number,

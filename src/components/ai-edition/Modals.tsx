@@ -4,6 +4,7 @@ import {
 	type ReactNode,
 	type PointerEvent as ReactPointerEvent,
 	useEffect,
+	useMemo,
 	useRef,
 	useState,
 } from "react";
@@ -14,13 +15,16 @@ import {
 	TEXT_ANIMATION_VALUES,
 } from "@/lib/ai-edition/annotations/textAnimation";
 import {
+	type CreativeSettings,
 	type CreativeSource,
 	DEFAULT_CREATIVE_SETTINGS,
 	hasCreativeEffects,
+	reusableReverseSource,
 } from "@/lib/ai-edition/creative/settings";
 import type { AxcutClip } from "@/lib/ai-edition/schema";
 import { formatSeconds } from "@/lib/ai-edition/timeline/format";
 import { CreativeClipControls } from "./CreativeClipControls";
+import { CreativeClipPreview } from "./CreativeClipPreview";
 import { cropDraftFromRegion, cropDraftToPct, previewBoxStyle } from "./cropDraft";
 import styles from "./NewEditorShell.module.css";
 import { ChoiceRow } from "./RightPanes";
@@ -671,6 +675,7 @@ interface EditClipModalProps extends BaseModalProps {
 		cropRegion?: CropRegion | null,
 		mediaAnimation?: AxcutClip["mediaAnimation"],
 		creativeSource?: CreativeSource | null,
+		creativeSettings?: CreativeSettings,
 	) => void;
 }
 
@@ -697,6 +702,14 @@ export function EditClipModal({
 		useState<NonNullable<AxcutClip["mediaAnimation"]>>("none");
 	const [creative, setCreative] = useState({ ...DEFAULT_CREATIVE_SETTINGS });
 	const [preparing, setPreparing] = useState(false);
+	const [reverseCopy, setReverseCopy] = useState<CreativeSource | null>(null);
+	const [reverseProgress, setReverseProgress] = useState(0);
+	const [effectsPreview, setEffectsPreview] = useState(true);
+	const [seekTime, setSeekTime] = useState(0);
+	const preparationGeneration = useRef(0);
+	const preparationActive = useRef(preparing);
+	preparationActive.current = preparing;
+
 	const [creativeError, setCreativeError] = useState("");
 	const [draftStart, setDraftStart] = useState(0);
 	const [draftEnd, setDraftEnd] = useState(0);
@@ -704,6 +717,39 @@ export function EditClipModal({
 	const [previewTime, setPreviewTime] = useState(0);
 	const [previewPlaying, setPreviewPlaying] = useState(false);
 	const [previewError, setPreviewError] = useState(false);
+
+	useEffect(() => {
+		if (!preparing) return;
+		let disposed = false;
+		const poll = () => {
+			void window.electronAPI
+				?.getCreativeClipProgress?.()
+				.then((result) => {
+					if (!disposed) setReverseProgress(result.progress);
+				})
+				.catch(() => undefined);
+		};
+		poll();
+		const timer = setInterval(poll, 250);
+		return () => {
+			disposed = true;
+			clearInterval(timer);
+		};
+	}, [preparing]);
+	useEffect(() => {
+		if (!open) {
+			preparationGeneration.current++;
+			if (preparationActive.current) void window.electronAPI?.cancelCreativeClip?.();
+			setPreparing(false);
+		}
+	}, [open]);
+	useEffect(
+		() => () => {
+			preparationGeneration.current++;
+			if (preparationActive.current) void window.electronAPI?.cancelCreativeClip?.();
+		},
+		[],
+	);
 
 	// Crop draft — percentages (0-100), same shape/units CropModal used to
 	// keep locally before it was folded in here.
@@ -713,6 +759,10 @@ export function EditClipModal({
 	const [cropHPct, setCropHPct] = useState(100);
 	const [cropRatio, setCropRatio] = useState("free");
 	const [cropTouched, setCropTouched] = useState(false);
+	const liveCrop = useMemo(
+		() => ({ x: cropXPct / 100, y: cropYPct / 100, width: cropWPct / 100, height: cropHPct / 100 }),
+		[cropXPct, cropYPct, cropWPct, cropHPct],
+	);
 	// Source video's real pixel aspect ratio (width/height) — needed to convert
 	// between a preset's visual ratio (e.g. 16/9) and the crop region's
 	// fraction-of-frame width/height. 16/9 is just a placeholder until the
@@ -726,12 +776,17 @@ export function EditClipModal({
 	useEffect(() => {
 		if (!open || !clip) return;
 		setMediaAnimation(clip.mediaAnimation ?? "none");
-		setCreative(clip.creativeSource?.settings ?? { ...DEFAULT_CREATIVE_SETTINGS });
+		setEffectsPreview(true);
+		setCreative(
+			clip.creativeSettings ?? clip.creativeSource?.settings ?? { ...DEFAULT_CREATIVE_SETTINGS },
+		);
+		setReverseCopy(clip.creativeSource ?? null);
 		setCreativeError("");
 		setDraftStart(clip.sourceStartSec);
 		setDraftEnd(clip.sourceEndSec ?? clip.sourceStartSec);
 		setActiveEdge(null);
 		setPreviewTime(clip.sourceStartSec);
+		setSeekTime(clip.sourceStartSec);
 		setPreviewPlaying(false);
 		setPreviewError(false);
 		const region = clip.cropRegion ?? IDENTITY_CROP;
@@ -805,13 +860,53 @@ export function EditClipModal({
 		Math.abs(draftStart - clip.sourceStartSec) > 0.001 ||
 		Math.abs(draftEnd - (clip.sourceEndSec ?? 0)) > 0.001;
 	const hasChanges =
+		(creative.reverse && reverseCopy?.path !== clip.creativeSource?.path) ||
 		hasTrimChanges ||
 		cropTouched ||
 		mediaAnimation !== (clip.mediaAnimation ?? "none") ||
 		JSON.stringify(creative) !==
-			JSON.stringify(clip.creativeSource?.settings ?? DEFAULT_CREATIVE_SETTINGS);
+			JSON.stringify(
+				clip.creativeSettings ?? clip.creativeSource?.settings ?? DEFAULT_CREATIVE_SETTINGS,
+			);
 	const clipSources = videoSources.filter((s) => s.id === clip.assetId);
 	const cropPreviewSource = clipSources[0] ?? null;
+	const reverseReady = reusableReverseSource(
+		reverseCopy,
+		cropPreviewSource?.filePath ?? "",
+		draftStart,
+		draftEnd,
+	);
+	const nativePreview = !!window.electronAPI?.invokeNativeBridge && !!cropPreviewSource?.filePath;
+	const showingEffects = nativePreview && effectsPreview;
+	const prepareReverse = async () => {
+		if (preparing || !cropPreviewSource?.filePath || !window.electronAPI?.prepareCreativeClip)
+			return;
+		const generation = ++preparationGeneration.current;
+		setCreativeError("");
+		setReverseProgress(0);
+		setPreparing(true);
+		try {
+			const old = reverseCopy;
+			const retainsWindow =
+				old?.sourcePath === cropPreviewSource.filePath &&
+				old.startSec <= draftStart &&
+				old.endSec >= draftEnd;
+			const result = await window.electronAPI.prepareCreativeClip({
+				path: cropPreviewSource.filePath,
+				startSec: retainsWindow ? old.startSec : draftStart,
+				endSec: retainsWindow ? old.endSec : draftEnd,
+				settings: { ...DEFAULT_CREATIVE_SETTINGS, reverse: true },
+			});
+			if (generation === preparationGeneration.current) {
+				setReverseCopy(result);
+				setReverseProgress(100);
+			}
+		} catch (error) {
+			if (generation === preparationGeneration.current) setCreativeError(String(error));
+		} finally {
+			if (generation === preparationGeneration.current) setPreparing(false);
+		}
+	};
 
 	const startDrag = (edge: "start" | "end", event: ReactPointerEvent<HTMLButtonElement>) => {
 		const track = trackRef.current;
@@ -956,7 +1051,10 @@ export function EditClipModal({
 	};
 
 	const handleReset = () => {
-		setCreative(clip.creativeSource?.settings ?? { ...DEFAULT_CREATIVE_SETTINGS });
+		setCreative(
+			clip.creativeSettings ?? clip.creativeSource?.settings ?? { ...DEFAULT_CREATIVE_SETTINGS },
+		);
+		setReverseCopy(clip.creativeSource ?? null);
 		setMediaAnimation(clip.mediaAnimation ?? "none");
 		setCreativeError("");
 		setDraftStart(clip.sourceStartSec);
@@ -970,48 +1068,14 @@ export function EditClipModal({
 		setCropRatio(detectRatio(region, videoAspectRatio));
 		setCropTouched(false);
 	};
-	const handleApply = async () => {
+	const handleApply = () => {
 		if (preparing) return;
-		setCreativeError("");
-		let creativeSource: CreativeSource | null | undefined;
-		try {
-			if (hasCreativeEffects(creative)) {
-				const previous = clip.creativeSource;
-				const retainedWindow =
-					previous &&
-					previous.sourcePath === cropPreviewSource?.filePath &&
-					previous.startSec <= draftStart &&
-					previous.endSec >= draftEnd;
-				if (
-					previous &&
-					retainedWindow &&
-					JSON.stringify(previous.settings) === JSON.stringify(creative)
-				)
-					creativeSource = previous;
-				else {
-					if (!window.electronAPI?.prepareCreativeClip || !cropPreviewSource?.filePath)
-						throw new Error(ts("creative.unavailable"));
-					setPreparing(true);
-					creativeSource = await window.electronAPI.prepareCreativeClip({
-						path: cropPreviewSource.filePath,
-						startSec:
-							retainedWindow && creative.reverse && previous.settings.reverse
-								? previous.startSec
-								: draftStart,
-						endSec:
-							retainedWindow && creative.reverse && previous.settings.reverse
-								? previous.endSec
-								: draftEnd,
-						settings: creative,
-					});
-				}
-			} else if (clip.creativeSource) creativeSource = null;
-		} catch (error) {
-			setCreativeError(String(error));
-			setPreparing(false);
+		if (creative.reverse && !reverseReady) {
+			setCreativeError(ts("creative.reverseNeeded"));
 			return;
 		}
-		setPreparing(false);
+		const creativeSource = creative.reverse && reverseReady ? reverseCopy : null;
+
 		const nextCrop: CropRegion = {
 			x: Math.max(0, Math.min(1, cropXPct / 100)),
 			y: Math.max(0, Math.min(1, cropYPct / 100)),
@@ -1021,8 +1085,8 @@ export function EditClipModal({
 		const isIdentity =
 			nextCrop.x === 0 && nextCrop.y === 0 && nextCrop.width === 1 && nextCrop.height === 1;
 		const cropChange = cropTouched ? (isIdentity ? null : nextCrop) : undefined;
-		if (creativeSource !== undefined) {
-			onApply(draftStart, draftEnd, cropChange, mediaAnimation, creativeSource);
+		if (hasCreativeEffects(creative) || clip.creativeSource || clip.creativeSettings) {
+			onApply(draftStart, draftEnd, cropChange, mediaAnimation, creativeSource, creative);
 		} else if (mediaAnimation !== (clip.mediaAnimation ?? "none")) {
 			onApply(draftStart, draftEnd, cropChange, mediaAnimation);
 		} else {
@@ -1061,6 +1125,19 @@ export function EditClipModal({
 					>
 						{t("editClipDialog.reset")}
 					</button>
+					{preparing && (
+						<div role="status" style={{ display: "grid", gap: 4, flex: 1, margin: "0 12px" }}>
+							<span>
+								{ts("creative.processing")} {Math.round(reverseProgress)}%
+							</span>
+							<progress
+								aria-label={ts("creative.processing")}
+								value={reverseProgress}
+								max={100}
+								style={{ width: "100%" }}
+							/>
+						</div>
+					)}
 					<div style={{ display: "flex", gap: 8 }}>
 						<button
 							type="button"
@@ -1076,7 +1153,7 @@ export function EditClipModal({
 							type="button"
 							className={`${styles.btn} ${styles.btnPrimary}`}
 							onClick={handleApply}
-							disabled={!hasChanges || preparing}
+							disabled={!hasChanges || preparing || (creative.reverse && !reverseReady)}
 						>
 							<Pencil size={14} />
 							{preparing ? ts("creative.processing") : t("editClipDialog.apply")}
@@ -1085,12 +1162,33 @@ export function EditClipModal({
 				</div>
 			}
 		>
+			{nativePreview && (
+				<div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+					<button
+						type="button"
+						className={styles.btn}
+						aria-pressed={effectsPreview}
+						onClick={() => setEffectsPreview(true)}
+					>
+						{ts("creative.livePreview")}
+					</button>
+					<button
+						type="button"
+						className={styles.btn}
+						aria-pressed={!effectsPreview}
+						onClick={() => setEffectsPreview(false)}
+					>
+						{ts("creative.cropPreview")}
+					</button>
+				</div>
+			)}
 			<div ref={cropFrameRef} style={previewBoxStyle(videoAspectRatio)}>
 				{cropPreviewSource ? (
 					<video
 						ref={cropVideoRef}
 						src={cropPreviewSource.src}
 						onPlay={() => setPreviewPlaying(true)}
+						onSeeking={(event) => setSeekTime(event.currentTarget.currentTime)}
 						onPause={() => setPreviewPlaying(false)}
 						onError={() => setPreviewError(true)}
 						onTimeUpdate={(event) => {
@@ -1108,12 +1206,47 @@ export function EditClipModal({
 							width: "100%",
 							height: "100%",
 							objectFit: "contain",
+							visibility: showingEffects ? "hidden" : "visible",
 							background: "#000",
 						}}
 					/>
 				) : null}
+				{showingEffects && cropPreviewSource?.filePath && (
+					<div style={{ position: "absolute", inset: 0 }}>
+						<CreativeClipPreview
+							path={
+								creative.reverse && reverseReady ? reverseCopy.path : cropPreviewSource.filePath
+							}
+							settings={creative}
+							crop={liveCrop}
+							aspect={videoAspectRatio}
+							startSec={draftStart}
+							endSec={Math.max(draftStart + 0.001, draftEnd)}
+							playing={previewPlaying && (!creative.reverse || reverseReady)}
+							timeSec={previewTime}
+							seekTimeSec={seekTime}
+							videoRef={cropVideoRef}
+						/>
+						{creative.reverse && !reverseReady && (
+							<div
+								style={{
+									position: "absolute",
+									inset: 0,
+									display: "grid",
+									placeItems: "center",
+									background: "#000b",
+									padding: 16,
+									textAlign: "center",
+								}}
+							>
+								{ts("creative.reverseNeeded")}
+							</div>
+						)}
+					</div>
+				)}
 				<div
 					className={styles.cropRegion}
+					hidden={showingEffects}
 					role="slider"
 					aria-label={ts("crop.title")}
 					aria-valuemin={0}
@@ -1179,6 +1312,7 @@ export function EditClipModal({
 						<button
 							type="button"
 							className={styles.btn}
+							disabled={showingEffects && creative.reverse && !reverseReady}
 							onClick={() => {
 								const video = cropVideoRef.current;
 								if (!video) return;
@@ -1306,6 +1440,17 @@ export function EditClipModal({
 				}}
 			>
 				<CreativeClipControls value={creative} onChange={setCreative} disabled={preparing} />
+				{creative.reverse && !reverseReady && (
+					<button
+						type="button"
+						className={`${styles.btn} ${styles.btnSecondary}`}
+						disabled={preparing}
+						onClick={() => void prepareReverse()}
+					>
+						{ts("creative.prepareReverse")}
+					</button>
+				)}
+
 				{preparing && <p role="status">{ts("creative.preparing")}</p>}
 				{creativeError && <p role="alert">{creativeError}</p>}
 				<ChoiceRow<AnnotationTextAnimation>

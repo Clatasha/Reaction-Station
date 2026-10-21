@@ -2562,7 +2562,7 @@ impl Compositor {
             return;
         }
         let visible = |a: &crate::scene::SceneAnnotation| {
-            t >= a.start_sec as f32 && t < a.end_sec as f32 && (a.kind == "blur") == privacy
+            t >= a.start_sec as f32 && t < a.end_sec as f32 && if a.creative_effect.is_some() { privacy && !g.screen_hidden } else { (a.kind == "blur") == privacy }
         };
         // Une seule recopie du render target pour TOUTES les annotations flou de la frame — leur
         // lecture doit voir l'image composée sans les flous eux-mêmes, sinon deux zones qui se
@@ -2666,7 +2666,7 @@ impl Compositor {
                     });
                 }
                 "image" => {
-                    let Some(frame_source) = annotation.frame_source(t) else { continue };
+                    let Some(frame_source) = annotation.frame_source(t, quad_px[0] / quad_px[1], g.s_radius / quad_px[0].min(quad_px[1]).max(1.0)) else { continue };
                     let src = &frame_source;
                     if src.is_empty() {
                         continue;
@@ -2679,7 +2679,7 @@ impl Compositor {
                     let key = annotation.id.clone();
                     let cached = {
                         let cache = self.ann_img_cache.borrow();
-                        cache.get(&key).filter(|(_, _, _, len)| annotation.video_path.is_none() && *len == src.len()).cloned()
+                        cache.get(&key).filter(|(_, _, _, len)| annotation.video_path.is_none() && annotation.creative_effect.is_none() && *len == src.len()).cloned()
                     };
                     let Some((srv, iw, ih, _)) = cached.or_else(|| {
                         match self.load_image_srv(src) {
@@ -2724,7 +2724,7 @@ impl Compositor {
                         // exactement ce qu'il faut ici, donc aucun shader de plus. `fx` est son
                         // rect de clip — plein cadre, pour ne rien découper.
                         mode: 7.0,
-                        color: [1.0, 1.0, 1.0, media_opacity],
+                        color: [1.0, 1.0, 1.0, media_opacity * if annotation.creative_effect.is_some() { g.media_opacity } else { 1.0 }],
                         fx: [0.0, 0.0, 1.0, 1.0],
                         ..Default::default()
                     });

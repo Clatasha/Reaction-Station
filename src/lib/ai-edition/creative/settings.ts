@@ -44,3 +44,22 @@ export function creativeClipPath(
 		? copy.path
 		: originalPath;
 }
+
+/** A reverse derivative contains no baked live effects and survives slider changes. */
+export function reusableReverseSource(
+	copy: CreativeSource | null | undefined,
+	path: string,
+	start: number,
+	end: number,
+): copy is CreativeSource {
+	return (
+		!!copy &&
+		copy.sourcePath === path &&
+		copy.startSec <= start &&
+		copy.endSec >= end &&
+		copy.settings.reverse &&
+		!copy.settings.flipHorizontal &&
+		!copy.settings.flipVertical &&
+		copy.settings.overlay === "none"
+	);
+}

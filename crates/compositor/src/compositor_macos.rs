@@ -1528,7 +1528,7 @@ impl Compositor {
         let Some(scene) = scene else { return Ok(()) };
         let (rw, rh) = (self.render_w as f32, self.render_h as f32);
         let visible = |a: &crate::scene::SceneAnnotation| {
-            t >= a.start_sec as f32 && t < a.end_sec as f32 && (a.kind == "blur") == privacy
+            t >= a.start_sec as f32 && t < a.end_sec as f32 && if a.creative_effect.is_some() { privacy && !g.screen_hidden } else { (a.kind == "blur") == privacy }
         };
         if !scene.annotations.iter().any(visible) {
             return Ok(());
@@ -1536,7 +1536,7 @@ impl Compositor {
         // UNE seule recopie pour toutes les annotations flou de la frame : leur lecture doit
         // voir l'image composée SANS les flous eux-mêmes, sinon deux zones qui se recouvrent
         // s'échantillonneraient l'une l'autre selon l'ordre de dessin.
-        if privacy {
+        if scene.annotations.iter().any(|a| visible(a) && a.kind == "blur") {
             self.snapshot_rt(cmd, true);
         }
 
@@ -1614,13 +1614,13 @@ impl Compositor {
                     });
                 }
                 "image" => {
-                    let Some(frame_source) = a.frame_source(t) else {
+                    let Some(frame_source) = a.frame_source(t, quad_px[0] / quad_px[1], g.s_radius / quad_px[0].min(quad_px[1]).max(1.0)) else {
                         continue;
                     };
                     let src = &frame_source;
                     let cached = {
                         let c = self.ann_img_cache.borrow();
-                        c.get(&a.id).filter(|(_, _, _, len)| a.video_path.is_none() && *len == src.len()).cloned()
+                        c.get(&a.id).filter(|(_, _, _, len)| a.video_path.is_none() && a.creative_effect.is_none() && *len == src.len()).cloned()
                     };
                     let Some((tex, iw, ih, _)) = cached.or_else(|| {
                         match self.load_image_texture(src) {
@@ -1658,7 +1658,7 @@ impl Compositor {
                         src: [0.0, 0.0, 1.0, 1.0],
                         quad_px: [fit_w * rw, fit_h * rh],
                         mode: 7.0,
-                        color: [1.0, 1.0, 1.0, media_opacity],
+                        color: [1.0, 1.0, 1.0, media_opacity * if a.creative_effect.is_some() { g.media_opacity } else { 1.0 }],
                         fx: [0.0, 0.0, 1.0, 1.0],
                         ..Default::default()
                     });
@@ -2483,12 +2483,12 @@ impl Compositor {
                 enc,
                 &LayerCB {
                     dst,
-                    src,
+                    src: g.creative_uv(src),
                     quad_px,
                     radius_px,
                     mode: 0.0,
                     color: [0.0, 0.0, 0.0, g.media_opacity],
-                    src_prev: [su0, sv0, su1, sv1],
+                    src_prev: g.creative_uv([su0, sv0, su1, sv1]),
                     dst_prev: g.s_dst_prev,
                     mb: [g.screen_pixel_taps([rw, rh]), g.mb_amount, top_lift, square_top],
                     ..Default::default()
@@ -2501,7 +2501,7 @@ impl Compositor {
                 quad,
                 s_px,
                 quad_center_px,
-                g.cut,
+                g.creative_uv(g.cut),
                 g.focus_plane,
                 g.s_radius,
                 top_lift,

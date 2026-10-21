@@ -4484,6 +4484,7 @@ export function registerIpcHandlers(
 		return result;
 	});
 	ipcMain.handle("cancel-creative-clip", () => creativeClips.cancel());
+	ipcMain.handle("creative-clip-progress", () => creativeClips.getProgress());
 
 	const previewProxies = new PreviewProxyService(
 		path.join(app.getPath("userData"), "preview-proxies"),

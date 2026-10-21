@@ -1,4 +1,4 @@
-import type { CreativeSource } from "../creative/settings";
+import type { CreativeSettings, CreativeSource } from "../creative/settings";
 import {
 	attachClipAudio,
 	duplicateLinkedClip,
@@ -1351,6 +1351,7 @@ export function useTimeline() {
 			cropRegion?: AxcutClipCropRegion | null,
 			mediaAnimation?: AxcutDocument["timeline"]["clips"][number]["mediaAnimation"],
 			creativeSource?: CreativeSource | null,
+			creativeSettings?: CreativeSettings,
 		) => {
 			const doc = useProjectStore.getState().document;
 			if (!doc) return;
@@ -1380,14 +1381,22 @@ export function useTimeline() {
 							},
 						};
 			await saveDocument(
-				creativeSource === undefined
+				creativeSource === undefined && creativeSettings === undefined
 					? animated
 					: {
 							...animated,
 							timeline: {
 								...animated.timeline,
 								clips: animated.timeline.clips.map((c) =>
-									c.id === clipId ? { ...c, creativeSource: creativeSource ?? undefined } : c,
+									c.id === clipId
+										? {
+												...c,
+												...(creativeSource !== undefined
+													? { creativeSource: creativeSource ?? undefined }
+													: {}),
+												...(creativeSettings ? { creativeSettings } : {}),
+											}
+										: c,
 								),
 							},
 						},

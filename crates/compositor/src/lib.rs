@@ -95,6 +95,7 @@ mod linux_frames;
 use linux_frames as cpu_frames;
 mod linux_decode;
 mod media_image;
+pub mod creative;
 
 // Moteur de composition + rastériseur de texte + pipeline : un fichier par plateforme.
 // Le pipeline est gardé séparé (pas de fusion comme live) parce que la ffmpeg-side

@@ -4,12 +4,14 @@
 //! toute la maths par-frame (géométrie du layout, easing du zoom, application des effets) ; ce module
 //! ne fait que le modèle de données + le parse. La conversion JS (camelCase) est gérée par serde.
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// Un clip de la timeline (fichiers screen+webcam + fenêtre source). = `CompositorClipInput` (TS).
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SceneClip {
+    #[serde(default)]
+    pub creative: Option<SceneCreative>,
     #[serde(default)]
     pub screen_hidden: bool,
     #[serde(default)]
@@ -23,6 +25,20 @@ pub struct SceneClip {
     /// Une source sans piste audio décodable garde sa durée via du silence natif.
     #[serde(default)]
     pub has_audio: bool,
+}
+
+/// Live source effects. Reverse is a prepared source; the other controls never encode video.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SceneCreative {
+    pub flip_horizontal: bool,
+    pub flip_vertical: bool,
+    pub overlay: String,
+    pub opacity: f32,
+    pub color: String,
+    pub speed: f32,
+    pub density: f32,
+    pub size: f32,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -360,9 +376,11 @@ pub enum WallpaperMotion {
 /// rect écran, alors qu'un sous-titre appartient au cadre que le spectateur voit et doit rester
 /// immobile quand le padding rétrécit l'image dessous (issue #396). La clé est absente pour les
 /// annotations, dont la charge utile ne bouge pas d'un octet.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SceneAnnotation {
+    #[serde(default)]
+    pub creative_effect: Option<SceneCreative>,
     #[serde(default)]
     pub id: String,
     /// Voir `SceneZoomRegion::clip_index`.
@@ -407,7 +425,8 @@ pub struct SceneAnnotation {
 }
 
 impl SceneAnnotation {
-    pub fn frame_source(&self, t: f32) -> Option<String> {
+    pub fn frame_source(&self, t: f32, aspect: f32, radius: f32) -> Option<String> {
+        if let Some(effect) = &self.creative_effect { return Some(crate::creative::source(effect, t - self.start_sec as f32, aspect, radius)); }
         if let Some(path) = &self.video_path {
             Some(crate::media_image::video_source(path, self.video_source_start_sec + t as f64 - self.start_sec))
         } else { self.image_path.clone().filter(|s| !s.is_empty()) }
@@ -816,7 +835,18 @@ pub struct Scene {
 impl Scene {
     /// Parse le JSON produit par `buildSceneDescription` (TS).
     pub fn from_json(json: &str) -> anyhow::Result<Scene> {
-        Ok(serde_json::from_str(json)?)
+        let mut scene: Scene = serde_json::from_str(json)?;
+        for (index, clip) in scene.clips.iter().enumerate() {
+            if let Some(effect) = clip.creative.as_ref().filter(|c| matches!(c.overlay.as_str(), "matrix" | "dots" | "particles")) {
+                scene.annotations.push(SceneAnnotation {
+                    id: format!("creative-overlay-{index}"), clip_index: Some(index),
+                    start_sec: clip.source_start_sec, end_sec: clip.source_end_sec,
+                    kind: "image".into(), w: 1.0, h: 1.0,
+                    creative_effect: Some(effect.clone()), ..Default::default()
+                });
+            }
+        }
+        Ok(scene)
     }
 
     /// Copie de scène limitée aux régions du clip actif. `clipIndex` est l'identité fiable
@@ -1132,6 +1162,20 @@ mod annotation_tests {
     /// Le rect écran arbitraire des tests d'ancrage : décalé ET rétréci, comme un
     /// écran que le padding a rentré dans le cadre.
     const PADDED_SCREEN: [f32; 4] = [0.1, 0.1, 0.8, 0.8];
+
+    #[test]
+    fn creative_effects_are_scoped_to_their_clip_and_source_pass() {
+        let json = r##"{"clips":[{"screenPath":"/s.mp4","webcamPath":"","sourceStartSec":2,"sourceEndSec":8,"webcamOffsetSec":0,"creative":{"flipHorizontal":true,"overlay":"dots","opacity":0.25,"color":"#67e8a5","speed":1,"size":1,"density":1}}],"layout":{"preset":"no-webcam","webcamSize":1,"webcamShape":"rectangle","webcamMirror":false,"webcamPosition":null,"webcamReactiveZoom":false},"effects":{"padding":0,"blur":false,"shadow":0,"roundnessFrac":0,"motionBlur":0},"background":{"kind":"color","color":"#000000"},"zoomRegions":[],"cursor":{"show":false,"size":1,"smoothing":0,"motionBlur":0,"clickBounce":0,"clipToBounds":false,"theme":"default"},"output":{"width":1920,"height":1080,"fps":30}}"##;
+        let scene = Scene::from_json(json).unwrap();
+        assert!(scene.clips[0].creative.as_ref().unwrap().flip_horizontal);
+        assert_eq!(scene.annotations.len(),1);
+        let effect = &scene.annotations[0];
+        assert_eq!(effect.clip_index,Some(0));
+        assert_eq!((effect.start_sec,effect.end_sec),(2.0,8.0));
+        assert!(effect.creative_effect.is_some());
+        assert!(!effect.in_frame_space());
+        assert_ne!(effect.frame_source(2.0,16.0/9.0,0.0),effect.frame_source(3.0,16.0/9.0,0.0));
+    }
 
     fn annotation_with_space(space: &str) -> SceneAnnotation {
         let json = scene_json(&format!(

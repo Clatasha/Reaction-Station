@@ -39,11 +39,17 @@ const PLATFORM = process.platform;
 // `compositorViewService`). Electron gives up on a send after 1 s without a receiver, so it is
 // registered here, at load, and forwards to whichever listener the page has set.
 type CompositorFrameListener = (frame: VideoFrame, meta: CompositorSharedFrameMeta) => void;
-let compositorFrameListener: CompositorFrameListener | null = null;
+const compositorFrameListeners = new Set<CompositorFrameListener>();
 sharedTexture?.setSharedTextureReceiver(async ({ importedSharedTexture }, meta) => {
 	const frame = importedSharedTexture.getVideoFrame();
 	try {
-		compositorFrameListener?.(frame, meta as CompositorSharedFrameMeta);
+		for (const listener of compositorFrameListeners) {
+			try {
+				listener(frame, meta as CompositorSharedFrameMeta);
+			} catch (error) {
+				console.warn("[compositor-frame] listener failed", error);
+			}
+		}
 	} finally {
 		// The page drew from its own copy (contextBridge clones the frame) and closed it. Closing
 		// ours and releasing the import is what lets the native ring write the slot again.
@@ -104,11 +110,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
 		return () => ipcRenderer.off("export:native-progress", handler);
 	},
 	onCompositorFrame: (listener: CompositorFrameListener) => {
-		compositorFrameListener = listener;
+		compositorFrameListeners.add(listener);
 		return () => {
-			if (compositorFrameListener === listener) {
-				compositorFrameListener = null;
-			}
+			compositorFrameListeners.delete(listener);
 		};
 	},
 	invokeNativeBridge: <TData>(request: NativeBridgeRequest) => {
@@ -405,6 +409,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
 	prepareCreativeClip: (request: import("./media/creativeClip").CreativeClipRequest) =>
 		ipcRenderer.invoke("prepare-creative-clip", request),
 	cancelCreativeClip: () => ipcRenderer.invoke("cancel-creative-clip"),
+	getCreativeClipProgress: () => ipcRenderer.invoke("creative-clip-progress"),
 	preparePreviewProxy: (filePath: string, durationSec: number) =>
 		ipcRenderer.invoke("preview-proxy", filePath, durationSec),
 	cancelPreviewProxies: () => ipcRenderer.invoke("cancel-preview-proxies"),
