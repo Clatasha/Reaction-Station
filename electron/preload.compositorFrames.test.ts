@@ -22,14 +22,23 @@ describe("shared frames for multiple preview views", () => {
 			input: { importedSharedTexture: { getVideoFrame: () => VideoFrame; release: () => void } },
 			meta: CompositorSharedFrameMeta,
 		) => Promise<void>;
-		const editor = vi.fn(),
-			dialog = vi.fn();
+		const editor = vi.fn((frame: VideoFrame) => frame.close()),
+			dialog = vi.fn((frame: VideoFrame) => frame.close());
 		const unsubscribeEditor = api.onCompositorFrame(editor);
 		const unsubscribeDialog = api.onCompositorFrame(dialog);
 		const close = vi.fn(),
 			release = vi.fn();
+		const copies: Array<{ close: ReturnType<typeof vi.fn> }> = [];
+		const clone = vi.fn(() => {
+			const copy = { close: vi.fn() };
+			copies.push(copy);
+			return copy;
+		});
 		const input = {
-			importedSharedTexture: { getVideoFrame: () => ({ close }) as unknown as VideoFrame, release },
+			importedSharedTexture: {
+				getVideoFrame: () => ({ close, clone }) as unknown as VideoFrame,
+				release,
+			},
 		};
 		const meta = {
 			viewId: 7,
@@ -42,6 +51,7 @@ describe("shared frames for multiple preview views", () => {
 		await receive(input, meta);
 		expect(editor).toHaveBeenCalledOnce();
 		expect(dialog).toHaveBeenCalledOnce();
+		expect(editor.mock.calls[0][0]).not.toBe(dialog.mock.calls[0][0]);
 		unsubscribeDialog();
 		await receive(input, meta);
 		expect(editor).toHaveBeenCalledTimes(2);

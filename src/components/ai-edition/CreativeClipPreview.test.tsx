@@ -6,6 +6,7 @@ import { DEFAULT_CREATIVE_SETTINGS } from "@/lib/ai-edition/creative/settings";
 import { CreativeClipPreview } from "./CreativeClipPreview";
 
 const mocks = vi.hoisted(() => ({
+	setActiveClip: vi.fn(async () => ({ ok: true })),
 	setCompositorScene: vi.fn(async (_id: number, _scene: string) => ({ ok: true })),
 	setCompositorTime: vi.fn(async () => ({ ok: true })),
 	setCompositorPlaying: vi.fn(async () => ({ ok: true })),
@@ -18,6 +19,7 @@ vi.mock("@/native/hooks/useNativeCompositorView", () => ({
 	useNativeCompositorView: mocks.useNativeCompositorView,
 }));
 vi.mock("@/native/compositorViewClient", () => ({
+	setActiveClip: mocks.setActiveClip,
 	setCompositorScene: mocks.setCompositorScene,
 	setCompositorTime: mocks.setCompositorTime,
 	setCompositorPlaying: mocks.setCompositorPlaying,
@@ -46,7 +48,10 @@ it("composes unsaved effect changes on an isolated native view without seeking a
 			<CreativeClipPreview {...base} />
 		</I18nProvider>,
 	);
-	await waitFor(() => expect(mocks.setCompositorScene).toHaveBeenCalled());
+	await waitFor(() =>
+		expect(mocks.setActiveClip).toHaveBeenCalledWith(7, "/source.mp4", "", 0, 0, 3),
+	);
+	expect(mocks.setCompositorPlaying).toHaveBeenCalledWith(7, false);
 	expect(mocks.useNativeCompositorView.mock.calls[0]?.[1]).toMatchObject({
 		isolated: true,
 		sources: { screenPath: "/source.mp4" },

@@ -626,3 +626,20 @@ it("isolates a clip dialog from the editor's status and playback position", asyn
 	unmount();
 	expect(usePreviewPlayback.getState().nativeStatus).toBe("ready");
 });
+
+it("uses read-back for an isolated dialog without changing the editor status", async () => {
+	mocks.createCompositorView.mockResolvedValue({ id: 19 });
+	mocks.readCompositorFrame.mockResolvedValue(null);
+	usePreviewPlayback.setState({ nativeStatus: "ready" });
+	const ref = stubCanvasRef();
+	const { result, unmount } = renderHook(() =>
+		useNativeCompositorView(ref, {
+			isolated: true,
+			sources: { screenPath: "/recording.webm" },
+		}),
+	);
+	await waitFor(() => expect(result.current.viewId).toBe(19));
+	expect(mocks.stopSharedCompositorFrames).toHaveBeenCalledWith(19);
+	expect(usePreviewPlayback.getState().nativeStatus).toBe("ready");
+	unmount();
+});

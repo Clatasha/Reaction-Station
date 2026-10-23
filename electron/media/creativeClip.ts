@@ -39,7 +39,7 @@ export class CreativeClipService {
 			const child = spawn(
 				ffmpeg,
 				["-nostdin", "-hide_banner", "-loglevel", "error", "-y", ...args],
-				{ stdio: ["ignore", "ignore", "pipe"] },
+				{ windowsHide: true, stdio: ["ignore", "ignore", "pipe"] },
 			);
 			this.child = child;
 			let stderr = "";

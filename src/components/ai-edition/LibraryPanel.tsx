@@ -80,7 +80,7 @@ export function LibraryPanel({
 			}
 		} catch (error) {
 			console.error("[library] Import failed:", error);
-			toast.error(error instanceof Error ? error.message : String(error));
+			toast.error(t("library.unreadable"));
 		} finally {
 			setBusy(false);
 			relinkId.current = undefined;
@@ -110,7 +110,7 @@ export function LibraryPanel({
 			else if (!result.canceled) throw new Error(result.message || t("library.unreadable"));
 		} catch (error) {
 			console.error("[library] Import failed:", error);
-			toast.error(error instanceof Error ? error.message : String(error));
+			toast.error(t("library.unreadable"));
 		} finally {
 			choosingRef.current = false;
 			setBusy(false);
@@ -146,6 +146,7 @@ export function LibraryPanel({
 			onDrop={(event) => {
 				if (event.dataTransfer.files.length) {
 					event.preventDefault();
+					event.stopPropagation();
 					void importFiles(Array.from(event.dataTransfer.files));
 				}
 			}}

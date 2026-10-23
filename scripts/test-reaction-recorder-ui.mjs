@@ -383,6 +383,29 @@ try {
 		)
 		.toBe(100);
 	await editor.screenshot({ path: path.join(output, "audio-ducking.png") });
+	await editor.locator("[data-clip-id]").first().click({ button: "right" });
+	await editor.getByRole("menuitem", { name: "Edit clip", exact: true }).click();
+	const clipDialog = editor.getByRole("dialog", { name: "Edit clip", exact: true });
+	const effectsCanvas = clipDialog.getByTestId("clip-effects-preview");
+	await expect(effectsCanvas).toHaveAttribute("data-painted", "true", { timeout: 60_000 });
+	const pixels = () =>
+		effectsCanvas.evaluate((canvas) => {
+			const { width, height } = canvas;
+			const data = canvas.getContext("2d").getImageData(0, 0, width, height).data;
+			let lit = 0,
+				sum = 0;
+			for (let i = 0; i < data.length; i += 4) {
+				if (data[i] + data[i + 1] + data[i + 2] > 30) lit++;
+				sum += data[i] + data[i + 1] + data[i + 2];
+			}
+			return { lit: lit / (width * height), sum };
+		});
+	await expect.poll(async () => (await pixels()).lit).toBeGreaterThan(0.5);
+	const plain = (await pixels()).sum;
+	await clipDialog.getByRole("combobox").last().selectOption("dots");
+	await expect.poll(async () => (await pixels()).sum).not.toBe(plain);
+	await editor.screenshot({ path: path.join(output, "live-clip-effects-preview.png") });
+	await clipDialog.getByRole("button", { name: "Cancel", exact: true }).click();
 	const stickerPath = path.join(recordings, "reaction-sticker-smoke.png");
 	await fs.writeFile(
 		stickerPath,
@@ -391,6 +414,27 @@ try {
 			"base64",
 		),
 	);
+	const mediaImagePath = path.join(recordings, "reaction-media-image.png");
+	await fs.copyFile(stickerPath, mediaImagePath);
+	await editor.getByRole("tab", { name: "Media", exact: true }).first().click();
+	await application.evaluate(({ dialog }, selected) => {
+		const original = dialog.showOpenDialog;
+		dialog.showOpenDialog = async () => {
+			dialog.showOpenDialog = original;
+			return { canceled: false, filePaths: [selected] };
+		};
+	}, mediaImagePath);
+	await editor.getByRole("button", { name: "Import media", exact: true }).click();
+	await expect
+		.poll(
+			async () =>
+				(await getImportedDocument()).assets.some(
+					(asset) => asset.stillImagePath === mediaImagePath,
+				),
+			{ timeout: 60_000 },
+		)
+		.toBe(true);
+	await editor.getByRole("tab", { name: "Edit", exact: true }).click();
 	await editor.getByRole("tab", { name: "Stickers", exact: true }).click();
 	await application.evaluate(({ dialog }, filePath) => {
 		const original = dialog.showOpenDialog;

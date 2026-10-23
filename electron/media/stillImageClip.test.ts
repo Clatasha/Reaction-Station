@@ -46,6 +46,32 @@ it.skipIf(!encoderAvailable)(
 		expect(Number(probe.format.duration)).toBeCloseTo(5, 2);
 		expect(await ensureStillImageClip(image, path.join(dir, "cache"))).toBe(output);
 		expect(await fs.readdir(path.join(dir, "cache"))).toHaveLength(1);
+		// Camera photos and odd-sized screenshots must not encode 150 full-size frames.
+		const photo = path.join(dir, "large odd photograph.png");
+		execFileSync("/usr/bin/ffmpeg", [
+			"-v",
+			"error",
+			"-f",
+			"lavfi",
+			"-i",
+			"testsrc=size=4001x3001",
+			"-frames:v",
+			"1",
+			"-threads",
+			"1",
+			photo,
+		]);
+		const photoClip = await ensureStillImageClip(photo, path.join(dir, "cache"));
+		const photoProbe = JSON.parse(
+			execFileSync(
+				"/usr/bin/ffprobe",
+				["-v", "error", "-show_streams", "-show_format", "-of", "json", photoClip],
+				{ encoding: "utf8" },
+			),
+		);
+		expect(photoProbe.streams[0].width).toBeLessThanOrEqual(1920);
+		expect(photoProbe.streams[0].height).toBeLessThanOrEqual(1920);
+		expect(Number(photoProbe.format.duration)).toBeCloseTo(5, 2);
 		const gif = path.join(dir, "sticker.gif");
 		execFileSync("/usr/bin/ffmpeg", [
 			"-v",

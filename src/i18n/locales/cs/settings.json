@@ -494,7 +494,8 @@
 		"livePreview": "Effects preview",
 		"cropPreview": "Crop & trim",
 		"prepareReverse": "Prepare reverse preview",
-		"reverseNeeded": "Prepare reverse preview to see and apply the reversed footage. Mirroring and overlays preview instantly."
+		"reverseNeeded": "Prepare reverse preview to see and apply the reversed footage. Mirroring and overlays preview instantly.",
+		"previewFailed": "Could not display the effects preview. Try reopening Edit Clip."
 	},
 	"shorts": {
 		"preset": "YouTube Shorts · 9:16",

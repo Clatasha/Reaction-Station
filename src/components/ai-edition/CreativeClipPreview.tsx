@@ -4,6 +4,7 @@ import { useScopedT } from "@/contexts/I18nContext";
 import type { CreativeSettings } from "@/lib/ai-edition/creative/settings";
 import { createEmptyDocument } from "@/lib/ai-edition/schema";
 import {
+	setActiveClip,
 	setCompositorPlaying,
 	setCompositorScene,
 	setCompositorTime,
@@ -22,7 +23,7 @@ export function CreativeClipPreview({
 	playing,
 	timeSec,
 	seekTimeSec,
-	videoRef,
+	videoRef: _videoRef,
 }: {
 	path: string;
 	settings: CreativeSettings;
@@ -42,6 +43,7 @@ export function CreativeClipPreview({
 		isolated: true,
 	});
 	const [pushError, setPushError] = useState("");
+	const [initialized, setInitialized] = useState<number | null>(null);
 	const time = useRef(timeSec);
 	time.current = timeSec;
 	const isPlaying = useRef(playing);
@@ -89,9 +91,41 @@ export function CreativeClipPreview({
 		scene.cursor.show = false;
 		return JSON.stringify(scene);
 	}, [path, settings, crop, aspect, startSec, endSec]);
-	// A slider change re-composes the current frame; no encoder or document save is involved.
+	// Initialize scene, source selection and transport in order. A fresh native
+	// view defaults to playing; independent effects used to race the first seek.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: scene/trim changes are handled below without reopening the source.
 	useEffect(() => {
 		if (viewId === null) return;
+		let disposed = false;
+		setInitialized(null);
+		setPushError("");
+		void (async () => {
+			try {
+				await setCompositorPlaying(viewId, false);
+				if (disposed) return;
+				await setCompositorScene(viewId, sceneJson);
+				if (disposed) return;
+				await setActiveClip(
+					viewId,
+					path,
+					"",
+					0,
+					0,
+					Math.max(startSec, Math.min(endSec - 0.001, time.current)),
+				);
+				if (!disposed) setInitialized(viewId);
+			} catch (cause) {
+				console.error("[clip-preview] Initialization failed:", cause);
+				if (!disposed) setPushError(t("creative.previewFailed"));
+			}
+		})();
+		return () => {
+			disposed = true;
+		};
+		// Scene changes are applied separately so sliders never reopen the decoder.
+	}, [viewId, path]);
+	useEffect(() => {
+		if (viewId === null || initialized !== viewId) return;
 		let disposed = false;
 		void setCompositorScene(viewId, sceneJson)
 			.then(() =>
@@ -100,31 +134,30 @@ export function CreativeClipPreview({
 					: setCompositorTime(viewId, Math.max(startSec, Math.min(endSec - 0.001, time.current))),
 			)
 			.catch((cause: unknown) => {
-				if (!disposed) setPushError(String(cause));
+				console.error("[clip-preview] Scene update failed:", cause);
+				if (!disposed) setPushError(t("creative.previewFailed"));
 			});
 		return () => {
 			disposed = true;
 		};
-	}, [viewId, sceneJson, startSec, endSec]);
+	}, [viewId, initialized, sceneJson, startSec, endSec, t]);
 	useEffect(() => {
-		if (viewId === null) return;
-		void setCompositorTime(
-			viewId,
-			Math.max(
-				startSec,
-				Math.min(end.current - 0.001, videoRef.current?.currentTime ?? time.current),
-			),
-		)
-			.then(() => setCompositorPlaying(viewId, playing))
-			.catch((cause: unknown) => setPushError(String(cause)));
-	}, [viewId, playing, videoRef, startSec]);
+		if (viewId === null || initialized !== viewId) return;
+		let disposed = false;
+		void setCompositorTime(viewId, Math.max(startSec, Math.min(end.current - 0.001, seekTimeSec)))
+			.then(() => (disposed ? undefined : setCompositorPlaying(viewId, playing)))
+			.catch((cause: unknown) => {
+				console.error("[clip-preview] Transport failed:", cause);
+				if (!disposed) setPushError(t("creative.previewFailed"));
+			});
+		return () => {
+			disposed = true;
+			void setCompositorPlaying(viewId, false).catch(() => undefined);
+		};
+	}, [viewId, initialized, playing, seekTimeSec, startSec, t]);
 	useEffect(() => {
-		if (viewId !== null)
-			void setCompositorTime(
-				viewId,
-				Math.max(startSec, Math.min(end.current - 0.001, seekTimeSec)),
-			).catch((cause: unknown) => setPushError(String(cause)));
-	}, [viewId, seekTimeSec, startSec]);
+		if (error) console.error("[clip-preview] Render failed:", error);
+	}, [error]);
 	const outputAspect = (aspect * crop.width) / crop.height;
 	return (
 		<div
@@ -139,6 +172,7 @@ export function CreativeClipPreview({
 		>
 			<canvas
 				ref={canvas}
+				data-testid="clip-effects-preview"
 				aria-label={t("creative.livePreview")}
 				style={{
 					width: outputAspect >= aspect ? "100%" : "auto",
@@ -150,7 +184,7 @@ export function CreativeClipPreview({
 			/>
 			{error || pushError ? (
 				<p role="alert" style={{ position: "absolute", padding: 12 }}>
-					{error || pushError}
+					{t("creative.previewFailed")}
 				</p>
 			) : null}
 		</div>

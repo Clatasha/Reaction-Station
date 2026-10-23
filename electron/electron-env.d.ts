@@ -38,7 +38,7 @@ interface Window {
 		 *  the OLD web/CPU pipeline's per-frame ack, not a progress signal. */
 		onNativeExportProgress?: (callback: (frames: number, exportId?: string) => void) => () => void;
 		/** Preview frames the main process hands over as shared GPU textures (Windows). The
-		 *  listener draws `frame` and closes it; one listener at a time. Returns the
+		 *  listener owns its frame copy and closes it. Multiple views may subscribe. Returns the
 		 *  unsubscribe. Optional: shim/web contexts have no bridge. */
 		onCompositorFrame?: (
 			listener: (

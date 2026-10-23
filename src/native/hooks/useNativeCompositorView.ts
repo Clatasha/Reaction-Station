@@ -138,6 +138,7 @@ export function useNativeCompositorView(
 	const viewIdRef = useRef<number | null>(null);
 	viewIdRef.current = view?.id ?? null;
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: source identity is keyed by screenPath, not the caller's object literal.
 	useEffect(() => {
 		if (!enabled) {
 			return;
@@ -421,9 +422,25 @@ export function useNativeCompositorView(
 		setBufferSize(initialRect.width, initialRect.height);
 
 		safelyCall("createView", async () => {
-			const result = await createCompositorView(initialRect, opts.sources);
+			let result;
+			try {
+				result = await createCompositorView(initialRect, opts.sources);
+			} catch (cause) {
+				if (!disposed && typeof window.electronAPI?.invokeNativeBridge === "function") {
+					setError(cause instanceof Error ? cause.message : String(cause));
+					publishStatus({ nativeStatus: "error" });
+				}
+				return;
+			}
 			if (disposed) {
 				// The element unmounted before the response came back; clean up.
+				safelyCall("destroyView (late)", () => destroyCompositorView(result.id));
+				return;
+			}
+			// Dialog previews coexist with the editor. Read-back avoids a second
+			// shared-texture consumer competing with the main preview on Windows.
+			if (isolated && result.id >= 0) await stopSharedCompositorFrames(result.id);
+			if (disposed) {
 				safelyCall("destroyView (late)", () => destroyCompositorView(result.id));
 				return;
 			}

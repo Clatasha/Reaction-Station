@@ -4258,6 +4258,7 @@ export function registerIpcHandlers(
 						!(await fs.stat(filePath)).isFile()
 					)
 						throw new Error("Unsupported media file");
+					approveFilePath(filePath);
 					files.push({ path: filePath, name: path.basename(filePath) });
 				}
 				return { success: true, files };

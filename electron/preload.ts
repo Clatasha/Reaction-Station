@@ -44,10 +44,15 @@ sharedTexture?.setSharedTextureReceiver(async ({ importedSharedTexture }, meta) 
 	const frame = importedSharedTexture.getVideoFrame();
 	try {
 		for (const listener of compositorFrameListeners) {
+			// Each preview owns its frame. One view can reject/close a frame for
+			// another view without invalidating the next subscriber's copy.
+			const copy = frame.clone();
 			try {
-				listener(frame, meta as CompositorSharedFrameMeta);
+				listener(copy, meta as CompositorSharedFrameMeta);
 			} catch (error) {
 				console.warn("[compositor-frame] listener failed", error);
+			} finally {
+				copy.close();
 			}
 		}
 	} finally {

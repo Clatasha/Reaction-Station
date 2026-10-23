@@ -1,5 +1,5 @@
-import { ArrowDown, Film, Plus, RotateCw, Search, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { ArrowDown, Plus, RotateCw, Search, X } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Tooltip } from "@/components/ui/tooltip";
 import { useI18n, useScopedT } from "@/contexts/I18nContext";
@@ -10,6 +10,7 @@ import {
 	useTranscriptionStore,
 } from "@/lib/ai-edition/store/transcriptionStore";
 import { formatSeconds } from "@/lib/ai-edition/timeline/format";
+import { droppedMediaKind } from "@/lib/ai-edition/timeline/mediaDrop";
 import {
 	languageLabel,
 	sortedLanguageOptions,
@@ -22,6 +23,7 @@ import {
 	transcriptionFailureHintKey,
 } from "@/lib/ai-edition/transcription/status";
 import { formatBytes } from "@/utils/formatBytes";
+import { MediaThumbnail } from "../MediaThumbnail";
 import {
 	TranscriptionProgressBar,
 	TranscriptionStatusDot,
@@ -68,6 +70,7 @@ export function MediaStage({
 	const projectId = useProjectStore((s) => s.projectId);
 	const document = useProjectStore((s) => s.document);
 	const addAsset = useProjectStore((s) => s.addAsset);
+	const importing = useRef(false);
 	// Transcripts are produced in the background as soon as a media lands here
 	// (see transcriptionStore) — this stage only reports where each one is at,
 	// and lets the user force a re-run in another language.
@@ -84,10 +87,8 @@ export function MediaStage({
 		[locale, t],
 	);
 
-	// Video only — this stage arranges clips. Imported audio (issue #350) is a
-	// timeline overlay added from the timeline toolbar, not a clip, so it never
-	// appears in this list.
-	const assets = (document?.assets ?? []).filter((a) => a.kind !== "audio");
+	// The Media tab and Library accept the same reusable media assets.
+	const assets = (document?.assets ?? []).filter((a) => !a.libraryHidden);
 	const filtered = useMemo(
 		() =>
 			assets.filter((a) => {
@@ -110,25 +111,39 @@ export function MediaStage({
 		? transcriptionFailureHintKey(selectedTranscription.failure)
 		: null;
 
-	const handleImport = async () => {
+	const importPaths = async (files: Array<{ path: string; name: string }>) => {
+		if (importing.current) return;
 		if (!projectId) {
 			toast.error(t("mediaStage.openProjectFirst"));
 			return;
 		}
-		const picker = await window.electronAPI?.openVideoFilePicker();
-		if (!picker?.success || !picker.path) return;
+		importing.current = true;
 		setBusy(true);
 		try {
-			const label = picker.name || basename(picker.path);
-			await addAsset(picker.path, label);
-			toast.success(t("mediaStage.added", { label }));
+			for (const file of files) {
+				if (useProjectStore.getState().projectId !== projectId) return;
+				const kind = droppedMediaKind(file.name);
+				if (!kind) throw new Error(t("library.unsupported"));
+				if (!file.path) throw new Error(t("library.unreadable"));
+				const asset =
+					kind === "audio"
+						? await useProjectStore.getState().addAudioAsset(file.path, file.name)
+						: await addAsset(file.path, file.name);
+				if (asset) toast.success(t("mediaStage.added", { label: file.name }));
+			}
 		} catch (err) {
+			console.error("[media] Import failed:", err);
 			toast.error(t("mediaStage.couldNotAddAsset"), {
-				description: err instanceof Error ? err.message : String(err),
+				description: t("library.unreadable"),
 			});
 		} finally {
+			importing.current = false;
 			setBusy(false);
 		}
+	};
+	const handleImport = async () => {
+		const picker = await window.electronAPI?.openLibraryFilePicker(false, true);
+		if (picker?.success && picker.files) await importPaths(picker.files);
 	};
 
 	const openDetail = (asset: AxcutAsset) => {
@@ -143,7 +158,26 @@ export function MediaStage({
 	};
 
 	return (
-		<div className={styles.mediaStage}>
+		<div
+			className={styles.mediaStage}
+			onDragOver={(event) => {
+				if (event.dataTransfer.types.includes("Files")) {
+					event.preventDefault();
+					event.dataTransfer.dropEffect = "copy";
+				}
+			}}
+			onDrop={(event) => {
+				if (!event.dataTransfer.files.length) return;
+				event.preventDefault();
+				event.stopPropagation();
+				void importPaths(
+					Array.from(event.dataTransfer.files).map((file) => ({
+						name: file.name,
+						path: window.electronAPI.getPathForFile(file),
+					})),
+				);
+			}}
+		>
 			<div className={styles.mediaInner} style={{ maxWidth: detailOpen ? 1120 : 900 }}>
 				<div className={styles.mediaSearchRow}>
 					<Search size={16} style={{ color: "var(--muted)", flexShrink: 0 }} />
@@ -174,6 +208,7 @@ export function MediaStage({
 										}`}
 										title={asset.originalPath}
 										onDragStart={(e) => {
+											e.dataTransfer.clearData();
 											e.dataTransfer.setData(ASSET_MIME, asset.id);
 											e.dataTransfer.effectAllowed = "copy";
 										}}
@@ -183,7 +218,7 @@ export function MediaStage({
 											className={styles.mediaThumb}
 											style={{ background: THUMB_GRADIENTS[i % THUMB_GRADIENTS.length] }}
 										>
-											<Film size={30} strokeWidth={1.8} />
+											<MediaThumbnail asset={asset} />
 										</div>
 										<div className={styles.mediaCardMeta}>
 											{asset.id === selectedId ? (

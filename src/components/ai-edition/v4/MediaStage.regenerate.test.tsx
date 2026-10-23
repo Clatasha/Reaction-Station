@@ -4,7 +4,7 @@
 // disabled button takes neither, which is what `aria-disabled` is for.
 
 import "@testing-library/jest-dom";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const transcription = vi.hoisted(() => ({
@@ -103,5 +103,53 @@ describe("MediaStage Regenerate button", () => {
 
 		fireEvent.click(regenerate);
 		expect(transcription.request).not.toHaveBeenCalled();
+	});
+});
+
+describe("MediaStage imports", () => {
+	it("uses the all-media picker and imports an image and audio in order", async () => {
+		const addAsset = vi.fn(async () =>
+			assetSchema.parse({ id: "image", label: "photo.png", originalPath: "/photo.png" }),
+		);
+		const addAudioAsset = vi.fn(async () =>
+			assetSchema.parse({
+				id: "audio",
+				kind: "audio",
+				label: "voice.wav",
+				originalPath: "/voice.wav",
+			}),
+		);
+		useProjectStore.setState({ addAsset, addAudioAsset });
+		const openLibraryFilePicker = vi.fn(async () => ({
+			success: true,
+			files: [
+				{ name: "photo.png", path: "/photo.png" },
+				{ name: "voice.wav", path: "/voice.wav" },
+			],
+		}));
+		Object.defineProperty(window, "electronAPI", {
+			configurable: true,
+			value: { openLibraryFilePicker },
+		});
+		render(<MediaStage onAddToTimeline={vi.fn(async () => undefined)} />);
+		fireEvent.click(screen.getByRole("button", { name: "mediaStage.importMedia" }));
+		await waitFor(() => expect(addAudioAsset).toHaveBeenCalledWith("/voice.wav", "voice.wav"));
+		expect(openLibraryFilePicker).toHaveBeenCalledWith(false, true);
+		expect(addAsset).toHaveBeenCalledWith("/photo.png", "photo.png");
+	});
+	it("accepts an external image drop in the Media tab", async () => {
+		const addAsset = vi.fn(async () =>
+			assetSchema.parse({ id: "image", label: "photo.png", originalPath: "/photo.png" }),
+		);
+		useProjectStore.setState({ addAsset });
+		Object.defineProperty(window, "electronAPI", {
+			configurable: true,
+			value: { getPathForFile: () => "/photo.png" },
+		});
+		const { container } = render(<MediaStage onAddToTimeline={vi.fn(async () => undefined)} />);
+		fireEvent.drop(container.firstChild!, {
+			dataTransfer: { files: [new File(["image"], "photo.png", { type: "image/png" })] },
+		});
+		await waitFor(() => expect(addAsset).toHaveBeenCalledWith("/photo.png", "photo.png"));
 	});
 });

@@ -646,7 +646,7 @@ export function NewEditorShell() {
 				return tl.insertClipAt(assetId, at, audioAssetId);
 			}).catch((error) => {
 				toast.error(te("mediaStage.couldNotAddAsset"), {
-					description: error instanceof Error ? error.message : String(error),
+					description: te("library.unreadable"),
 				});
 				throw error;
 			}),
@@ -680,8 +680,9 @@ export function NewEditorShell() {
 					);
 					if (placement === "sequence" && kind !== "audio") nextTime += asset.durationSec ?? 60;
 				} catch (error) {
+					console.error("[timeline] Media drop failed:", error);
 					toast.error(te("mediaStage.couldNotAddAsset"), {
-						description: error instanceof Error ? error.message : String(error),
+						description: te("library.unreadable"),
 					});
 				}
 			}
